@@ -44,7 +44,10 @@ namespace EdgeLink
         public async Task ConnectAsync(CancellationToken cancellationToken = default)
         {
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkClient));
-            cts.Cancel();
+            // 舊 cts 必須 Cancel + Dispose，否則每次 ConnectAsync 都 leak 一個
+            var oldCts = cts;
+            try { oldCts.Cancel(); } catch { }
+            try { oldCts.Dispose(); } catch { }
             cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await ConnectCoreAsync(cts.Token);
             _ = Task.Run(() => ReadLoopAsync(cts.Token), cts.Token);
@@ -52,7 +55,10 @@ namespace EdgeLink
 
         private async Task ConnectCoreAsync(CancellationToken ct)
         {
-            tcpClient?.Dispose();
+            // 重連時舊 stream 顯式釋放，不要靠 TcpClient.Dispose 帶
+            try { stream?.Dispose(); } catch { }
+            stream = null;
+            try { tcpClient?.Dispose(); } catch { }
             tcpClient = new TcpClient { NoDelay = true };
             await tcpClient.ConnectAsync(Host, Port);
             stream = tcpClient.GetStream();
@@ -168,8 +174,10 @@ namespace EdgeLink
 
         public void Disconnect()
         {
-            cts.Cancel();
-            tcpClient?.Dispose();
+            try { cts.Cancel(); } catch { }
+            try { stream?.Dispose(); } catch { }
+            stream = null;
+            try { tcpClient?.Dispose(); } catch { }
             tcpClient = null;
         }
 
@@ -178,7 +186,7 @@ namespace EdgeLink
             if (disposed) return;
             disposed = true;
             Disconnect();
-            cts.Dispose();
+            try { cts.Dispose(); } catch { }
         }
     }
 }

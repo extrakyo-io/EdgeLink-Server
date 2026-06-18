@@ -87,6 +87,7 @@ namespace EdgeLink
         private readonly HashSet<string>            _timedOut     = new HashSet<string>();
         private readonly ConcurrentQueue<(bool, string, string)> _deviceStatusQ
             = new ConcurrentQueue<(bool, string, string)>();
+        private bool _disposed;
 
         // ── 啟動 ────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ namespace EdgeLink
         /// <summary>每幀呼叫 — pump 訊息 queue 並檢查 timeout。</summary>
         public void Tick()
         {
+            if (_disposed) return;
             if (_tcp         != null) while (_tcp.TryDequeue(out var m))         Handle(m);
             if (_tcpListener != null) while (_tcpListener.TryDequeue(out var m)) Handle(m);
             if (_udp         != null) while (_udp.TryDequeue(out var m))         Handle(m);
@@ -122,12 +124,11 @@ namespace EdgeLink
 
         public void Dispose()
         {
-            _tcp?.Dispose();
-            _tcpListener?.Dispose();
-            _udp?.Dispose();
-            _tcp = null;
-            _tcpListener = null;
-            _udp = null;
+            if (_disposed) return;
+            _disposed = true;
+            try { _tcp?.Dispose(); }         catch { } _tcp = null;
+            try { _tcpListener?.Dispose(); } catch { } _tcpListener = null;
+            try { _udp?.Dispose(); }         catch { } _udp = null;
         }
 
         // ── Mask 拉取 ──────────────────────────────────────

@@ -31,6 +31,11 @@ namespace EdgeLink
         public void Start()
         {
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpClient));
+            // 重 Start 時舊 cts/udp 都要先釋放，否則 leak
+            try { cts.Cancel(); } catch { }
+            try { cts.Dispose(); } catch { }
+            try { udp?.Close(); } catch { }
+            try { udp?.Dispose(); } catch { }
             cts = new CancellationTokenSource();
             udp = new UdpClient(LocalPort);
             _ = Task.Run(() => ReceiveLoopAsync(cts.Token), cts.Token);

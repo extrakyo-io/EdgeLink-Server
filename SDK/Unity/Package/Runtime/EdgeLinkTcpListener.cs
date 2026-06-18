@@ -24,6 +24,9 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+        // 追蹤所有 Accept 進來的 client，Stop/Dispose 要強制關掉，否則 socket 漏到 OS。
+        private readonly ConcurrentDictionary<TcpClient, byte> _accepted
+            = new ConcurrentDictionary<TcpClient, byte>();
         private bool disposed;
 
         public EdgeLinkTcpListener(int localPort)
@@ -36,6 +39,8 @@ namespace EdgeLink
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkTcpListener));
             if (IsRunning) return;
             IsRunning = true;
+            // 舊 CTS 不再 leak — Stop() 應已 cancel + dispose 它，這裡再保險換新
+            try { cts.Dispose(); } catch { }
             cts      = new CancellationTokenSource();
             listener = new TcpListener(IPAddress.Any, LocalPort);
             listener.Start();
@@ -49,9 +54,11 @@ namespace EdgeLink
                 try
                 {
                     var client = await listener!.AcceptTcpClientAsync();
+                    _accepted.TryAdd(client, 0);
                     _ = Task.Run(() => ReadLoopAsync(client, ct), ct);
                 }
                 catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException)    { return; }   // listener 已 Stop()
                 catch (Exception ex) { OnError?.Invoke(ex); }
             }
         }
@@ -59,9 +66,12 @@ namespace EdgeLink
         private async Task ReadLoopAsync(TcpClient client, CancellationToken ct)
         {
             OnConnected?.Invoke();
-            var networkStream = client.GetStream();
-            var buf           = new byte[4096];
-            var lineBuf       = new StringBuilder();
+            NetworkStream? networkStream = null;
+            try { networkStream = client.GetStream(); }
+            catch { _accepted.TryRemove(client, out _); try { client.Dispose(); } catch { } OnDisconnected?.Invoke(); return; }
+
+            var buf     = new byte[4096];
+            var lineBuf = new StringBuilder();
 
             try
             {
@@ -82,10 +92,13 @@ namespace EdgeLink
                 }
             }
             catch (OperationCanceledException) { }
+            catch (ObjectDisposedException)    { }   // Stop() 主動關掉
             catch (Exception ex) { OnError?.Invoke(ex); }
             finally
             {
-                client.Dispose();
+                _accepted.TryRemove(client, out _);
+                try { networkStream?.Dispose(); } catch { }
+                try { client.Dispose(); } catch { }
                 OnDisconnected?.Invoke();
             }
         }
@@ -133,9 +146,19 @@ namespace EdgeLink
 
         public void Stop()
         {
-            cts.Cancel();
-            listener?.Stop();
+            if (!IsRunning) return;
             IsRunning = false;
+            try { cts.Cancel(); } catch { }
+            try { listener?.Stop(); } catch { }
+            listener = null;
+
+            // 主動關掉所有未斷的 client，避免 socket 殘留到 OS 端
+            foreach (var kv in _accepted)
+            {
+                try { kv.Key.Close(); } catch { }
+                try { kv.Key.Dispose(); } catch { }
+            }
+            _accepted.Clear();
         }
 
         public void Dispose()
@@ -143,7 +166,7 @@ namespace EdgeLink
             if (disposed) return;
             disposed = true;
             Stop();
-            cts.Dispose();
+            try { cts.Dispose(); } catch { }
         }
     }
 }
