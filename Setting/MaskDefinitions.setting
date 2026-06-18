@@ -1,0 +1,15 @@
+{
+    "definitions": [
+        {
+            "maskId": "OriginalData",
+            "localizationKey": "OriginalData",
+            "description": "原始資料直接轉發",
+            "fieldDelimiter": "",
+            "kvSeparator": "",
+            "outputTemplate": "{raw}",
+            "sampleData": "",
+            "routeMode": "",
+            "correlationIdField": ""
+        }
+    ]
+}

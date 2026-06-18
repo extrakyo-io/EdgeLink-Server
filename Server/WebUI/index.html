@@ -1,0 +1,2666 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Server</title>
+  <style>
+    :root {
+      --pri:        #4f46e5;
+      --pri-hover:  #4338ca;
+      --pri-light:  #eef2ff;
+      --pri-border: #c7d2fe;
+      --success:    #10b981;
+      --success-bg: #d1fae5;
+      --danger:     #ef4444;
+      --danger-bg:  #fee2e2;
+      --bg:         #f1f4f9;
+      --card:       #ffffff;
+      --border:     #e2e8f2;
+      --border-2:   #c8d5e8;
+      --text:       #0f172a;
+      --text-2:     #4a5568;
+      --text-3:     #94a3b8;
+      --r:          10px;
+      --r-sm:       7px;
+      --sh:         0 1px 4px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.04);
+      --sh-md:      0 4px 16px rgba(15,23,42,.08), 0 1px 4px rgba(15,23,42,.05);
+    }
+    [data-theme="dark"] {
+      --pri:        #6366f1;
+      --pri-hover:  #818cf8;
+      --pri-light:  #1a1d3d;
+      --pri-border: #3730a3;
+      --success:    #34d399;
+      --success-bg: #022c22;
+      --danger:     #f87171;
+      --danger-bg:  #450a0a;
+      --bg:         #070b18;
+      --card:       #0d1526;
+      --border:     #1a2d4a;
+      --border-2:   #2a456e;
+      --text:       #e2e8f4;
+      --text-2:     #7a90ae;
+      --text-3:     #4a6080;
+      --sh:         0 4px 20px rgba(0,0,0,.55), 0 1px 4px rgba(0,0,0,.35);
+      --sh-md:      0 8px 32px rgba(0,0,0,.65), 0 2px 8px rgba(99,102,241,.06);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      height: 56px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 0 var(--border), var(--sh);
+    }
+    [data-theme="dark"] header { box-shadow: 0 1px 0 var(--border), 0 2px 12px rgba(0,0,0,.4); }
+    .h-brand { display: flex; align-items: center; gap: 10px; }
+    .h-logo  {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(99,102,241,.4);
+    }
+    .h-title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+    .h-badge {
+      font-size: 11px; color: var(--text-3);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 10px; font-weight: 500;
+    }
+    .h-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); transition: background .3s; }
+    .dot.ok  { background: var(--success); box-shadow: 0 0 6px rgba(52,211,153,.5); }
+    .dot.err { background: var(--danger); box-shadow: 0 0 6px rgba(248,113,113,.5); }
+
+    /* ── Main nav tabs ──────────────────────────────────── */
+    .main-nav { display: flex; align-items: center; gap: 2px; }
+    .nav-btn {
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      padding: 6px 18px; border-radius: 8px; transition: all .15s; white-space: nowrap;
+    }
+    .nav-btn:hover { color: var(--text); background: var(--bg); }
+    .nav-btn.active { color: var(--pri); background: var(--pri-light); font-weight: 600; }
+    [data-theme="dark"] .nav-btn:hover  { background: #111827; }
+    [data-theme="dark"] .nav-btn.active { background: var(--pri-light); }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .layout { display: grid; grid-template-columns: 272px 1fr; gap: 20px; padding: 20px 28px; max-width: 1440px; margin: 0 auto; align-items: stretch; }
+    .layout-full { padding: 20px 28px; max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .col-l { display: flex; flex-direction: column; gap: 16px; align-self: stretch; }
+    .col-l > .card { flex: 1; display: flex; flex-direction: column; }
+    .col-l > .card > .card-bd { flex: 1; display: flex; flex-direction: column; }
+    .col-l > .card > .card-bd > #mask-list { flex: 1; overflow-y: auto; margin: 0 -4px; padding: 0 4px; min-height: 0; }
+    .col-r { display: flex; flex-direction: column; gap: 16px; }
+    .col-r > #def-empty { flex: 1; }
+
+    /* ── Card ───────────────────────────────────────────── */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+    .card-hd {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(255,255,255,.02), transparent);
+    }
+    [data-theme="dark"] .card-hd { background: linear-gradient(to bottom, rgba(255,255,255,.03), transparent); }
+    .card-title { font-size: 13px; font-weight: 600; white-space: nowrap; letter-spacing: -.01em; }
+    .card-bd { padding: 14px 18px; }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: var(--r-sm); padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all .15s; }
+    .btn-pri  {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(99,102,241,.35);
+    }
+    .btn-pri:hover  { background: linear-gradient(135deg, #818cf8, #6366f1); box-shadow: 0 4px 12px rgba(99,102,241,.45); transform: translateY(-1px); }
+    .btn-pri:active { transform: translateY(0); }
+    .btn-ok   { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,.3); }
+    .btn-ok:hover   { opacity: .9; transform: translateY(-1px); }
+    .btn-del  { background: transparent; color: var(--text-3); border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; }
+    .btn-del:hover  { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+    .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg); border-color: var(--border-2); color: var(--text); }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* ── Inputs ─────────────────────────────────────────── */
+    input, textarea, select {
+      border: 1px solid var(--border); border-radius: var(--r-sm); padding: 7px 11px;
+      font-size: 13px; font-family: inherit; color: var(--text); background: var(--card);
+      outline: none; transition: border-color .15s, box-shadow .15s; width: 100%;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--pri);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+    }
+    [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
+      background: #0a1220;
+      border-color: var(--border);
+    }
+
+    /* ── Dark mode theme toggle ──────────────────────────── */
+    .theme-btn { background: none; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 9px; cursor: pointer; color: var(--text-2); display: flex; align-items: center; gap: 5px; font-size: 12px; font-family: inherit; transition: all .15s; }
+    .theme-btn:hover { background: var(--bg); border-color: var(--border-2); }
+    .theme-btn .icon-sun, .theme-btn .icon-moon { width: 14px; height: 14px; }
+    [data-theme="dark"] .icon-sun  { display: block; }
+    [data-theme="dark"] .icon-moon { display: none; }
+    .icon-sun  { display: none; }
+    .icon-moon { display: block; }
+
+    /* ── Language selector ────────────────────────────────── */
+    .lang-sel { background: none; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; cursor: pointer; color: var(--text-2); font-size: 12px; font-family: inherit; transition: all .15s; width: auto; }
+    .lang-sel:focus { box-shadow: none; border-color: var(--pri); }
+    [data-theme="dark"] .lang-sel { background: transparent; color: var(--text-2); border-color: var(--border); }
+
+    /* ── Dark mode overrides ─────────────────────────────── */
+    [data-theme="dark"] .tab.on        { background: #111827; box-shadow: 0 0 0 1px var(--border); color: var(--pri); }
+    [data-theme="dark"] .tabs          { background: #060a14; border-color: var(--border); }
+    [data-theme="dark"] .pbox          { background: #060a14; border-color: var(--border); }
+    [data-theme="dark"] .ftag          { background: #1c1204; border-color: #854d0e; color: #fcd34d; }
+    [data-theme="dark"] .chip          { background: #1a1d3d; border-color: #3730a3; color: #818cf8; }
+    [data-theme="dark"] .chip:hover    { background: #252860; }
+    [data-theme="dark"] .chip.raw      { background: #2e1065; border-color: #7c3aed; color: #c4b5fd; }
+    [data-theme="dark"] .chip.raw:hover{ background: #3b0764; }
+    [data-theme="dark"] .b-off         { background: #111827; color: var(--text-3); }
+    [data-theme="dark"] .b-off::before { background: var(--text-3); }
+    [data-theme="dark"] .b-on          { background: var(--success-bg); color: #6ee7b7; }
+    [data-theme="dark"] .b-on::before  { background: var(--success); }
+    [data-theme="dark"] .proto-server  { background: #2a1600; color: #fbbf24; border: 1px solid #78350f; }
+    [data-theme="dark"] .proto-client  { background: #1a1d3d; color: #818cf8; border: 1px solid #3730a3; }
+    [data-theme="dark"] .proto-udp     { background: #071d38; color: #38bdf8; border: 1px solid #0c4a6e; }
+    [data-theme="dark"] .mask-tag      { background: #1a1d3d; color: #818cf8; border-color: #3730a3; }
+    [data-theme="dark"] .mode-tag      { background: #042218; color: #6ee7b7; border-color: #065f46; }
+    [data-theme="dark"] .m-badge       { background: var(--success-bg); color: #6ee7b7; }
+    [data-theme="dark"] .mask-item:hover { background: #131840; }
+    [data-theme="dark"] .mask-item.sel  { background: #131840; border-color: #3730a3; }
+    [data-theme="dark"] .ptable tbody tr:hover td { background: #0f1e35; }
+    [data-theme="dark"] .ptable th    { background: #060a14; }
+    [data-theme="dark"] .step         { border-color: var(--border); background: #0a1220; }
+    [data-theme="dark"] .btn-ghost    { border-color: var(--border); color: var(--text-2); }
+    [data-theme="dark"] .btn-ghost:hover { background: #111827; border-color: var(--border-2); color: var(--text); }
+
+    /* ── Mask sidebar ────────────────────────────────────── */
+    .mask-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; transition: all .15s; border: 1px solid transparent; margin-bottom: 2px; }
+    .mask-item:hover { background: var(--pri-light); }
+    .mask-item.sel  { background: var(--pri-light); border-color: var(--pri-border); }
+    .m-avatar { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; background: var(--pri-light); color: var(--pri); }
+    .m-avatar.def { background: var(--success-bg); color: #065f46; }
+    .m-name  { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-badge { font-size: 10px; color: #065f46; background: var(--success-bg); border-radius: 10px; padding: 1px 7px; font-weight: 600; flex-shrink: 0; }
+    .add-form { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .err { color: var(--danger); font-size: 12px; margin-top: 4px; min-height: 14px; }
+
+    /* ── Mode tabs ───────────────────────────────────────── */
+    .tabs { display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px; gap: 2px; width: fit-content; margin-bottom: 16px; }
+    .tab { padding: 5px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 5px; color: var(--text-2); border: none; background: transparent; font-family: inherit; transition: all .15s; }
+    .tab.on { background: var(--card); color: var(--pri); box-shadow: var(--sh); }
+
+    /* ── Step blocks ─────────────────────────────────────── */
+    .steps { display: grid; gap: 12px; }
+    .step { border: 1px solid var(--border); border-radius: var(--r); padding: 16px; background: var(--bg); }
+    [data-theme="dark"] .step { background: #0a1220; }
+    .step-hd { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+    .step-n  { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(99,102,241,.3); }
+    .step-t  { font-size: 13px; font-weight: 600; }
+    .step-t small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 6px; }
+
+    /* ── Sample input ────────────────────────────────────── */
+    .sample-row { display: flex; gap: 8px; }
+    .sample-row textarea { flex: 1; height: 58px; resize: none; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 13px; }
+    .delim-row { display: flex; align-items: center; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+    .dlm { display: flex; align-items: center; gap: 7px; }
+    .dlm label { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+    .dlm input  { width: 52px; text-align: center; font-family: monospace; }
+    .fields-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; min-height: 22px; }
+    .ftag { background: #fef9c3; border: 1px solid #fde047; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; color: #713f12; }
+    .fhint { font-size: 12px; color: var(--text-3); }
+
+    /* ── Chips ───────────────────────────────────────────── */
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+    .chip { display: inline-flex; align-items: center; background: var(--pri-light); border: 1px solid var(--pri-border); border-radius: 20px; padding: 3px 11px; font-size: 12px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; color: var(--pri); cursor: pointer; user-select: none; transition: background .12s; }
+    .chip:hover { background: #c7d2fe; }
+    .chip.raw { background: #f3e8ff; border-color: #d8b4fe; color: #7c3aed; }
+    .chip.raw:hover { background: #e9d5ff; }
+
+    /* ── Template + Preview ──────────────────────────────── */
+    .tmpl-input { font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; }
+    .preview-grid { display: grid; grid-template-columns: 1fr 32px 1fr; align-items: center; gap: 10px; margin-top: 2px; }
+    .preview-lbl { font-size: 11px; color: var(--text-3); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+    .pbox { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 12px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 13px; min-height: 40px; word-break: break-all; }
+    .pbox.muted { color: var(--text-3); font-style: italic; }
+    .pbox.warn  { color: var(--danger); background: var(--danger-bg); border-color: #fca5a5; }
+    .arrow { text-align: center; color: var(--text-3); font-size: 20px; line-height: 1; }
+
+    /* ── Empty state ─────────────────────────────────────── */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: var(--text-3); gap: 8px; }
+    .empty-state svg { opacity: .35; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── Port table ──────────────────────────────────────── */
+    .ptable { width: 100%; border-collapse: collapse; }
+    .ptable th {
+      background: var(--bg);
+      padding: 9px 14px;
+      font-size: 10.5px; font-weight: 700;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border);
+      text-align: left; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;
+    }
+    .ptable td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    .ptable tr:last-child td { border-bottom: none; }
+    .ptable tbody tr { transition: background .12s; }
+    .ptable tbody tr:hover td { background: rgba(99,102,241,.04); }
+    .ptable td.chk-col, .ptable th.chk-col { width: 36px; padding: 8px 4px 8px 14px; }
+    .batch-bar { display:none; align-items:center; gap:10px; padding:8px 16px; background:var(--pri-light); border-bottom:1px solid var(--pri-border); font-size:13px; color:var(--text); }
+    .batch-bar.show { display:flex; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge::before { content:''; width: 5px; height: 5px; border-radius: 50%; }
+    .b-on  { background: var(--success-bg); color: #065f46; }
+    .b-on::before  { background: var(--success); }
+    .b-off { background: #f1f5f9; color: var(--text-3); }
+    .b-off::before { background: var(--text-3); }
+    .proto { display: inline-block; padding: 2px 9px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid transparent; letter-spacing: .02em; }
+    .proto-client { background: var(--pri-light); color: var(--pri); border-color: var(--pri-border); }
+    .proto-server { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+    .proto-udp    { background: #e0f2fe; color: #075985; border-color: #bae6fd; }
+    .mono { font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 12px; }
+    .mask-tag { display: inline-block; background: var(--pri-light); color: var(--pri); border: 1px solid var(--pri-border); border-radius: 5px; padding: 2px 9px; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+    .mode-tag { display: inline-block; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 5px; padding: 2px 9px; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+
+    /* ── Port Card Grid ─────────────────────────────────────── */
+    .port-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 4px; }
+    .port-card { position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px 12px 18px; transition: border-color .15s, transform .15s, box-shadow .15s; overflow: hidden; min-width: 0; }
+    .port-card:hover { border-color: var(--pri); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+    .port-card.active { border-color: var(--pri); background: linear-gradient(135deg, var(--pri-light) 0%, var(--card) 60%); }
+    .port-card.disabled { opacity: .55; }
+    .port-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--text-3); transition: background .2s; }
+    .port-card.connected::before { background: var(--success); box-shadow: 0 0 12px rgba(16,185,129,.5); }
+    [data-theme="dark"] .port-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.4); }
+    .pc-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .pc-cb { width: 14px; height: 14px; margin: 0; flex-shrink: 0; cursor: pointer; }
+    .pc-title { flex: 1 1 auto; min-width: 0; }
+    .pc-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-id { font-size: 10px; color: var(--text-3); font-family: Consolas, 'Cascadia Code', monospace; line-height: 1; }
+    .pc-hd .badge { white-space: nowrap; flex-shrink: 0; }
+    .pc-tags { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+    .pc-meta { display: grid; grid-template-columns: 16px 50px 1fr; gap: 6px 10px; align-items: center; margin: 8px 0; padding: 10px 12px; background: rgba(0,0,0,.02); border-radius: 6px; font-size: 12px; }
+    [data-theme="dark"] .pc-meta { background: rgba(255,255,255,.025); }
+    .pc-meta-ic { width: 14px; height: 14px; color: var(--text-3); flex-shrink: 0; }
+    .pc-meta-lbl { color: var(--text-3); font-size: 11px; }
+    .pc-meta-val { font-family: Consolas, 'Cascadia Code', monospace; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-meta-val.dim { color: var(--text-3); }
+    .pc-stats { display: flex; gap: 14px; padding: 8px 4px; font-size: 11px; color: var(--text-3); border-top: 1px solid var(--border); margin-top: 6px; }
+    .pc-stat { display: flex; align-items: center; gap: 5px; }
+    .pc-stat strong { color: var(--text); font-weight: 600; font-family: Consolas, monospace; font-size: 12px; }
+    .pc-devices { font-size: 10px; color: var(--pri); font-family: Consolas, monospace; padding: 5px 9px; background: var(--pri-light); border: 1px solid var(--pri-border); border-radius: 5px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-ft { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .pc-disabled-note { display: inline-block; font-size: 10px; color: var(--danger); padding: 2px 6px; background: rgba(239,68,68,.08); border-radius: 4px; margin-right: auto; white-space: nowrap; }
+    .pc-toolbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+    .pc-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); cursor: pointer; user-select: none; }
+    .pc-toolbar label input[type=checkbox] { width: 14px; height: 14px; margin: 0; cursor: pointer; }
+    .pc-summary { display: flex; gap: 16px; align-items: center; font-size: 12px; color: var(--text-2); margin-right: auto; }
+    .pc-summary-num { font-weight: 700; color: var(--text); font-size: 13px; }
+    .pc-summary-on { color: var(--success); display: flex; align-items: center; gap: 4px; }
+    .pc-summary-on::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; padding: 12px; }
+      .preview-grid { grid-template-columns: 1fr; }
+      .arrow { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 登入遮罩 ───────────────────────────────────────────────────────── -->
+<div id="login-overlay" style="display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+    padding:36px 40px;width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+    <div style="font-size:18px;font-weight:700;margin-bottom:6px">EdgeLink Server</div>
+    <div style="font-size:12px;color:var(--text-2);margin-bottom:24px" data-i18n="loginSubtitle"></div>
+    <input id="login-pwd" type="password" placeholder="Password"
+      style="width:100%;padding:8px 10px;font-size:14px;margin-bottom:12px;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="login-err" style="display:none;color:#f87171;font-size:12px;margin-bottom:10px"></div>
+    <button class="btn btn-pri" style="width:100%;justify-content:center;padding:8px"
+      onclick="doLogin()" data-i18n="loginBtn"></button>
+  </div>
+</div>
+
+<!-- ── 帳號設定 Modal ─────────────────────────────────────────────────── -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;z-index:9998;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center" onclick="if(event.target===this)closeSettings()">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+    width:420px;max-width:calc(100vw - 32px);box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden">
+
+    <!-- Modal header -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:15px;font-weight:700" data-i18n="settingsTitle"></span>
+      <button onclick="closeSettings()" style="background:none;border:none;cursor:pointer;
+        color:var(--text-3);padding:2px;line-height:1;font-size:18px">✕</button>
+    </div>
+
+    <!-- Export / Import -->
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px" data-i18n="exportSettings"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="exportSettings()" data-i18n="exportSettings"></button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-settings-input').click()" data-i18n="importSettings"></button>
+        <input type="file" id="import-settings-input" accept=".json" style="display:none" onchange="importSettings(event)">
+        <span id="settings-io-msg" style="font-size:12px;color:var(--success)"></span>
+      </div>
+    </div>
+
+    <!-- Change Password -->
+    <div style="padding:20px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px" data-i18n="changePwd"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input type="password" id="cp-current" data-i18n-ph="currentPwd">
+        <input type="password" id="cp-new"     data-i18n-ph="newPwd">
+        <input type="password" id="cp-confirm" data-i18n-ph="confirmPwd"
+          onkeydown="if(event.key==='Enter')changePassword()">
+      </div>
+      <div id="cp-msg" style="min-height:18px;font-size:12px;margin-top:8px"></div>
+      <button class="btn btn-pri btn-sm" onclick="changePassword()" style="margin-top:4px" data-i18n="savePwd"></button>
+    </div>
+
+
+  </div>
+</div>
+
+<!-- ── 連線裝置 Modal ──────────────────────────────────────────────────── -->
+<div id="clients-modal" style="display:none;position:fixed;inset:0;z-index:9998;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center" onclick="if(event.target===this)closeClients()">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+    width:860px;max-width:calc(100vw - 32px);box-shadow:0 8px 32px rgba(0,0,0,.4);overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
+    <!-- Header -->
+    <div style="padding:12px 20px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <span style="font-size:14px;font-weight:700" data-i18n="clients"></span>
+      <button onclick="closeClients()" style="background:none;border:none;cursor:pointer;
+        color:var(--text-3);padding:2px;line-height:1;font-size:18px">✕</button>
+    </div>
+    <!-- Summary -->
+    <div id="clients-summary" style="padding:8px 20px;border-bottom:1px solid var(--border);
+      display:flex;gap:24px;font-size:12px;color:var(--text-2);flex-shrink:0"></div>
+    <!-- Search -->
+    <div style="padding:8px 20px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <input id="clients-search" oninput="_onClientsSearch()" placeholder="🔍 IP / Device ID filter..."
+        style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);
+          border-radius:4px;padding:5px 10px;font-size:13px;color:var(--text-1);outline:none"/>
+    </div>
+    <!-- Table -->
+    <div id="clients-list" style="overflow-y:auto;flex:1;min-height:120px"></div>
+    <!-- Pagination -->
+    <div id="clients-pagination" style="padding:8px 20px;border-top:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;font-size:12px;
+      color:var(--text-2);flex-shrink:0"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="h-brand">
+    <div class="h-logo">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <span class="h-title">IoT Server</span>
+  </div>
+  <nav class="main-nav">
+    <button class="nav-btn active" id="nav-mask" onclick="showSection('mask')" data-i18n="navMask"></button>
+    <button class="nav-btn" id="nav-port" onclick="showSection('port')" data-i18n="navPort"></button>
+    <button class="nav-btn" id="nav-log"  onclick="showSection('log')"  data-i18n="navLog"></button>
+    <button class="nav-btn" id="nav-manual" onclick="window.open('/manual','_blank')" data-i18n="navManual"></button>
+  </nav>
+  <div class="h-status">
+    <select class="lang-sel" onchange="setLang(this.value)" id="lang-sel">
+      <option value="zh-TW">繁中</option>
+      <option value="en-US">EN</option>
+      <option value="ja-JP">日本語</option>
+    </select>
+    <button class="theme-btn" onclick="toggleTheme()">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+      </svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+    <div class="dot" id="dot"></div>
+    <span id="status-txt"></span>
+    <button id="settings-btn" class="btn btn-ghost btn-sm" onclick="openSettings()"
+      style="display:none" title="Settings">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    </button>
+    <button id="logout-btn" class="btn btn-ghost btn-sm" onclick="doLogout()"
+      style="display:none;font-size:11px" data-i18n="logout"></button>
+  </div>
+</header>
+
+<!-- Main layout -->
+<div id="sec-mask" class="layout">
+
+  <!-- ── 左欄：遮罩列表 ── -->
+  <div class="col-l">
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title" data-i18n="maskList"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="mask-count" style="font-size:12px;color:var(--text-3)">—</span>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-input').click()" id="import-btn" title="">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <input type="file" id="import-input" accept=".json" style="display:none" onchange="importMaskJson(event)">
+      <div class="card-bd">
+        <div id="mask-list"></div>
+        <div class="add-form">
+          <input type="text" id="new-mask-id"  data-i18n-ph="maskIdPlaceholder">
+          <input type="text" id="new-mask-key" data-i18n-ph="maskKeyPlaceholder">
+          <button class="btn btn-pri btn-full" onclick="addMask()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span data-i18n="addMask"></span>
+          </button>
+          <div class="err" id="mask-err"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 右欄：編輯器 + Port 表格 ── -->
+  <div class="col-r">
+
+    <!-- 未選擇時的提示 -->
+    <div class="card" id="def-empty">
+      <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <p data-i18n="selectMask"></p>
+      </div>
+    </div>
+
+    <!-- 協定定義編輯器 -->
+    <div class="card" id="def-panel" style="display:none">
+      <div class="card-hd">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="card-title" id="def-title">—</span>
+          <input id="def-desc" data-i18n-ph="descPlaceholder"
+            style="width:200px;font-size:12px;color:var(--text-3);border:none;
+                   border-bottom:1px dashed var(--border);border-radius:0;
+                   padding:2px 4px;background:transparent;box-shadow:none">
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="lock-badge" style="display:none;font-size:12px;color:var(--text-3);
+            background:var(--bg);border:1px solid var(--border);border-radius:20px;
+            padding:3px 10px;align-items:center;gap:5px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <span data-i18n="defaultReadOnly"></span>
+          </span>
+          <button class="btn btn-ghost btn-sm" onclick="exportDefinition()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span data-i18n="exportSdk"></span>
+          </button>
+          <button id="save-btn" class="btn btn-ok btn-sm" onclick="saveDefinition()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span data-i18n="saveDef"></span>
+          </button>
+        </div>
+      </div>
+      <div class="card-bd">
+
+        <div class="steps">
+
+          <!-- ① 範例輸入 -->
+          <div class="step">
+            <div class="step-hd">
+              <div class="step-n">1</div>
+              <div class="step-t" data-i18n="pasteData"></div>
+            </div>
+
+            <div>
+              <div class="sample-row">
+                <textarea id="sample" placeholder="e.g. ID:2;TEMP:36.5;HUM:80" oninput="reparse()"></textarea>
+                <button class="btn btn-ghost btn-sm" onclick="autoDetect()" style="white-space:nowrap;align-self:flex-start" data-i18n="autoDetect"></button>
+              </div>
+              <div class="delim-row">
+                <div class="dlm">
+                  <label data-i18n="fieldDelim"></label>
+                  <input id="fd" value=";" oninput="reparse()">
+                </div>
+                <div class="dlm">
+                  <label data-i18n="kvDelim"></label>
+                  <input id="kv" value=":" oninput="reparse()">
+                </div>
+              </div>
+              <div class="fields-row" id="fields"></div>
+            </div>
+          </div>
+
+          <!-- ② 輸出格式 -->
+          <div class="step">
+            <div class="step-hd">
+              <div class="step-n">2</div>
+              <div class="step-t"><span data-i18n="defineOutput"></span> <small data-i18n="clickToInsert"></small></div>
+            </div>
+            <div class="chips" id="chips">
+              <span class="chip raw" onclick="insertChip('{raw}')">{raw}</span>
+            </div>
+            <input id="tmpl" class="tmpl-input" placeholder="{raw} or ID={ID}&T={TEMP}" oninput="updatePreview()">
+          </div>
+
+          <!-- ③ 即時預覽 -->
+          <div class="step">
+            <div class="step-hd">
+              <div class="step-n">3</div>
+              <div class="step-t" data-i18n="preview"></div>
+            </div>
+            <div class="preview-grid">
+              <div>
+                <div class="preview-lbl" data-i18n="input"></div>
+                <div class="pbox muted" id="prev-in"></div>
+              </div>
+              <div class="arrow">→</div>
+
+              <div>
+                <div class="preview-lbl" data-i18n="output"></div>
+                <div class="pbox muted" id="prev-out">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ④ 反向路由設定 -->
+          <div class="step">
+            <div class="step-hd">
+              <div class="step-n">4</div>
+              <div class="step-t" data-i18n="routeSettings"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+              <div>
+                <label style="font-size:11px;color:var(--text-2);font-weight:600;display:block;margin-bottom:4px" data-i18n="routeModeLabel"></label>
+                <select id="def-route-mode" onchange="onRouteModeChange()">
+                  <option value="" data-i18n="routeModeNone"></option>
+                  <option value="broadcast" data-i18n="routeModeBroadcast"></option>
+                  <option value="response" data-i18n="routeModeResponse"></option>
+                </select>
+              </div>
+              <div id="corr-field-wrap" style="display:none">
+                <label style="font-size:11px;color:var(--text-2);font-weight:600;display:block;margin-bottom:4px" data-i18n="corrIdFieldLabel"></label>
+                <input id="def-corr-field" type="text" data-i18n-ph="corrIdFieldPlaceholder">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="err" id="def-err" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+  </div><!-- /col-r -->
+</div><!-- /sec-mask -->
+
+<!-- ── Port 管理 ── -->
+<div id="sec-port" class="layout-full" style="display:none">
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title" data-i18n="portStatus"></span>
+        <button class="btn btn-pri btn-sm" onclick="toggleAddPortForm()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span data-i18n="addPort"></span>
+        </button>
+      </div>
+
+      <!-- Add Port form -->
+      <div id="add-port-form" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="ap-name"      type="text" data-i18n-ph="apName">
+          <select id="ap-protocol" onchange="onAddPortProtocolChange()">
+            <option value="UDP">UDP</option>
+            <option value="TCP Server">TCP Server</option>
+            <option value="TCP Client">TCP Client</option>
+            <option value="Modbus TCP Master">Modbus TCP Master</option>
+          </select>
+          <input id="ap-local"     type="text" data-i18n-ph="apLocalPort">
+          <select id="ap-source"   style="display:none"></select>
+          <input id="ap-remote"    type="text" data-i18n-ph="apRemotePort">
+          <input id="ap-ip"        type="text" data-i18n-ph="apTargetIp" style="display:none">
+        </div>
+        <!-- Mask 區（TCP Server 時整塊隱藏） -->
+        <div id="ap-mask-section" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="maskLabel"></label>
+            <select id="ap-mask"><option value="OriginalData">OriginalData</option></select>
+          </div>
+          <div id="ap-resp-wrap" style="display:none;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="respMaskLabel"></label>
+            <select id="ap-resp-mask"><option value="">—</option></select>
+          </div>
+          <div id="ap-mode-wrap" style="display:none;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="reqModeLabel"></label>
+            <select id="ap-req-mode">
+              <option value="serial" data-i18n="reqModeSerial"></option>
+              <option value="concurrent" data-i18n="reqModeConcurrent"></option>
+              <option value="polling" data-i18n="reqModePolling"></option>
+            </select>
+          </div>
+        </div>
+        <!-- Modbus 區 (僅 Modbus TCP Master 顯示) -->
+        <div id="ap-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(99,102,241,.06);border:1px solid var(--pri-border);border-radius:6px">
+          <div style="font-size:12px;font-weight:700;color:var(--pri)">Modbus 設定</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Slave ID</label>
+              <input id="ap-modbus-slave" type="number" min="0" max="255" value="1">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Polling 間隔 (ms)</label>
+              <input id="ap-modbus-poll" type="number" min="20" max="60000" value="100">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Device ID (訊息 id 欄位)</label>
+              <input id="ap-modbus-devid" type="text" placeholder="WaterCannon01">
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;color:var(--text-2)">
+              Registers (JSON Array) — 每個 register: { name, functionCode, startAddress, quantity, dataType, scale, offset }
+            </label>
+            <textarea id="ap-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical" placeholder='[
+  { "name": "yaw",   "functionCode": 2, "startAddress": 0, "quantity": 8, "dataType": "bits" },
+  { "name": "pitch", "functionCode": 2, "startAddress": 8, "quantity": 8, "dataType": "bits" }
+]'></textarea>
+            <div style="font-size:10px;color:var(--text-3);line-height:1.5">
+              <b>functionCode</b>: 1=Coil 2=DI(Discrete Input) 3=Holding 4=Input |
+              <b>dataType</b>: bit / bits / uint16 / int16 / uint32 / int32 / float32 |
+              <b>scale</b> 與 <b>offset</b> 可選 (預設 1, 0)
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ok btn-sm" onclick="submitAddPort()" data-i18n="confirm"></button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleAddPortForm()" data-i18n="cancel"></button>
+          <span id="ap-err" style="font-size:12px;color:var(--danger)"></span>
+        </div>
+      </div>
+
+      <!-- Edit Port form -->
+      <div id="edit-port-form" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px" data-i18n="editPortTitle"></div>
+        <input type="hidden" id="ep-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input id="ep-name"     type="text" data-i18n-ph="apName">
+          <select id="ep-protocol" onchange="onEditPortProtocolChange()">
+            <option value="UDP">UDP</option>
+            <option value="TCP Server">TCP Server</option>
+            <option value="TCP Client">TCP Client</option>
+            <option value="Modbus TCP Master">Modbus TCP Master</option>
+          </select>
+          <input id="ep-local"   type="text" data-i18n-ph="apLocalPort">
+          <select id="ep-source" style="display:none"></select>
+          <input id="ep-remote"  type="text" data-i18n-ph="apRemotePort">
+          <input id="ep-ip"      type="text" data-i18n-ph="apTargetIp" style="display:none">
+        </div>
+        <!-- Mask 區（TCP Server 時整塊隱藏） -->
+        <div id="ep-mask-section" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="maskLabel"></label>
+            <select id="ep-mask"><option value="OriginalData">OriginalData</option></select>
+          </div>
+          <div id="ep-resp-wrap" style="display:none;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="respMaskLabel"></label>
+            <select id="ep-resp-mask"><option value="">—</option></select>
+          </div>
+          <div id="ep-mode-wrap" style="display:none;flex-direction:column;gap:4px">
+            <label style="font-size:11px;font-weight:600;color:var(--text-2)" data-i18n="reqModeLabel"></label>
+            <select id="ep-req-mode">
+              <option value="serial" data-i18n="reqModeSerial"></option>
+              <option value="concurrent" data-i18n="reqModeConcurrent"></option>
+              <option value="polling" data-i18n="reqModePolling"></option>
+            </select>
+          </div>
+        </div>
+        <!-- Modbus 區 (僅 Modbus TCP Master 顯示) -->
+        <div id="ep-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(99,102,241,.06);border:1px solid var(--pri-border);border-radius:6px">
+          <div style="font-size:12px;font-weight:700;color:var(--pri)">Modbus 設定</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Slave ID</label>
+              <input id="ep-modbus-slave" type="number" min="0" max="255" value="1">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Polling 間隔 (ms)</label>
+              <input id="ep-modbus-poll" type="number" min="20" max="60000" value="100">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <label style="font-size:11px;color:var(--text-2)">Device ID</label>
+              <input id="ep-modbus-devid" type="text" placeholder="WaterCannon01">
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="font-size:11px;color:var(--text-2)">Registers (JSON Array)</label>
+            <textarea id="ep-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical"></textarea>
+            <div style="font-size:10px;color:var(--text-3);line-height:1.5">
+              <b>functionCode</b>: 1=Coil 2=DI 3=Holding 4=Input | <b>dataType</b>: bit/bits/uint16/int16/uint32/int32/float32
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ok btn-sm" onclick="submitEditPort()" data-i18n="confirm"></button>
+          <button class="btn btn-ghost btn-sm" onclick="closeEditPortForm()" data-i18n="cancel"></button>
+          <span id="ep-err" style="font-size:12px;color:var(--danger)"></span>
+        </div>
+      </div>
+
+      <!-- 批次刪除列 -->
+      <div class="batch-bar" id="batch-bar">
+        <span id="batch-count"></span>
+        <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="batchDeletePorts()" data-i18n="batchDelete"></button>
+        <button class="btn btn-ghost btn-sm" onclick="clearSelection()" data-i18n="cancel"></button>
+      </div>
+
+      <!-- Port grid toolbar -->
+      <div class="pc-toolbar">
+        <label>
+          <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" title="全選">
+          <span data-i18n="selectAll">全選</span>
+        </label>
+        <div class="pc-summary" id="port-summary"></div>
+      </div>
+
+      <!-- Port card grid -->
+      <div id="port-body" class="port-grid">
+        <div class="empty-state" style="padding:48px;grid-column:1/-1"><p data-i18n="loading"></p></div>
+      </div>
+
+      <!-- Monitor Log（只在選擇監控後顯示） -->
+      <div class="card" id="monitor-log-card" style="margin-top:16px;display:none">
+        <div class="card-hd" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+            <span class="card-title">Monitor Log</span>
+            <span id="mon-target" style="font-size:12px;color:var(--pri);white-space:nowrap;
+              background:var(--pri-light);border:1px solid var(--pri-border);
+              border-radius:20px;padding:2px 10px;font-weight:500"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px">
+            <datalist id="ip-datalist"></datalist>
+            <input id="ip-filter" type="text" list="ip-datalist"
+              placeholder="篩選設備 IP…"
+              style="display:none;font-size:12px;height:28px;width:160px;flex-shrink:0;padding:0 8px"
+              oninput="applyIpFilter()"
+              onchange="applyIpFilter()">
+            <div style="position:relative;flex:1">
+              <svg style="position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none;opacity:.4"
+                width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input id="log-search" type="text" data-i18n-ph="logSearch"
+                style="padding-left:28px;font-size:12px;height:28px"
+                oninput="applyLogFilter()">
+            </div>
+            <button id="scroll-lock-btn" class="btn btn-ghost btn-sm" onclick="toggleScrollLock()" title="">
+              <svg id="scroll-lock-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="18 15 12 21 6 15"/><line x1="12" y1="3" x2="12" y2="21"/>
+              </svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="clearLog()" data-i18n="clear"></button>
+          </div>
+        </div>
+        <div id="log-box" style="
+          height:280px; overflow-y:auto; background:var(--bg);
+          border:1px solid var(--border); border-radius:var(--r-sm);
+          padding:8px 10px; font-family:Consolas,'Cascadia Code','SF Mono',monospace;
+          font-size:12px; color:var(--text-2); line-height:1.6;">
+        </div>
+      </div>
+
+    </div><!-- /Port card -->
+</div><!-- /sec-port -->
+
+<!-- ── 系統 Log ── -->
+<div id="sec-log" class="layout-full" style="display:none">
+    <div class="card" id="syslog-card">
+      <div class="card-hd" style="cursor:pointer" onclick="toggleSysLog()">
+        <span class="card-title" data-i18n="sysLogTitle"></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="syslog-search" type="text" data-i18n-ph="logSearch"
+            onclick="event.stopPropagation()"
+            oninput="applySysLogFilter()"
+            style="width:160px;font-size:12px;height:28px;padding:0 8px">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();clearSysLog()" data-i18n="clear"></button>
+          <svg id="syslog-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" style="transition:transform .2s;transform:rotate(180deg)">
+            <polyline points="18 15 12 9 6 15"/>
+          </svg>
+        </div>
+      </div>
+      <div id="syslog-body" style="display:block">
+        <div id="syslog-box" style="
+          height:220px;overflow-y:auto;background:var(--bg);
+          border-top:1px solid var(--border);
+          padding:8px 12px;font-family:Consolas,'Cascadia Code','SF Mono',monospace;
+          font-size:12px;color:var(--text-2);line-height:1.6">
+          <span style="color:var(--text-3)" data-i18n="loading"></span>
+        </div>
+      </div>
+    </div><!-- /syslog-card -->
+</div><!-- /sec-log -->
+
+<script>
+const BASE = window.location.origin;
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function showLoginOverlay(show) {
+  const el = document.getElementById('login-overlay');
+  el.style.display = show ? 'flex' : 'none';
+  document.getElementById('logout-btn').style.display = show ? 'none' : '';
+  document.getElementById('settings-btn').style.display = show ? 'none' : '';
+  if (show) {
+    closeSettings();
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('login-err').style.display = 'none';
+    setTimeout(() => document.getElementById('login-pwd').focus(), 50);
+  }
+}
+
+// ── Settings Modal ────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('cp-current').value = '';
+  document.getElementById('cp-new').value = '';
+  document.getElementById('cp-confirm').value = '';
+  document.getElementById('cp-msg').textContent = '';
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+
+async function changePassword() {
+  const cur     = document.getElementById('cp-current').value;
+  const nw      = document.getElementById('cp-new').value;
+  const confirm = document.getElementById('cp-confirm').value;
+  const msg     = document.getElementById('cp-msg');
+
+  if (!cur || !nw || !confirm) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = t('errPwdEmpty');
+    return;
+  }
+  if (nw !== confirm) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = t('errPwdMismatch');
+    return;
+  }
+  msg.textContent = '';
+  try {
+    const r = await fetch(`${BASE}/api/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: cur, newPassword: nw })
+    });
+    if (r.ok) {
+      msg.style.color = 'var(--success)';
+      msg.textContent = t('pwdChanged');
+      document.getElementById('cp-current').value = '';
+      document.getElementById('cp-new').value = '';
+      document.getElementById('cp-confirm').value = '';
+    } else if (r.status === 401) {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = t('errCurPwd');
+    } else {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = t('errSave');
+    }
+  } catch {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = t('errSave');
+  }
+}
+
+
+async function checkAuth() {
+  try {
+    const r = await fetch(`${BASE}/api/auth/status`);
+    const d = await r.json();
+    showLoginOverlay(!d.authenticated);
+  } catch {
+    showLoginOverlay(true);
+  }
+}
+
+async function doLogin() {
+  const pwd = document.getElementById('login-pwd').value;
+  const err = document.getElementById('login-err');
+  try {
+    const r = await fetch(`${BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    if (r.ok) {
+      showLoginOverlay(false);
+      await init();
+    } else {
+      err.textContent = t('loginFail');
+      err.style.display = '';
+    }
+  } catch {
+    err.textContent = t('loginFail');
+    err.style.display = '';
+  }
+}
+
+async function doLogout() {
+  await fetch(`${BASE}/api/auth/logout`, { method: 'POST' }).catch(() => {});
+  showLoginOverlay(true);
+}
+
+// 所有 fetch 呼叫的 401 攔截
+const _origFetch = window.fetch;
+window.fetch = async (...args) => {
+  const r = await _origFetch(...args);
+  if (r.status === 401 && !args[0]?.toString().includes('/api/auth/')) {
+    showLoginOverlay(true);
+  }
+  return r;
+};
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  const u = ['B','KB','MB','GB'];
+  let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return b.toFixed(i ? 1 : 0) + ' ' + u[i];
+}
+
+let masks = [], curId = null, curDef = null, portList = [];
+let activeMon = null, monitorCursor = 0, autoScroll = true, logFilter = '';
+let seenIps = new Set(), activeIpFilter = '';
+
+// ── i18n ──────────────────────────────────────────────
+const LANGS = {
+  'zh-TW': {
+    maskMgmt:        '遮罩管理',
+    maskList:        '遮罩列表',
+    import:          '匯入',
+    maskIdPlaceholder: 'Mask ID（必填）',
+    maskKeyPlaceholder:'本地化鍵（可留空）',
+    addMask:         '新增遮罩',
+    selectMask:      '從左側選擇遮罩以編輯協定定義',
+    descPlaceholder: '描述（選填）',
+    defaultReadOnly: '預設，不可編輯',
+    exportSdk:       '匯出 SDK JSON',
+    saveDef:         '儲存定義',
+    textMode:        '文字模式',
+    pasteData:       '貼上韌體範例資料',
+    autoDetect:      '自動偵測',
+    fieldDelim:      '欄位分隔符',
+    kvDelim:         'KV 分隔符',
+    fieldName:       '欄位名稱',
+    type:            '型別',
+    addField:        '+ 新增欄位',
+    defineOutput:    '定義輸出格式',
+    clickToInsert:   '點擊欄位名稱可插入',
+    preview:         '即時預覽',
+    input:           '輸入',
+    output:          '輸出',
+    portStatus:      'Port 狀態',
+    colName:         '名稱',
+    colProtocol:     '協議',
+    colLocalPort:    '本地端口',
+    colRemotePort:   '遠端端口',
+    colTarget:       '目標 IP',
+    colStatus:       '狀態',
+    colMask:         '遮罩',
+    loading:         '載入中…',
+    noPort:          '尚無 Port 設定',
+    selectAll:       '全選',
+    totalPort:       'Port',
+    sourceLabel:     '來源',
+    connected:       '連線中',
+    disconnected:    '未連線',
+    clear:           '清除',
+    waitingLog:      '等待 Log…',
+    connecting:      '連線中…',
+    synced:          '已同步',
+    connFail:        '連線失敗',
+    saved:           '定義已儲存 ✓',
+    noMask:          '尚無遮罩',
+    defaultBadge:    '預設',
+    delete:          '刪除',
+    items:           '個',
+    waitInput:       '（等待輸入）',
+    rawPassthru:     '（raw 直通）',
+    noFieldParsed:   '未解析到欄位，請確認分隔符',
+    placeholderWarn: '⚠ 佔位符 {p} 無對應欄位 → 實際輸出為空字串',
+    confirmDelete:   '確定刪除遮罩「{id}」？',
+    errMaskIdEmpty:  'Mask ID 不能為空',
+    errJsonFmt:      'JSON 格式錯誤',
+    errJsonMaskId:   'JSON 缺少 maskId',
+    errCreate:       '建立遮罩失敗：',
+    errSaveDef:      '儲存定義失敗：',
+    errImport:       '匯入失敗：',
+    routeSettings:      '反向路由設定',
+    routeModeLabel:     '路由模式',
+    routeModeNone:      '— 不設定（預設廣播）—',
+    routeModeBroadcast: 'broadcast — 廣播給所有 Frontend',
+    routeModeResponse:  'response — 回給發送者',
+    corrIdFieldLabel:   'Correlation ID 欄位名稱',
+    corrIdFieldPlaceholder: '例：id、txId',
+    apNoRespMask:       '不設定反向 Mask',
+    maskLabel:          '正向 Mask',
+    respMaskLabel:      '反向 Mask',
+    reqModeLabel:       '請求模式',
+    reqModeSerial:      'serial — 序列排隊',
+    reqModeConcurrent:  'concurrent — 並發',
+    reqModePolling:     'polling — 只保留最新',
+    errDelete:       '刪除失敗：',
+    errSave:         '儲存失敗',
+    errSave2:        '儲存失敗：',
+    errLoad:         '載入失敗：',
+    pasteFirst:      '請先貼上範例資料',
+    colMonitor:      '監控',
+    startMonitor:    '監控',
+    stopMonitor:     '停止',
+    errMonitor:      '設置監控失敗',
+    logSearch:       '搜尋 Log…',
+    loginSubtitle:   '請輸入密碼以繼續',
+    loginBtn:        '登入',
+    loginFail:       '密碼錯誤',
+    logout:          '登出',
+    settingsTitle:   '帳號設定',
+    changePwd:       '更改密碼',
+    currentPwd:      '目前密碼',
+    newPwd:          '新密碼',
+    confirmPwd:      '確認新密碼',
+    savePwd:         '儲存密碼',
+    pwdChanged:      '密碼已更新',
+    errCurPwd:       '目前密碼錯誤',
+    errPwdMismatch:  '新密碼不一致',
+    errPwdEmpty:     '請填寫所有欄位',
+    scrollLockOn:    '停止自動捲動',
+    scrollLockOff:   '恢復自動捲動',
+    addPort:         '新增 Port',
+    colActions:      '操作',
+    apName:          'Port 名稱',
+    apLocalPort:     '本地端口',
+    apRemotePort:    '遠端端口',
+    apTargetIp:      '目標 IP',
+    apSource:        '資料來源',
+    apSourceNone:    '（不指定）',
+    apLocalPortUdp:  '本地端口（轉發目標端口）',
+    apRemotePortUdp: '接收端口',
+    apTargetIpUdp:   '目標 IP（選填；空=廣播）',
+    confirm:         '確認',
+    cancel:          '取消',
+    navMask:           '遮罩管理',
+    navPort:           'Port 管理',
+    navLog:            '系統日誌',
+    navManual:         '說明書',
+    batchDelete:       '批次刪除',
+    confirmBatchDelete:'確定刪除選取的 {n} 個 Port 嗎？',
+    selectedCount:     '已選取 {n} 個',
+    confirmDeletePort: '確定刪除 Port「{name}」？',
+    errAddPort:      '新增失敗：',
+    errDeletePort:   '刪除失敗：',
+    errEditPort:     '編輯失敗：',
+    maskOriginalData:'原始資料',
+    editPort:        '編輯',
+    editPortTitle:   '編輯 Port',
+    sysLogTitle:     '系統 Log',
+    enablePort:      '啟用',
+    disablePort:     '停用',
+    clients:         '連線裝置',
+    noClients:       '目前無連線裝置',
+    filtered:        '篩選結果',
+    deviceId:        'Device ID',
+    pendingId:       '尚未識別',
+    connectedFor:    '連線時長',
+    lastActivity:    '最後活動',
+    messages:        '訊息數',
+    rate:            '速率',
+    rtt:             '延遲 RTT',
+    justNow:         '剛才',
+    ago:             '秒前',
+    exportSettings:  '匯出設定',
+    importSettings:  '匯入設定',
+    importOk:        '匯入完成',
+    connCount:       '{n} 個連線',
+  },
+  'en-US': {
+    maskMgmt:        'Mask Manager',
+    maskList:        'Mask List',
+    import:          'Import',
+    maskIdPlaceholder: 'Mask ID (required)',
+    maskKeyPlaceholder:'Localization key (optional)',
+    addMask:         'Add Mask',
+    selectMask:      'Select a mask on the left to edit',
+    descPlaceholder: 'Description (optional)',
+    defaultReadOnly: 'Default, read-only',
+    exportSdk:       'Export SDK JSON',
+    saveDef:         'Save',
+    textMode:        'Text',
+    pasteData:       'Paste firmware sample data',
+    autoDetect:      'Auto Detect',
+    fieldDelim:      'Field delimiter',
+    kvDelim:         'KV separator',
+    fieldName:       'Field name',
+    type:            'Type',
+    addField:        '+ Add Field',
+    defineOutput:    'Define output format',
+    clickToInsert:   'Click field name to insert',
+    preview:         'Live Preview',
+    input:           'Input',
+    output:          'Output',
+    portStatus:      'Port Status',
+    colName:         'Name',
+    colProtocol:     'Protocol',
+    colLocalPort:    'Local Port',
+    colRemotePort:   'Remote Port',
+    colTarget:       'Target IP',
+    colStatus:       'Status',
+    colMask:         'Mask',
+    loading:         'Loading…',
+    noPort:          'No port configured',
+    selectAll:       'Select All',
+    totalPort:       'Port',
+    sourceLabel:     'Source',
+    connected:       'Connected',
+    disconnected:    'Disconnected',
+    clear:           'Clear',
+    waitingLog:      'Waiting for logs…',
+    connecting:      'Connecting…',
+    synced:          'Synced',
+    connFail:        'Connection failed',
+    saved:           'Saved ✓',
+    noMask:          'No masks',
+    defaultBadge:    'Default',
+    delete:          'Delete',
+    items:           '',
+    waitInput:       '(waiting for input)',
+    rawPassthru:     '(raw passthrough)',
+    noFieldParsed:   'No fields parsed, check delimiters',
+    placeholderWarn: '⚠ Placeholder {p} has no matching field → outputs empty string',
+    confirmDelete:   'Delete mask "{id}"?',
+    errMaskIdEmpty:  'Mask ID is required',
+    errJsonFmt:      'Invalid JSON format',
+    errJsonMaskId:   'JSON missing maskId',
+    errCreate:       'Failed to create mask: ',
+    errSaveDef:      'Failed to save definition: ',
+    routeSettings:      'Reverse Routing',
+    routeModeLabel:     'Route Mode',
+    routeModeNone:      '— None (default broadcast) —',
+    routeModeBroadcast: 'broadcast — to all frontends',
+    routeModeResponse:  'response — back to sender',
+    corrIdFieldLabel:   'Correlation ID field name',
+    corrIdFieldPlaceholder: 'e.g. id, txId',
+    apNoRespMask:       'No response mask',
+    maskLabel:          'Forward Mask',
+    respMaskLabel:      'Response Mask',
+    reqModeLabel:       'Request Mode',
+    reqModeSerial:      'serial — queued',
+    reqModeConcurrent:  'concurrent',
+    reqModePolling:     'polling — latest only',
+    errImport:       'Import failed: ',
+    errDelete:       'Delete failed: ',
+    errSave:         'Save failed',
+    errSave2:        'Save failed: ',
+    errLoad:         'Load failed: ',
+    pasteFirst:      'Please paste sample data first',
+    colMonitor:      'Monitor',
+    startMonitor:    'Monitor',
+    stopMonitor:     'Stop',
+    errMonitor:      'Failed to set monitor',
+    logSearch:       'Search log…',
+    loginSubtitle:   'Enter password to continue',
+    loginBtn:        'Login',
+    loginFail:       'Incorrect password',
+    logout:          'Logout',
+    settingsTitle:   'Account Settings',
+    changePwd:       'Change Password',
+    currentPwd:      'Current Password',
+    newPwd:          'New Password',
+    confirmPwd:      'Confirm New Password',
+    savePwd:         'Save Password',
+    pwdChanged:      'Password updated',
+    errCurPwd:       'Incorrect current password',
+    errPwdMismatch:  'Passwords do not match',
+    errPwdEmpty:     'Please fill all fields',
+    scrollLockOn:    'Pause auto-scroll',
+    scrollLockOff:   'Resume auto-scroll',
+    addPort:         'Add Port',
+    colActions:      'Actions',
+    apName:          'Port Name',
+    apLocalPort:     'Local Port',
+    apRemotePort:    'Remote Port',
+    apTargetIp:      'Target IP',
+    apSource:        'Data Source',
+    apSourceNone:    '(none)',
+    apLocalPortUdp:  'Local Port (forward dest)',
+    apRemotePortUdp: 'Listen Port',
+    apTargetIpUdp:   'Target IP (opt; empty=broadcast)',
+    confirm:         'Confirm',
+    cancel:          'Cancel',
+    navMask:           'Mask',
+    navPort:           'Ports',
+    navLog:            'System Log',
+    navManual:         'Manual',
+    batchDelete:       'Batch Delete',
+    confirmBatchDelete:'Delete {n} selected port(s)?',
+    selectedCount:     '{n} selected',
+    confirmDeletePort: 'Delete port "{name}"?',
+    errAddPort:      'Add failed: ',
+    errDeletePort:   'Delete failed: ',
+    errEditPort:     'Edit failed: ',
+    maskOriginalData:'Original Data',
+    editPort:        'Edit',
+    editPortTitle:   'Edit Port',
+    sysLogTitle:     'System Log',
+    enablePort:      'Enable',
+    disablePort:     'Disable',
+    clients:         'Clients',
+    noClients:       'No connected clients',
+    filtered:        'Filtered',
+    deviceId:        'Device ID',
+    pendingId:       'pending',
+    connectedFor:    'Connected for',
+    lastActivity:    'Last activity',
+    messages:        'Messages',
+    rate:            'Rate',
+    rtt:             'RTT',
+    justNow:         'just now',
+    ago:             's ago',
+    exportSettings:  'Export Settings',
+    importSettings:  'Import Settings',
+    importOk:        'Import successful',
+    connCount:       '{n} connections',
+  },
+  'ja-JP': {
+    maskMgmt:        'マスク管理',
+    maskList:        'マスクリスト',
+    import:          'インポート',
+    maskIdPlaceholder: 'マスク ID（必須）',
+    maskKeyPlaceholder:'ローカライズキー（任意）',
+    addMask:         'マスクを追加',
+    selectMask:      '左側からマスクを選択して編集',
+    descPlaceholder: '説明（任意）',
+    defaultReadOnly: 'デフォルト、編集不可',
+    exportSdk:       'SDK JSON エクスポート',
+    saveDef:         '定義を保存',
+    textMode:        'テキスト',
+    pasteData:       'ファームウェアサンプルを貼り付け',
+    autoDetect:      '自動検出',
+    fieldDelim:      'フィールド区切り文字',
+    kvDelim:         'KV 区切り文字',
+    fieldName:       'フィールド名',
+    type:            '型',
+    addField:        '+ フィールドを追加',
+    defineOutput:    '出力形式を定義',
+    clickToInsert:   'フィールド名をクリックして挿入',
+    preview:         'リアルタイムプレビュー',
+    input:           '入力',
+    output:          '出力',
+    portStatus:      'ポート状態',
+    colName:         '名前',
+    colProtocol:     'プロトコル',
+    colLocalPort:    'ローカルポート',
+    colRemotePort:   'リモートポート',
+    colTarget:       'ターゲット IP',
+    colStatus:       '状態',
+    colMask:         'マスク',
+    loading:         '読み込み中…',
+    noPort:          'ポート設定なし',
+    selectAll:       '全選択',
+    totalPort:       'ポート',
+    sourceLabel:     'ソース',
+    connected:       '接続中',
+    disconnected:    '未接続',
+    clear:           'クリア',
+    waitingLog:      'ログ待ち…',
+    connecting:      '接続中…',
+    synced:          '同期済み',
+    connFail:        '接続失敗',
+    saved:           '保存済み ✓',
+    noMask:          'マスクなし',
+    defaultBadge:    'デフォルト',
+    delete:          '削除',
+    items:           '個',
+    waitInput:       '（入力待ち）',
+    rawPassthru:     '（rawパススルー）',
+    noFieldParsed:   'フィールドが解析できません、区切り文字を確認してください',
+    placeholderWarn: '⚠ プレースホルダー {p} に対応フィールドなし → 空文字列を出力',
+    confirmDelete:   'マスク「{id}」を削除しますか？',
+    errMaskIdEmpty:  'マスク ID は必須です',
+    errJsonFmt:      'JSON 形式エラー',
+    errJsonMaskId:   'JSON に maskId がありません',
+    errCreate:       'マスクの作成に失敗: ',
+    errSaveDef:      '定義の保存に失敗: ',
+    errImport:       'インポート失敗: ',
+    routeSettings:      '逆方向ルーティング設定',
+    routeModeLabel:     'ルートモード',
+    routeModeNone:      '— 設定なし（デフォルト broadcast）—',
+    routeModeBroadcast: 'broadcast — 全 Frontend に送信',
+    routeModeResponse:  'response — 送信者に返す',
+    corrIdFieldLabel:   'Correlation ID フィールド名',
+    corrIdFieldPlaceholder: '例：id、txId',
+    apNoRespMask:       '逆方向 Mask なし',
+    maskLabel:          '正方向 Mask',
+    respMaskLabel:      '逆方向 Mask',
+    reqModeLabel:       'リクエストモード',
+    reqModeSerial:      'serial — キュー順',
+    reqModeConcurrent:  'concurrent — 並行',
+    reqModePolling:     'polling — 最新のみ保持',
+    errDelete:       '削除失敗: ',
+    errSave:         '保存失敗',
+    errSave2:        '保存失敗: ',
+    errLoad:         '読み込み失敗: ',
+    pasteFirst:      '先にサンプルデータを貼り付けてください',
+    colMonitor:      '監視',
+    startMonitor:    '監視',
+    stopMonitor:     '停止',
+    errMonitor:      '監視設定に失敗しました',
+    logSearch:       'ログ検索…',
+    loginSubtitle:   'パスワードを入力してください',
+    loginBtn:        'ログイン',
+    loginFail:       'パスワードが違います',
+    logout:          'ログアウト',
+    settingsTitle:   'アカウント設定',
+    changePwd:       'パスワード変更',
+    currentPwd:      '現在のパスワード',
+    newPwd:          '新しいパスワード',
+    confirmPwd:      '新しいパスワードを確認',
+    savePwd:         'パスワードを保存',
+    pwdChanged:      'パスワードを更新しました',
+    errCurPwd:       '現在のパスワードが違います',
+    errPwdMismatch:  'パスワードが一致しません',
+    errPwdEmpty:     'すべての欄を入力してください',
+    scrollLockOn:    '自動スクロールを停止',
+    scrollLockOff:   '自動スクロールを再開',
+    addPort:         'ポートを追加',
+    colActions:      '操作',
+    apName:          'ポート名',
+    apLocalPort:     'ローカルポート',
+    apRemotePort:    'リモートポート',
+    apTargetIp:      'ターゲット IP',
+    apSource:        'データソース',
+    apSourceNone:    '（指定なし）',
+    apLocalPortUdp:  'ローカルポート（転送先）',
+    apRemotePortUdp: '受信ポート',
+    apTargetIpUdp:   'ターゲット IP（任意；空=ブロードキャスト）',
+    confirm:         '確認',
+    cancel:          'キャンセル',
+    navMask:           'マスク管理',
+    navPort:           'ポート管理',
+    navLog:            'システムログ',
+    navManual:         'マニュアル',
+    batchDelete:       '一括削除',
+    confirmBatchDelete:'{n} 個のポートを削除しますか？',
+    selectedCount:     '{n} 個選択中',
+    confirmDeletePort: 'ポート「{name}」を削除しますか？',
+    errAddPort:      '追加失敗: ',
+    errDeletePort:   '削除失敗: ',
+    errEditPort:     '編集失敗: ',
+    maskOriginalData:'元データ',
+    editPort:        '編集',
+    editPortTitle:   'ポートを編集',
+    sysLogTitle:     'システムログ',
+    enablePort:      '有効',
+    disablePort:     '無効',
+    clients:         '接続デバイス',
+    noClients:       '接続デバイスなし',
+    filtered:        'フィルター結果',
+    deviceId:        'デバイス ID',
+    pendingId:       '未識別',
+    connectedFor:    '接続時間',
+    lastActivity:    '最終活動',
+    messages:        'メッセージ数',
+    rate:            '速度',
+    rtt:             '遅延 RTT',
+    justNow:         'たった今',
+    ago:             '秒前',
+    exportSettings:  '設定エクスポート',
+    importSettings:  '設定インポート',
+    importOk:        'インポート完了',
+    connCount:       '{n} 接続',
+  }
+};
+
+let lang = localStorage.getItem('lang') || 'zh-TW';
+function t(k) { return (LANGS[lang] || LANGS['zh-TW'])[k] || k; }
+function maskLabel(id) {
+  if (!id) return t('maskOriginalData');
+  const norm = id.trim().toLowerCase();
+  if (norm === 'originaldata' || norm === 'original data') return t('maskOriginalData');
+  return id;
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  document.getElementById('lang-sel').value = lang;
+  const importBtn = document.getElementById('import-btn');
+  if (importBtn) importBtn.title = t('import');
+  const slBtn = document.getElementById('scroll-lock-btn');
+  if (slBtn) slBtn.title = autoScroll ? t('scrollLockOn') : t('scrollLockOff');
+  // update dynamic elements
+const prevIn = document.getElementById('prev-in');
+  if (prevIn.classList.contains('muted')) prevIn.textContent = t('waitInput');
+  const statusTxt = document.getElementById('status-txt');
+  if (statusTxt.dataset.state === 'connecting') statusTxt.textContent = t('connecting');
+  onAddPortProtocolChange(); // 更新 UDP/TCP 動態 placeholder
+}
+
+function setLang(l, fromServer) {
+  if (lang === l) return;
+  lang = l;
+  localStorage.setItem('lang', l);
+  applyI18n();
+  renderMasks();
+  loadPorts();
+  if (!fromServer) {
+    fetch(`${BASE}/api/language`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ languageCode: l })
+    }).catch(() => {});
+  }
+}
+
+async function syncLanguage() {
+  const r = await fetch(`${BASE}/api/language`);
+  if (!r.ok) return;
+  const d = await r.json();
+  if (d.languageCode && d.languageCode !== lang) setLang(d.languageCode, true);
+}
+
+// ── Theme ─────────────────────────────────────────────
+(function() {
+  const saved = localStorage.getItem('theme');
+  document.documentElement.setAttribute('data-theme', saved ?? 'dark');
+  lang = localStorage.getItem('lang') || 'zh-TW';
+  applyI18n();
+  document.getElementById('status-txt').dataset.state = 'connecting';
+  document.getElementById('status-txt').textContent = t('connecting');
+})();
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+}
+
+// ── Polling ───────────────────────────────────────────
+async function poll() {
+  try { await Promise.all([loadMasks(), loadPorts(), syncLanguage(), pollSysLog()]); setOk(true); }
+  catch { setOk(false); }
+}
+async function init() {
+  await Promise.all([loadMasks(), loadPorts(), syncLanguage(), pollSysLog()]);
+  setOk(true);
+  setInterval(poll, 3000);
+}
+
+checkAuth().then(() => {
+  const overlay = document.getElementById('login-overlay');
+  if (overlay.style.display === 'none') init();
+});
+
+function setOk(ok) {
+  document.getElementById('dot').className = 'dot ' + (ok ? 'ok' : 'err');
+  const el = document.getElementById('status-txt');
+  el.dataset.state = ok ? 'ok' : 'err';
+  el.textContent = ok
+    ? new Date().toLocaleTimeString() + ' ' + t('synced')
+    : t('connFail');
+}
+
+// ── Masks ──────────────────────────────────────────────
+async function loadMasks() {
+  const r = await fetch(`${BASE}/api/masks`);
+  if (!r.ok) throw 0;
+  masks = (await r.json()).maskTypes || [];
+  renderMasks();
+}
+
+function renderMasks() {
+  const count = masks.length;
+  document.getElementById('mask-count').textContent =
+    lang === 'en-US' ? count + ' items' : count + ' ' + t('items');
+  const el = document.getElementById('mask-list');
+  if (!count) {
+    el.innerHTML = `<p style="font-size:13px;color:var(--text-3);padding:8px 4px">${t('noMask')}</p>`;
+    return;
+  }
+  el.innerHTML = masks.map(m => {
+    const def = m === 'OriginalData';
+    return `<div class="mask-item${m === curId ? ' sel' : ''}" onclick="openDef('${esc(m)}')">
+      <div class="m-avatar${def ? ' def' : ''}">${esc(maskLabel(m)[0].toUpperCase())}</div>
+      <span class="m-name" title="${esc(m)}">${esc(maskLabel(m))}</span>
+      ${def
+        ? `<span class="m-badge">${t('defaultBadge')}</span>`
+        : `<button class="btn btn-del" title="${t('delete')}" onclick="event.stopPropagation();delMask('${esc(m)}')">
+             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+             </svg>
+           </button>`}
+    </div>`;
+  }).join('');
+}
+
+async function openDef(id) {
+  if (curId === id) {
+    curId = null;
+    renderMasks();
+    document.getElementById('def-panel').style.display = 'none';
+    document.getElementById('def-empty').style.display = '';
+    return;
+  }
+  curId = id;
+  renderMasks();
+  document.getElementById('def-empty').style.display = 'none';
+  document.getElementById('def-panel').style.display = '';
+  document.getElementById('def-title').textContent = id;
+  document.getElementById('def-err').textContent = '';
+
+  const locked = id === 'OriginalData';
+  setLocked(locked);
+
+  try {
+    curDef = await (await fetch(`${BASE}/api/masks/${encodeURIComponent(id)}`)).json();
+    fillForm(curDef);
+  } catch(e) {
+    document.getElementById('def-err').textContent = t('errLoad') + e.message;
+  }
+}
+
+function setLocked(locked) {
+  document.getElementById('lock-badge').style.display = locked ? 'inline-flex' : 'none';
+  document.getElementById('save-btn').style.display = locked ? 'none' : '';
+  const inputs = document.querySelectorAll(
+    '#def-panel input, #def-panel textarea, #def-panel select, #def-panel .tab, #def-panel .chip');
+  inputs.forEach(el => {
+    if (locked) el.setAttribute('disabled',''); else el.removeAttribute('disabled');
+    el.style.pointerEvents = locked ? 'none' : '';
+    el.style.opacity = locked ? '0.45' : '';
+  });
+}
+
+function fillForm(d) {
+  document.getElementById('def-desc').value       = d.description    || '';
+  document.getElementById('fd').value             = d.fieldDelimiter || ';';
+  document.getElementById('kv').value             = d.kvSeparator    || ':';
+  document.getElementById('tmpl').value           = d.outputTemplate || '{raw}';
+  document.getElementById('sample').value         = d.sampleData     || '';
+  document.getElementById('def-route-mode').value = d.routeMode      || '';
+  document.getElementById('def-corr-field').value = d.correlationIdField || '';
+  onRouteModeChange();
+  reparse();
+}
+
+function onRouteModeChange() {
+  const mode = document.getElementById('def-route-mode').value;
+  document.getElementById('corr-field-wrap').style.display = mode === 'response' ? '' : 'none';
+}
+
+// ── Auto-detect ────────────────────────────────────────
+function autoDetect() {
+  const s = document.getElementById('sample').value.trim();
+  if (!s) { alert(t('pasteFirst')); return; }
+  let best = { score: 0, fd: ';', kv: ':' };
+  for (const fd of [';', ',', '|', '\t'])
+    for (const kv of [':', '=']) {
+      const parts = s.split(fd);
+      if (parts.length < 2) continue;
+      const score = parts.filter(p => p.includes(kv)).length;
+      if (score > best.score) best = { score, fd, kv };
+    }
+  document.getElementById('fd').value = best.fd;
+  document.getElementById('kv').value = best.kv;
+  reparse();
+}
+
+// ── Parse + preview ────────────────────────────────────
+function reparse() {
+  const s = document.getElementById('sample').value.trim();
+  const pIn = document.getElementById('prev-in');
+  pIn.textContent = s || t('waitInput');
+  pIn.className   = s ? 'pbox' : 'pbox muted';
+
+  const f = parseText(s);
+  const names = Object.keys(f);
+  document.getElementById('fields').innerHTML = names.length
+    ? names.map(k => `<span class="ftag">${esc(k)} = ${esc(f[k])}</span>`).join('')
+    : (s ? `<span class="fhint">${t('noFieldParsed')}</span>` : '');
+
+  updateChips(names);
+  updatePreview(s, f);
+}
+
+function parseText(s) {
+  const fd = document.getElementById('fd').value || ';';
+  const kv = document.getElementById('kv').value || ':';
+  const r = {};
+  if (!s) return r;
+  for (const p of s.split(fd)) {
+    const i = p.indexOf(kv);
+    if (i < 0) continue;
+    const k = p.slice(0, i).trim(), v = p.slice(i + kv.length).trim();
+    if (k) r[k] = v;
+  }
+  return r;
+}
+
+function updateChips(names) {
+  if (!names)
+    names = Object.keys(parseText(document.getElementById('sample')?.value.trim() || ''));
+  document.getElementById('chips').innerHTML =
+    `<span class="chip raw" onclick="insertChip('{raw}')">{raw}</span>` +
+    names.map(n => `<span class="chip" onclick="insertChip('{${esc(n)}}')">{${esc(n)}}</span>`).join('');
+}
+
+function insertChip(txt) {
+  const el = document.getElementById('tmpl');
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = el.value.slice(0, s) + txt + el.value.slice(e);
+  el.selectionStart = el.selectionEnd = s + txt.length;
+  el.focus(); updatePreview();
+}
+
+function updatePreview(raw, fields) {
+  const tmpl = document.getElementById('tmpl').value.trim();
+  const out  = document.getElementById('prev-out');
+  const s    = raw ?? document.getElementById('sample')?.value.trim() ?? '';
+  if (!tmpl || tmpl === '{raw}') {
+    out.textContent = s || t('rawPassthru');
+    out.className = s ? 'pbox' : 'pbox muted'; return;
+  }
+  const f = fields ?? parseText(s);
+  let res = tmpl;
+  for (const [k,v] of Object.entries(f)) res = res.split(`{${k}}`).join(v);
+  const bad = res.match(/\{[^}]+\}/);
+  if (bad) {
+    out.textContent = t('placeholderWarn').replace('{p}', bad[0]);
+    out.className = 'pbox warn';
+  } else {
+    out.textContent = res; out.className = 'pbox';
+  }
+}
+
+// ── Export SDK JSON ────────────────────────────────────
+function exportDefinition() {
+  if (!curId) return;
+  const def = {
+    maskId:             curId,
+    localizationKey:    curDef?.localizationKey || curId,
+    description:        document.getElementById('def-desc').value.trim(),
+    inputEncoding:      'text',
+    fieldDelimiter:     document.getElementById('fd').value || ';',
+    kvSeparator:        document.getElementById('kv').value || ':',
+    outputTemplate:     document.getElementById('tmpl').value.trim() || '{raw}',
+    sampleData:         document.getElementById('sample').value || '',
+    routeMode:          document.getElementById('def-route-mode').value || '',
+    correlationIdField: document.getElementById('def-corr-field').value.trim() || ''
+  };
+  const blob = new Blob([JSON.stringify(def, null, 2)], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `mask_${curId}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Save ───────────────────────────────────────────────
+async function saveDefinition() {
+  document.getElementById('def-err').textContent = '';
+  if (!curId) return;
+  const def = {
+    maskId:             curId,
+    localizationKey:    curDef?.localizationKey || curId,
+    description:        document.getElementById('def-desc').value.trim(),
+    inputEncoding:      'text',
+    fieldDelimiter:     document.getElementById('fd').value || ';',
+    kvSeparator:        document.getElementById('kv').value || ':',
+    outputTemplate:     document.getElementById('tmpl').value.trim() || '{raw}',
+    sampleData:         document.getElementById('sample').value || '',
+    routeMode:          document.getElementById('def-route-mode').value || '',
+    correlationIdField: document.getElementById('def-corr-field').value.trim() || ''
+  };
+  try {
+    const d = await (await fetch(`${BASE}/api/masks/${encodeURIComponent(curId)}`,
+      { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(def) })).json();
+    if (!d.success) document.getElementById('def-err').textContent = d.error || t('errSave');
+    else { curDef = def; setOk(true); document.getElementById('status-txt').textContent = t('saved'); }
+  } catch(e) { document.getElementById('def-err').textContent = t('errSave2') + e.message; }
+}
+
+// ── Mask CRUD ──────────────────────────────────────────
+async function addMask() {
+  const id  = document.getElementById('new-mask-id').value.trim();
+  const loc = document.getElementById('new-mask-key').value.trim();
+  document.getElementById('mask-err').textContent = '';
+  if (!id) { document.getElementById('mask-err').textContent = t('errMaskIdEmpty'); return; }
+  const d = await (await fetch(`${BASE}/api/masks`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ maskId:id, localizationKey:loc })
+  })).json();
+  if (!d.success) { document.getElementById('mask-err').textContent = d.error; return; }
+  document.getElementById('new-mask-id').value = '';
+  document.getElementById('new-mask-key').value = '';
+  await loadMasks();
+  openDef(id);
+}
+
+async function delMask(id) {
+  if (!confirm(t('confirmDelete').replace('{id}', id))) return;
+  const d = await (await fetch(`${BASE}/api/masks/${encodeURIComponent(id)}`, { method:'DELETE' })).json();
+  if (!d.success) { alert(t('errDelete') + d.error); return; }
+  if (curId === id) {
+    curId = null;
+    document.getElementById('def-panel').style.display = 'none';
+    document.getElementById('def-empty').style.display = '';
+  }
+  await loadMasks();
+}
+
+// ── Import JSON ────────────────────────────────────────
+async function importMaskJson(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  let def;
+  try { def = JSON.parse(await file.text()); } catch { alert(t('errJsonFmt')); return; }
+  if (!def.maskId) { alert(t('errJsonMaskId')); return; }
+  try {
+    if (!masks.includes(def.maskId)) {
+      const cr = await (await fetch(`${BASE}/api/masks`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ maskId: def.maskId, localizationKey: def.localizationKey || def.maskId })
+      })).json();
+      if (!cr.success) { alert(t('errCreate') + cr.error); return; }
+    }
+    const sr = await (await fetch(`${BASE}/api/masks/${encodeURIComponent(def.maskId)}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(def)
+    })).json();
+    if (!sr.success) { alert(t('errSaveDef') + sr.error); return; }
+    await loadMasks();
+    openDef(def.maskId);
+  } catch(err) { alert(t('errImport') + err.message); }
+}
+
+// ── Ports ──────────────────────────────────────────────
+async function loadPorts() {
+  const r = await fetch(`${BASE}/api/ports`);
+  if (!r.ok) throw 0;
+  const ports = (await r.json()).ports || [];
+  portList = ports;
+
+  // 保留 polling 重撈前的勾選狀態，避免用戶選了之後 3 秒後就被清掉
+  const prevSelected = new Set(
+    Array.from(document.querySelectorAll('.port-cb:checked')).map(cb => cb.value)
+  );
+
+  const tb = document.getElementById('port-body');
+  if (!ports.length) {
+    tb.innerHTML = `<div class="empty-state" style="padding:48px;grid-column:1/-1"><p>${t('noPort')}</p></div>`;
+    updatePortSummary(ports);
+    updateBatchBar();
+    return;
+  }
+  updatePortSummary(ports);
+  const sq = s => (s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  tb.innerHTML = ports.map(p => {
+    const pc = p.netProtocol === 'TCP Server' ? 'proto-server' : p.netProtocol === 'UDP' ? 'proto-udp' : 'proto-client';
+    const isTcpClient = p.netProtocol === 'TCP Client';
+    const monKey = p.id;
+    const isActive = activeMon === monKey;
+    const shortId = p.id ? p.id.slice(0, 8) : '';
+
+    // mask tags
+    const maskTags =
+      `<span class="mask-tag">${esc(maskLabel(p.maskType))}</span>` +
+      (isTcpClient && p.responseMaskType
+        ? `<span class="mask-tag" style="opacity:.75" title="${t('respMaskLabel')}">↩ ${esc(maskLabel(p.responseMaskType))}</span>`
+        : '') +
+      (isTcpClient
+        ? `<span class="mode-tag">${esc(p.requestMode || 'serial')}</span>`
+        : '');
+
+    // metadata rows (icons + label + value)
+    const metaRows = [];
+    if (p.localPort && p.localPort !== '--')
+      metaRows.push(['M3 12h18M3 6h18M3 18h18', t('colLocalPort') || '本地', esc(p.localPort)]);
+    if (p.remotePort && p.remotePort !== '--')
+      metaRows.push(['M5 12h14M12 5l7 7-7 7', t('colRemotePort') || '遠端', esc(p.remotePort)]);
+    if (p.targetIp)
+      metaRows.push(['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2c2 2 3 6 3 10s-1 8-3 10c-2-2-3-6-3-10s1-8 3-10z', t('colTarget') || 'IP', esc(p.targetIp)]);
+    if (isTcpClient && p.sourceProtocolName) {
+      const srcShortId = p.sourceProtocolId ? ' #' + p.sourceProtocolId.slice(0, 8) : '';
+      metaRows.push(['M13 5l7 7-7 7M5 12h15', t('sourceLabel') || '來源', esc(p.sourceProtocolName) + esc(srcShortId)]);
+    }
+    const metaHtml = `<div class="pc-meta">${metaRows.map(([d, lbl, val]) =>
+      `<svg class="pc-meta-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="${d}"/></svg>
+       <span class="pc-meta-lbl">${lbl}</span>
+       <span class="pc-meta-val">${val}</span>`
+    ).join('')}</div>`;
+
+    // stats / connections
+    const showsClients = (p.netProtocol === 'TCP Server' || p.netProtocol === 'UDP');
+    const clientsCount = p.netProtocol === 'UDP' ? (p.connectedDeviceIds || []).length : (p.currentConnections || 0);
+    const statsRow = (showsClients && p.isEnabled) ? `
+      <div class="pc-stats">
+        <div class="pc-stat" title="${t('clients')}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <strong>${clientsCount}</strong>
+        </div>
+        ${p.netProtocol === 'TCP Server' ? `<div class="pc-stat">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <strong>${fmtBytes(p.totalReceivedBytes)}</strong>
+        </div>` : ''}
+      </div>` : '';
+
+    // device id summary (small list)
+    const devList = (showsClients && p.isEnabled && (p.connectedDeviceIds || []).length > 0)
+      ? `<div class="pc-devices" title="${esc((p.connectedDeviceIds || []).join(', '))}">${esc((p.connectedDeviceIds || []).slice(0, 4).join(', '))}${(p.connectedDeviceIds || []).length > 4 ? ` +${(p.connectedDeviceIds || []).length - 4}` : ''}</div>`
+      : '';
+
+    // action buttons (compact icon-only at bottom)
+    const monBtn = `<button class="btn btn-sm ${isActive ? 'btn-ok' : 'btn-ghost'}" onclick="setMonitor(${isActive ? 'null' : `'${sq(p.id)}'`})" title="${isActive ? t('stopMonitor') : t('startMonitor')}">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+      </svg>
+    </button>`;
+    const clientsBtn = showsClients ? `<button class="btn btn-ghost btn-sm" title="${t('clients')}" onclick="showClients('${sq(p.id)}')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    </button>` : '';
+    const toggleBtn = `<button class="btn btn-sm ${p.isEnabled ? 'btn-ghost' : 'btn-pri'}" title="${p.isEnabled ? t('disablePort') : t('enablePort')}" onclick="togglePortEnabled('${sq(p.id)}', ${!p.isEnabled})">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+    </button>`;
+    const editBtn = `<button class="btn btn-ghost btn-sm" title="${t('editPort')}" onclick="openEditPortForm('${sq(p.id)}')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>`;
+    const delBtn = `<button class="btn btn-del btn-sm" title="${t('delete')}" onclick="deletePort('${sq(p.id)}')">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>`;
+
+    const cardCls = ['port-card', p.isConnected ? 'connected' : '', isActive ? 'active' : '', !p.isEnabled ? 'disabled' : ''].filter(Boolean).join(' ');
+
+    const wasSelected = prevSelected.has(p.id);
+    return `<div class="${cardCls}">
+      <div class="pc-hd">
+        <input type="checkbox" class="port-cb pc-cb" value="${esc(p.id)}" onchange="updateBatchBar()"${wasSelected ? ' checked' : ''}>
+        <div class="pc-title">
+          <div class="pc-name">${esc(p.protocolName)}</div>
+          ${shortId ? `<div class="pc-id">#${shortId}</div>` : ''}
+        </div>
+        <span class="badge ${p.isConnected?'b-on':'b-off'}">${p.isConnected ? t('connected') : t('disconnected')}</span>
+      </div>
+      <div class="pc-tags">
+        <span class="proto ${pc}">${esc(p.netProtocol)}</span>
+        ${maskTags}
+      </div>
+      ${metaHtml}
+      ${statsRow}
+      ${devList}
+      <div class="pc-ft">
+        ${!p.isEnabled ? `<span class="pc-disabled-note">${t('disablePort')}</span>` : ''}
+        ${monBtn}${clientsBtn}${toggleBtn}${editBtn}${delBtn}
+      </div>
+    </div>`;
+  }).join('');
+
+  // 重新整理 batch-bar (有勾選就顯示)
+  updateBatchBar();
+}
+
+function updatePortSummary(ports) {
+  const el = document.getElementById('port-summary');
+  if (!el) return;
+  const total = ports.length;
+  const connected = ports.filter(p => p.isConnected).length;
+  el.innerHTML = total > 0
+    ? `<span><span class="pc-summary-num">${total}</span> ${t('totalPort') || 'Port'}</span>
+       <span class="pc-summary-on">●&nbsp;<span class="pc-summary-num">${connected}</span> ${t('connected')}</span>`
+    : '';
+}
+
+// ── Settings Export / Import ──────────────────────────
+async function exportSettings() {
+  try {
+    const r = await fetch(`${BASE}/api/settings/export`);
+    if (!r.ok) return;
+    const json = await r.text();
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `edgelink_settings_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch { }
+}
+
+async function importSettings(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  let text;
+  try { text = await file.text(); } catch { return; }
+  const msg = document.getElementById('settings-io-msg');
+  try {
+    const r = await fetch(`${BASE}/api/settings/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: text
+    });
+    if (r.ok) {
+      msg.style.color = 'var(--success)';
+      msg.textContent = t('importOk');
+      await loadMasks(); await loadPorts();
+      setTimeout(() => { msg.textContent = ''; }, 3000);
+    } else {
+      const d = await r.json();
+      msg.style.color = 'var(--danger)';
+      msg.textContent = d.error || t('errSave');
+    }
+  } catch {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = t('errSave');
+  }
+}
+
+async function togglePortEnabled(id, enabled) {
+  try {
+    const r = await fetch(`${BASE}/api/ports/${encodeURIComponent(id)}/enabled`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    if (r.ok) await loadPorts();
+  } catch { }
+}
+
+let _clientsRefreshTimer = null;
+let _clientsPortId = null;
+let _clientsData   = [];
+let _clientsFilter = '';
+let _clientsPage   = 0;
+const CLIENTS_PAGE_SIZE = 50;
+
+async function showClients(id) {
+  _clientsPortId = id;
+  _clientsPage = 0;
+  document.getElementById('clients-search').value = '';
+  _clientsFilter = '';
+  document.getElementById('clients-list').innerHTML = '<div style="padding:20px;color:var(--text-3)">...</div>';
+  document.getElementById('clients-modal').style.display = 'flex';
+  await _fetchClients();
+  clearInterval(_clientsRefreshTimer);
+  _clientsRefreshTimer = setInterval(_fetchClients, 2000);
+}
+
+async function _fetchClients() {
+  if (!_clientsPortId) return;
+  try {
+    const r = await fetch(`${BASE}/api/ports/${encodeURIComponent(_clientsPortId)}/clients`);
+    const d = await r.json();
+    _clientsData = d.clients || [];
+    _renderClients();
+  } catch {
+    document.getElementById('clients-list').innerHTML = `<div style='padding:20px;color:var(--danger)'>Error</div>`;
+  }
+}
+
+function _onClientsSearch() {
+  _clientsFilter = document.getElementById('clients-search').value.toLowerCase();
+  _clientsPage = 0;
+  _renderClients();
+}
+
+function _renderClients() {
+  const filtered = _clientsFilter
+    ? _clientsData.filter(c => c.endpoint.toLowerCase().includes(_clientsFilter)
+        || (c.deviceId || '').toLowerCase().includes(_clientsFilter))
+    : _clientsData;
+
+  // Summary
+  const totalRate = _clientsData.reduce((s, c) => s + c.rateBytesPerSec, 0);
+  const rtts = _clientsData.filter(c => c.rttMs >= 0).map(c => c.rttMs);
+  const avgRtt = rtts.length ? (rtts.reduce((a, b) => a + b, 0) / rtts.length).toFixed(1) : 'N/A';
+  document.getElementById('clients-summary').innerHTML =
+    `<span>${t('clients')}: <b>${_clientsData.length}</b></span>`
+    + `<span>${t('rate')}: <b>${fmtBytes(totalRate)}/s</b></span>`
+    + `<span>Avg ${t('rtt')}: <b>${avgRtt === 'N/A' ? 'N/A' : avgRtt + ' ms'}</b></span>`
+    + (_clientsFilter ? `<span style='color:var(--text-3)'>${t('filtered')}: ${filtered.length}</span>` : '');
+
+  // Table
+  const pageCount = Math.max(1, Math.ceil(filtered.length / CLIENTS_PAGE_SIZE));
+  if (_clientsPage >= pageCount) _clientsPage = pageCount - 1;
+  const pageData = filtered.slice(_clientsPage * CLIENTS_PAGE_SIZE, (_clientsPage + 1) * CLIENTS_PAGE_SIZE);
+
+  const TH = 'style="padding:6px 10px;text-align:left;font-weight:600;font-size:11px;color:var(--text-3);border-bottom:1px solid var(--border);white-space:nowrap"';
+  const list = document.getElementById('clients-list');
+  if (filtered.length === 0) {
+    list.innerHTML = `<div style='padding:20px;color:var(--text-3)'>${t('noClients')}</div>`;
+  } else {
+    list.innerHTML = `<table style='width:100%;border-collapse:collapse;font-size:12px'>`
+      + `<thead><tr>`
+      + `<th ${TH}>IP : Port</th><th ${TH}>${t('deviceId')}</th><th ${TH}>${t('connectedFor')}</th>`
+      + `<th ${TH}>${t('lastActivity')}</th><th ${TH}>${t('messages')}</th>`
+      + `<th ${TH}>${t('totalBytes')}</th><th ${TH}>${t('rate')}</th><th ${TH}>${t('rtt')}</th>`
+      + `</tr></thead><tbody>`
+      + pageData.map((c, i) => {
+          const rttColor = c.rttMs < 0 ? 'var(--text-3)' : c.rttMs < 50 ? 'var(--ok)' : c.rttMs < 200 ? '#f59e0b' : 'var(--danger)';
+          const rttText  = c.rttMs < 0 ? 'N/A' : c.rttMs.toFixed(1) + ' ms';
+          const act      = c.lastActivitySec < 2 ? t('justNow') : c.lastActivitySec.toFixed(0) + ' ' + t('ago');
+          const bg = i % 2 === 1 ? 'background:var(--bg)' : '';
+          const TD = `style='padding:6px 10px;${bg}'`;
+          const didCell = c.deviceId
+            ? `<span style='font-family:Consolas,monospace;color:var(--pri)'>${esc(c.deviceId)}</span>`
+            : `<span style='color:var(--text-3);font-style:italic'>${t('pendingId')}</span>`;
+          return `<tr>`
+            + `<td ${TD} style='padding:6px 10px;${bg};font-family:Consolas,monospace'>${esc(c.endpoint)}</td>`
+            + `<td ${TD}>${didCell}</td>`
+            + `<td ${TD}>${_fmtDur(c.connectedSeconds)}</td>`
+            + `<td ${TD}>${act}</td>`
+            + `<td ${TD}>${c.messageCount}</td>`
+            + `<td ${TD}>${fmtBytes(c.totalBytes)}</td>`
+            + `<td ${TD}>${fmtBytes(c.rateBytesPerSec)}/s</td>`
+            + `<td style='padding:6px 10px;${bg};color:${rttColor}'>${rttText}</td>`
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+  }
+
+  // Pagination
+  const pg = document.getElementById('clients-pagination');
+  if (pageCount <= 1) { pg.innerHTML = ''; return; }
+  pg.innerHTML =
+    `<button class='btn btn-ghost btn-sm' onclick='_clientsPageTo(${_clientsPage - 1})' ${_clientsPage === 0 ? 'disabled' : ''}>&#8592;</button>`
+    + `<span>${_clientsPage + 1} / ${pageCount}</span>`
+    + `<button class='btn btn-ghost btn-sm' onclick='_clientsPageTo(${_clientsPage + 1})' ${_clientsPage >= pageCount - 1 ? 'disabled' : ''}>&#8594;</button>`;
+}
+
+function _clientsPageTo(p) { _clientsPage = p; _renderClients(); }
+
+function _fmtDur(s) {
+  if (s < 60)   return s.toFixed(0) + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + Math.floor(s%60) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+function closeClients() {
+  document.getElementById('clients-modal').style.display = 'none';
+  clearInterval(_clientsRefreshTimer);
+  _clientsRefreshTimer = null;
+  _clientsPortId = null;
+}
+
+async function setMonitor(id) {
+  if (!id) { await clearMonitor(); return; }
+  try {
+    const r = await fetch(`${BASE}/api/monitor/port`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (!r.ok) { alert(t('errMonitor')); return; }
+    activeMon = id;
+    monitorCursor = 0;
+    autoScroll = true;
+    logFilter = ''; activeIpFilter = '';
+    document.getElementById('log-search').value = '';
+    document.getElementById('ip-filter').value = '';
+    document.getElementById('ip-filter').style.display = 'none';
+    document.getElementById('ip-datalist').innerHTML = '';
+    seenIps.clear();
+    document.getElementById('scroll-lock-btn').classList.replace('btn-ok','btn-ghost');
+    document.getElementById('scroll-lock-icon').innerHTML = '<polyline points="18 15 12 21 6 15"/><line x1="12" y1="3" x2="12" y2="21"/>';
+    document.getElementById('log-box').innerHTML = '';
+    document.getElementById('monitor-log-card').style.display = '';
+    const mp = portList.find(x => x.id === id);
+    const portNum = mp?.localPort && mp.localPort !== '--' ? mp.localPort : mp?.remotePort && mp.remotePort !== '--' ? mp.remotePort : '';
+    document.getElementById('mon-target').textContent = portNum ? `${mp?.netProtocol} : ${portNum}` : (mp?.netProtocol || '');
+    startMonitorStream();
+    await loadPorts();
+  } catch { alert(t('errMonitor')); }
+}
+
+async function clearMonitor() {
+  await fetch(`${BASE}/api/monitor/port`, { method: 'DELETE' }).catch(() => {});
+  activeMon = null;
+  monitorCursor = 0;
+  stopMonitorStream();
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('monitor-log-card').style.display = 'none';
+  await loadPorts();
+}
+
+
+// ── Monitor SSE ───────────────────────────────────────
+let _monEs = null;
+
+function startMonitorStream() {
+  if (_monEs) { _monEs.close(); _monEs = null; }
+  _monEs = new EventSource(`${BASE}/api/monitor-stream`);
+  _monEs.onmessage = e => {
+    if (!e.data || e.data.startsWith(':')) return;
+    appendLogLine(e.data);
+  };
+  _monEs.onerror = () => {
+    if (_monEs) { _monEs.close(); _monEs = null; }
+    if (activeMon) setTimeout(startMonitorStream, 2000);
+  };
+}
+
+function stopMonitorStream() {
+  if (_monEs) { _monEs.close(); _monEs = null; }
+}
+
+// ── Monitor Log helpers ────────────────────────────────
+// 完整 IP:port tag，用於 log 著色
+const IP_RE = /\[from ([\d.]+:\d+)\]/;
+// 只取 IP 部分，作為裝置識別（port 是暫時的）
+const IP_ONLY_RE = /\[from ([\d.]+):\d+\]/;
+
+function appendLogLine(text) {
+  const ipOnly = (() => { const m = IP_ONLY_RE.exec(text); return m ? m[1] : null; })();
+  if (activeIpFilter) {
+    if (ipOnly !== activeIpFilter) return;
+  } else if (logFilter && !text.toLowerCase().includes(logFilter)) {
+    return;
+  }
+
+  // 以 IP 為裝置識別加入下拉
+  if (ipOnly) addIpChip(ipOnly);
+
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  const el = document.createElement('div');
+  el.dataset.raw = text;
+  el.dataset.ip = ipOnly || '';
+  // IP:port 部分以主色顯示
+  const full = IP_RE.exec(text);
+  el.innerHTML = full
+    ? esc(text).replace(esc(full[0]), `<span style="color:var(--pri);font-weight:500">${esc(full[0])}</span>`)
+    : esc(text);
+  box.appendChild(el);
+  if (autoScroll) box.scrollTop = box.scrollHeight;
+}
+
+function addIpChip(ip) {
+  if (seenIps.has(ip)) return;
+  seenIps.add(ip);
+  document.getElementById('ip-filter').style.display = '';
+  const opt = document.createElement('option');
+  opt.value = ip;
+  document.getElementById('ip-datalist').appendChild(opt);
+}
+
+function applyIpFilter() {
+  const ip = (document.getElementById('ip-filter').value || '').trim();
+  activeIpFilter = ip;
+  logFilter = '';
+  document.getElementById('log-search').value = '';
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  box.querySelectorAll('div[data-raw]').forEach(el => {
+    el.style.display = ip && !el.dataset.ip.startsWith(ip) ? 'none' : '';
+  });
+}
+
+function setIpFilter(ip) {
+  document.getElementById('ip-filter').value = ip;
+  applyIpFilter();
+}
+
+function applyLogFilter() {
+  activeIpFilter = '';
+  logFilter = (document.getElementById('log-search').value || '').toLowerCase();
+  document.getElementById('ip-filter').value = '';
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  box.querySelectorAll('div[data-raw]').forEach(el => {
+    el.style.display = logFilter && !el.dataset.raw.toLowerCase().includes(logFilter) ? 'none' : '';
+  });
+}
+
+function toggleScrollLock() {
+  autoScroll = !autoScroll;
+  const btn = document.getElementById('scroll-lock-btn');
+  const icon = document.getElementById('scroll-lock-icon');
+  if (autoScroll) {
+    btn.classList.replace('btn-ok', 'btn-ghost');
+    icon.innerHTML = '<polyline points="18 15 12 21 6 15"/><line x1="12" y1="3" x2="12" y2="21"/>';
+    const box = document.getElementById('log-box');
+    if (box) box.scrollTop = box.scrollHeight;
+  } else {
+    btn.classList.replace('btn-ghost', 'btn-ok');
+    icon.innerHTML = '<line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 5 5 12"/>';
+  }
+}
+
+function clearLog() {
+  document.getElementById('log-box').innerHTML = '';
+  monitorCursor = 0;
+  seenIps.clear(); activeIpFilter = ''; logFilter = '';
+  document.getElementById('ip-filter').value = '';
+  document.getElementById('ip-filter').style.display = 'none';
+  document.getElementById('ip-datalist').innerHTML = '';
+  document.getElementById('log-search').value = '';
+}
+
+// ── System Log ────────────────────────────────────────
+let sysLogCursor = 0, sysLogFilter = '', sysLogOpen = true;
+
+async function pollSysLog() {
+  try {
+    const r = await fetch(`${BASE}/api/logs?cursor=${sysLogCursor}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.logs && d.logs.length) {
+      const box = document.getElementById('syslog-box');
+      const atBottom = box.scrollHeight - box.clientHeight - box.scrollTop < 20;
+      d.logs.forEach(line => {
+        const el = document.createElement('div');
+        el.dataset.raw = line;
+        const isErr = line.includes('[Error]');
+        el.style.color = isErr ? 'var(--danger)' : '';
+        if (sysLogFilter && !line.toLowerCase().includes(sysLogFilter))
+          el.style.display = 'none';
+        el.textContent = line;
+        box.appendChild(el);
+      });
+      if (atBottom) box.scrollTop = box.scrollHeight;
+    }
+    sysLogCursor = d.total;
+  } catch { }
+}
+
+function applySysLogFilter() {
+  sysLogFilter = (document.getElementById('syslog-search').value || '').toLowerCase();
+  document.querySelectorAll('#syslog-box div[data-raw]').forEach(el => {
+    el.style.display = sysLogFilter && !el.dataset.raw.toLowerCase().includes(sysLogFilter) ? 'none' : '';
+  });
+}
+
+function clearSysLog() {
+  document.getElementById('syslog-box').innerHTML = '';
+  sysLogCursor = 0;
+  document.getElementById('syslog-search').value = '';
+  sysLogFilter = '';
+}
+
+function toggleSysLog() {
+  sysLogOpen = !sysLogOpen;
+  document.getElementById('syslog-body').style.display = sysLogOpen ? 'block' : 'none';
+  document.getElementById('syslog-chevron').style.transform = sysLogOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Add Port form ─────────────────────────────────────
+function toggleAddPortForm() {
+  const form = document.getElementById('add-port-form');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : '';
+  if (!visible) {
+    const maskSel = document.getElementById('ap-mask');
+    maskSel.innerHTML = masks.map(m => `<option value="${esc(m)}">${esc(maskLabel(m))}</option>`).join('');
+    const respMaskSel = document.getElementById('ap-resp-mask');
+    respMaskSel.innerHTML = `<option value="">— ${t('apNoRespMask')} —</option>` +
+      masks.map(m => `<option value="${esc(m)}">${esc(maskLabel(m))}</option>`).join('');
+    const srcSel = document.getElementById('ap-source');
+    const sources = portList.filter(p => p.netProtocol === 'TCP Server');
+    srcSel.innerHTML = `<option value="">${t('apSourceNone')}</option>` +
+      sources.map(p => {
+        const shortId = p.id ? ' #' + p.id.slice(0, 8) : '';
+        return `<option value="${esc(p.id)}">${esc(p.protocolName)}${esc(shortId)}</option>`;
+      }).join('');
+    document.getElementById('ap-err').textContent = '';
+    onAddPortProtocolChange();
+  }
+}
+
+function onAddPortProtocolChange() {
+  const proto = document.getElementById('ap-protocol').value;
+  const isTcpClient = proto === 'TCP Client';
+  const isTcpServer = proto === 'TCP Server';
+  const isModbus    = proto === 'Modbus TCP Master';
+  document.getElementById('ap-local').style.display        = (isTcpClient || isModbus) ? 'none' : '';
+  document.getElementById('ap-source').style.display       = isTcpClient ? '' : 'none';
+  document.getElementById('ap-remote').style.display       = isTcpServer ? 'none' : '';
+  document.getElementById('ap-ip').style.display           = isTcpServer ? 'none' : '';
+  document.getElementById('ap-mask-section').style.display = isTcpServer ? 'none' : 'grid';
+  document.getElementById('ap-resp-wrap').style.display    = isTcpClient ? 'flex' : 'none';
+  document.getElementById('ap-mode-wrap').style.display    = isTcpClient ? 'flex' : 'none';
+  document.getElementById('ap-modbus-section').style.display = isModbus ? 'flex' : 'none';
+
+  if (isTcpClient) {
+    document.getElementById('ap-resp-mask').innerHTML =
+      `<option value="">— ${t('apNoRespMask')} —</option>` +
+      masks.map(m => `<option value="${esc(m)}">${esc(maskLabel(m))}</option>`).join('');
+    document.getElementById('ap-req-mode').querySelectorAll('option').forEach(o => {
+      if (o.dataset.i18n) o.textContent = t(o.dataset.i18n);
+    });
+  }
+
+  const isUdp = proto === 'UDP';
+  document.getElementById('ap-local').placeholder  = t(isUdp ? 'apLocalPortUdp'  : 'apLocalPort');
+  if (isModbus) {
+    document.getElementById('ap-remote').placeholder = 'Modbus Port (預設 502)';
+    document.getElementById('ap-ip').placeholder     = 'Slave IP (必填)';
+  } else {
+    document.getElementById('ap-remote').placeholder = t(isUdp ? 'apRemotePortUdp' : 'apRemotePort');
+    document.getElementById('ap-ip').placeholder     = t(isUdp ? 'apTargetIpUdp'   : 'apTargetIp');
+  }
+}
+
+function buildModbusConfig(slaveEl, pollEl, devidEl, regsEl, errEl) {
+  const slaveId = parseInt(slaveEl.value || '1', 10);
+  const pollMs  = parseInt(pollEl.value || '100', 10);
+  const devid   = devidEl.value.trim();
+  let regs = [];
+  const regsText = (regsEl.value || '').trim();
+  if (regsText) {
+    try { regs = JSON.parse(regsText); }
+    catch (e) { errEl.textContent = 'Registers JSON 解析失敗: ' + e.message; return null; }
+    if (!Array.isArray(regs)) { errEl.textContent = 'Registers 必須是 JSON Array'; return null; }
+  }
+  return {
+    slaveId: isNaN(slaveId) ? 1 : slaveId,
+    pollIntervalMs: isNaN(pollMs) ? 100 : pollMs,
+    connectTimeoutMs: 1000,
+    readTimeoutMs: 1000,
+    deviceId: devid,
+    registers: regs.map(r => ({
+      name: r.name || '',
+      functionCode: r.functionCode ?? 3,
+      startAddress: r.startAddress ?? 0,
+      quantity: r.quantity ?? 1,
+      dataType: r.dataType || 'uint16',
+      scale: r.scale ?? 1,
+      offset: r.offset ?? 0
+    }))
+  };
+}
+
+async function submitAddPort() {
+  const name     = document.getElementById('ap-name').value.trim();
+  const proto    = document.getElementById('ap-protocol').value;
+  const local    = document.getElementById('ap-local').value.trim();
+  const source   = document.getElementById('ap-source').value;
+  const remote   = document.getElementById('ap-remote').value.trim();
+  const ip       = document.getElementById('ap-ip').value.trim();
+  const mask     = document.getElementById('ap-mask').value;
+  const respMask = document.getElementById('ap-resp-mask').value;
+  const reqMode  = document.getElementById('ap-req-mode').value || 'serial';
+  const err      = document.getElementById('ap-err');
+  err.textContent = '';
+  if (!name) { err.textContent = t('apName') + ' required'; return; }
+
+  let modbus = null;
+  if (proto === 'Modbus TCP Master') {
+    if (!ip) { err.textContent = 'Modbus 必須指定 Slave IP'; return; }
+    modbus = buildModbusConfig(
+      document.getElementById('ap-modbus-slave'),
+      document.getElementById('ap-modbus-poll'),
+      document.getElementById('ap-modbus-devid'),
+      document.getElementById('ap-modbus-regs'),
+      err
+    );
+    if (!modbus) return;
+  }
+
+  try {
+    const r = await fetch(`${BASE}/api/ports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ protocolName: name, netProtocol: proto, localPort: local, remotePort: remote, targetIp: ip, maskType: mask, responseMaskType: respMask, requestMode: reqMode, sourceProtocolId: source, modbus })
+    });
+    const d = await r.json();
+    if (!d.success) { err.textContent = t('errAddPort') + (d.error || ''); return; }
+    document.getElementById('ap-name').value = '';
+    document.getElementById('ap-local').value = '';
+    document.getElementById('ap-source').selectedIndex = 0;
+    document.getElementById('ap-remote').value = '';
+    document.getElementById('ap-ip').value = '';
+    document.getElementById('ap-modbus-devid').value = '';
+    document.getElementById('ap-modbus-regs').value = '';
+    document.getElementById('add-port-form').style.display = 'none';
+    await loadPorts();
+  } catch(e) { err.textContent = t('errAddPort') + e.message; }
+}
+
+// ── Batch Select / Delete ────────────────────────────
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.port-cb').forEach(cb => cb.checked = checked);
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const all     = document.querySelectorAll('.port-cb');
+  const checked = document.querySelectorAll('.port-cb:checked');
+  const bar     = document.getElementById('batch-bar');
+  const allCb   = document.getElementById('select-all-cb');
+  const show    = checked.length > 0;
+  bar.classList.toggle('show', show);
+  document.getElementById('batch-count').textContent = t('selectedCount').replace('{n}', checked.length);
+  if (allCb) {
+    allCb.checked       = all.length > 0 && checked.length === all.length;
+    allCb.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+}
+
+function clearSelection() {
+  document.querySelectorAll('.port-cb').forEach(cb => cb.checked = false);
+  const allCb = document.getElementById('select-all-cb');
+  if (allCb) { allCb.checked = false; allCb.indeterminate = false; }
+  updateBatchBar();
+}
+
+function showSection(name) {
+  ['mask','port','log'].forEach(s => {
+    document.getElementById('sec-' + s).style.display = s === name ? '' : 'none';
+    document.getElementById('nav-' + s).classList.toggle('active', s === name);
+  });
+  if (name === 'port') loadPorts();
+}
+
+async function batchDeletePorts() {
+  const ids = [...document.querySelectorAll('.port-cb:checked')].map(cb => cb.value);
+  if (!ids.length) return;
+  if (!confirm(t('confirmBatchDelete').replace('{n}', ids.length))) return;
+  try {
+    for (const id of ids) {
+      await fetch(`${BASE}/api/ports`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      if (activeMon === id) await clearMonitor();
+    }
+    await loadPorts();
+  } catch(e) { alert(e.message); }
+}
+
+async function deletePort(id) {
+  const p = portList.find(x => x.id === id);
+  if (!confirm(t('confirmDeletePort').replace('{name}', p?.protocolName ?? id))) return;
+  try {
+    const r = await fetch(`${BASE}/api/ports`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    const d = await r.json();
+    if (!d.success) { alert(t('errDeletePort') + (d.error || '')); return; }
+    if (activeMon === id) await clearMonitor();
+    await loadPorts();
+  } catch(e) { alert(t('errDeletePort') + e.message); }
+}
+
+// ── Edit Port ─────────────────────────────────────────
+function openEditPortForm(id) {
+  const p = portList.find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('add-port-form').style.display = 'none';
+  const form = document.getElementById('edit-port-form');
+  form.style.display = '';
+
+  document.getElementById('ep-id').value       = p.id;
+  document.getElementById('ep-name').value     = p.protocolName;
+  document.getElementById('ep-remote').value   = p.remotePort && p.remotePort !== '--' ? p.remotePort : '';
+  document.getElementById('ep-ip').value       = p.targetIp || '';
+  document.getElementById('ep-err').textContent = '';
+
+  const proto = document.getElementById('ep-protocol');
+  proto.value = p.netProtocol;
+
+  const localVal = p.localPort && p.localPort !== '--' ? p.localPort : '';
+  document.getElementById('ep-local').value = localVal;
+
+  const maskSel = document.getElementById('ep-mask');
+  maskSel.innerHTML = masks.map(m => `<option value="${esc(m)}"${m === p.maskType ? ' selected' : ''}>${esc(maskLabel(m))}</option>`).join('');
+
+  const respMaskSel = document.getElementById('ep-resp-mask');
+  respMaskSel.innerHTML = `<option value="">— ${t('apNoRespMask')} —</option>` +
+    masks.map(m => `<option value="${esc(m)}"${m === p.responseMaskType ? ' selected' : ''}>${esc(maskLabel(m))}</option>`).join('');
+
+  const reqModeSel = document.getElementById('ep-req-mode');
+  reqModeSel.innerHTML =
+    `<option value="serial"${(p.requestMode || 'serial') === 'serial' ? ' selected' : ''}>${t('reqModeSerial')}</option>` +
+    `<option value="concurrent"${p.requestMode === 'concurrent' ? ' selected' : ''}>${t('reqModeConcurrent')}</option>` +
+    `<option value="polling"${p.requestMode === 'polling' ? ' selected' : ''}>${t('reqModePolling')}</option>`;
+
+  const srcSel = document.getElementById('ep-source');
+  const sources = portList.filter(x => x.netProtocol === 'TCP Server' && x.id !== id);
+  srcSel.innerHTML = `<option value="">${t('apSourceNone')}</option>` +
+    sources.map(x => {
+      const shortId = x.id ? ' #' + x.id.slice(0, 8) : '';
+      const sel = x.id === p.sourceProtocolId ? ' selected' : '';
+      return `<option value="${esc(x.id)}"${sel}>${esc(x.protocolName)}${esc(shortId)}</option>`;
+    }).join('');
+
+  // Modbus 既有設定帶入
+  const m = p.modbus;
+  document.getElementById('ep-modbus-slave').value = m?.slaveId ?? 1;
+  document.getElementById('ep-modbus-poll').value  = m?.pollIntervalMs ?? 100;
+  document.getElementById('ep-modbus-devid').value = m?.deviceId ?? '';
+  document.getElementById('ep-modbus-regs').value  = m?.registers?.length
+    ? JSON.stringify(m.registers, null, 2)
+    : '';
+
+  onEditPortProtocolChange();
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeEditPortForm() {
+  document.getElementById('edit-port-form').style.display = 'none';
+}
+
+function onEditPortProtocolChange() {
+  const proto = document.getElementById('ep-protocol').value;
+  const isTcpClient = proto === 'TCP Client';
+  const isTcpServer = proto === 'TCP Server';
+  const isModbus    = proto === 'Modbus TCP Master';
+  document.getElementById('ep-local').style.display        = (isTcpClient || isModbus) ? 'none' : '';
+  document.getElementById('ep-source').style.display       = isTcpClient ? '' : 'none';
+  document.getElementById('ep-remote').style.display       = isTcpServer ? 'none' : '';
+  document.getElementById('ep-ip').style.display           = isTcpServer ? 'none' : '';
+  document.getElementById('ep-mask-section').style.display = isTcpServer ? 'none' : 'grid';
+  document.getElementById('ep-resp-wrap').style.display    = isTcpClient ? 'flex' : 'none';
+  document.getElementById('ep-mode-wrap').style.display    = isTcpClient ? 'flex' : 'none';
+  document.getElementById('ep-modbus-section').style.display = isModbus ? 'flex' : 'none';
+}
+
+async function submitEditPort() {
+  const id       = document.getElementById('ep-id').value;
+  const name     = document.getElementById('ep-name').value.trim();
+  const proto    = document.getElementById('ep-protocol').value;
+  const local    = document.getElementById('ep-local').value.trim();
+  const source   = document.getElementById('ep-source').value;
+  const remote   = document.getElementById('ep-remote').value.trim();
+  const ip       = document.getElementById('ep-ip').value.trim();
+  const mask     = document.getElementById('ep-mask').value;
+  const respMask = document.getElementById('ep-resp-mask').value;
+  const reqMode  = document.getElementById('ep-req-mode').value || 'serial';
+  const err      = document.getElementById('ep-err');
+  err.textContent = '';
+  if (!name) { err.textContent = t('apName') + ' required'; return; }
+
+  let modbus = null;
+  if (proto === 'Modbus TCP Master') {
+    if (!ip) { err.textContent = 'Modbus 必須指定 Slave IP'; return; }
+    modbus = buildModbusConfig(
+      document.getElementById('ep-modbus-slave'),
+      document.getElementById('ep-modbus-poll'),
+      document.getElementById('ep-modbus-devid'),
+      document.getElementById('ep-modbus-regs'),
+      err
+    );
+    if (!modbus) return;
+  }
+
+  try {
+    const r = await fetch(`${BASE}/api/ports/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ protocolName: name, netProtocol: proto, localPort: local, remotePort: remote, targetIp: ip, maskType: mask, responseMaskType: respMask, requestMode: reqMode, sourceProtocolId: source, modbus })
+    });
+    const d = await r.json();
+    if (!d.success) { err.textContent = t('errEditPort') + (d.error || ''); return; }
+    closeEditPortForm();
+    await loadPorts();
+  } catch(e) { err.textContent = t('errEditPort') + e.message; }
+}
+
+</script>
+</body>
+</html>

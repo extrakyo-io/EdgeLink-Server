@@ -1,0 +1,28 @@
+{
+  "name": "com.extrakyo.edgelink",
+  "version": "2.1.1",
+  "displayName": "EdgeLink SDK",
+  "description": "Unity SDK for EdgeLink Server — TCP/UDP data receiving with automatic PING/PONG keepalive and mask-based message parsing.",
+  "unity": "2021.2",
+  "author": {
+    "name": "Extrakyo"
+  },
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "TCP Listener",
+      "description": "基本用法：收到訊息讀欄位，10 行搞定。",
+      "path": "Samples~/TCPListener"
+    },
+    {
+      "displayName": "TCP Listener（含斷線偵測）",
+      "description": "完整範例：多設備追蹤、TCP 連線層斷線 + 訊息層 Timeout 兩種偵測機制。",
+      "path": "Samples~/TCPListenerFull"
+    },
+    {
+      "displayName": "純程式碼建構 (POCO)",
+      "description": "用 EdgeLinkBridge 建構子帶 URL / Host / Port，不需要 EdgeLinkManager 拖到場景。",
+      "path": "Samples~/CodeOnly"
+    }
+  ]
+}

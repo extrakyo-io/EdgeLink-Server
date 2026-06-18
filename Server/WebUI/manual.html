@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EdgeLink Server — 使用說明書</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════ Variables ══════════════ */
+:root {
+  --bg:         #0d1117;
+  --surface:    #161b22;
+  --surface2:   #1c2230;
+  --surface3:   #21262d;
+  --border:     #30363d;
+  --border2:    #3d444d;
+  --accent:     #58a6ff;
+  --accent-dim: #1f3a5f;
+  --accent2:    #79c0ff;
+  --text:       #e6edf3;
+  --text-2:     #8b949e;
+  --text-3:     #6e7681;
+  --green:      #3fb950;
+  --green-bg:   #0d2119;
+  --yellow:     #d29922;
+  --yellow-bg:  #272115;
+  --red:        #f85149;
+  --red-bg:     #2d1317;
+  --purple:     #bc8cff;
+  --code-bg:    #0d1117;
+  --sidebar-w:  272px;
+  --content-max:840px;
+  --radius:     8px;
+  --radius-lg:  12px;
+}
+
+/* ══════════════ Reset ══════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ══════════════ Sidebar ══════════════ */
+#sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  top: 0; left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.sidebar-header {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sidebar-logo-icon {
+  width: 32px; height: 32px;
+  background: linear-gradient(135deg, var(--accent-dim), #0f2a4a);
+  border: 1px solid var(--accent-dim);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--accent);
+  font-weight: 700;
+}
+.sidebar-logo-text h1 {
+  font-size: 13px; font-weight: 700;
+  color: var(--text); letter-spacing: .01em;
+}
+.sidebar-logo-text span {
+  font-size: 11px; color: var(--text-3);
+}
+.sidebar-version {
+  display: inline-flex; align-items: center;
+  background: var(--accent-dim); border: 1px solid #1d4276;
+  border-radius: 4px; padding: 2px 8px;
+  font-size: 11px; color: var(--accent); font-weight: 500;
+  margin-top: 4px;
+}
+
+#sidebar nav { padding: 12px 0 40px; flex: 1; }
+
+.nav-group-title {
+  padding: 14px 20px 4px;
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .12em;
+  color: var(--text-3);
+}
+#sidebar nav a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px;
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: 13px;
+  border-left: 2px solid transparent;
+  transition: all .12s ease;
+  line-height: 1.4;
+}
+#sidebar nav a .nav-num {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-3); min-width: 16px;
+  font-family: 'JetBrains Mono', monospace;
+}
+#sidebar nav a:hover {
+  color: var(--text);
+  background: var(--surface2);
+  border-left-color: var(--border2);
+}
+#sidebar nav a.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+
+/* ══════════════ Main content ══════════════ */
+#content {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  padding: 56px 64px 100px;
+  max-width: calc(var(--sidebar-w) + var(--content-max));
+}
+
+@media (max-width: 960px) {
+  #sidebar { display: none; }
+  #content { margin-left: 0; padding: 32px 24px 80px; max-width: 100%; }
+}
+
+/* ══════════════ Typography ══════════════ */
+h1 { font-size: 2.2rem; font-weight: 700; color: #f0f6fc; line-height: 1.2; margin-bottom: .3em; }
+h2 {
+  font-size: 1.4rem; font-weight: 600; color: var(--text);
+  margin: 3em 0 .8em;
+  padding-bottom: .5em;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+h2 .section-num {
+  font-size: .9rem; font-weight: 700;
+  color: var(--accent); background: var(--accent-dim);
+  border: 1px solid #1d4276;
+  padding: 1px 8px; border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+h3 { font-size: 1.05rem; font-weight: 600; color: var(--accent2); margin: 2em 0 .6em; }
+h4 { font-size: .88rem; font-weight: 600; color: var(--text-2); margin: 1.4em 0 .4em; text-transform: uppercase; letter-spacing: .06em; }
+p { margin: .7em 0; color: var(--text); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+ul, ol { margin: .5em 0 .5em 1.5em; }
+li { margin: .3em 0; }
+strong { color: #f0f6fc; font-weight: 600; }
+hr { border: none; border-top: 1px solid var(--border); margin: 3em 0; }
+
+/* ══════════════ Hero ══════════════ */
+.hero {
+  background: linear-gradient(135deg, var(--surface) 0%, #0f1f36 50%, var(--surface) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 44px 48px;
+  margin-bottom: 48px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(88,166,255,.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero .subtitle {
+  font-size: 1rem; color: var(--text-2);
+  margin: .4em 0 1.6em;
+}
+.badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px; font-weight: 500;
+  border: 1px solid;
+}
+.badge-blue  { background: rgba(88,166,255,.1); border-color: rgba(88,166,255,.3); color: var(--accent2); }
+.badge-green { background: rgba(63,185,80,.1);  border-color: rgba(63,185,80,.3);  color: var(--green); }
+.badge-gray  { background: var(--surface3);      border-color: var(--border);        color: var(--text-2); }
+
+/* ══════════════ Callout ══════════════ */
+.callout {
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin: 1.4em 0;
+  border-left: 3px solid;
+  font-size: .9rem;
+  line-height: 1.65;
+}
+.callout-body strong { display: block; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; color: inherit; }
+.callout.info   { background: rgba(88,166,255,.07);  border-color: var(--accent);  color: #a5d3ff; }
+.callout.info   .callout-icon { color: var(--accent); }
+.callout.warn   { background: rgba(210,153,34,.08);  border-color: var(--yellow);  color: #f0d88a; }
+.callout.warn   .callout-icon { color: var(--yellow); }
+.callout.danger { background: rgba(248,81,73,.07);   border-color: var(--red);     color: #ffadaa; }
+.callout.danger .callout-icon { color: var(--red); }
+.callout.tip    { background: rgba(63,185,80,.07);   border-color: var(--green);   color: #aff5ba; }
+.callout.tip    .callout-icon { color: var(--green); }
+
+/* ══════════════ Code ══════════════ */
+.code-block {
+  margin: 1.2em 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.code-header {
+  background: var(--surface3);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.code-header .lang-tag {
+  font-size: 11px; font-weight: 600;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.code-header .dots { display: flex; gap: 5px; margin-right: 4px; }
+.code-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #f85149; opacity: .6; }
+.dot-y { background: var(--yellow); opacity: .6; }
+.dot-g { background: var(--green); opacity: .6; }
+pre {
+  background: var(--code-bg);
+  padding: 18px 22px;
+  overflow-x: auto;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+code { font-family: 'JetBrains Mono', 'Cascadia Code', monospace; }
+:not(pre) > code {
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .83em;
+  color: var(--accent2);
+}
+.code-block pre { border-radius: 0; border: none; }
+pre:not(.code-block pre) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Syntax */
+.kw  { color: #ff7b72; }
+.str { color: #a5d6ff; }
+.num { color: #f2cc60; }
+.cmt { color: #8b949e; font-style: italic; }
+.fn  { color: #d2a8ff; }
+.cls { color: #79c0ff; }
+.prop{ color: #7ee787; }
+.op  { color: var(--text-2); }
+
+/* ══════════════ Tables ══════════════ */
+.table-wrap { overflow-x: auto; margin: 1.2em 0; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+thead tr { background: var(--surface3); }
+th {
+  color: var(--text-2); font-weight: 600; text-align: left;
+  padding: 11px 16px; font-size: .78rem;
+  text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text);
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,.025); }
+td code { font-size: .8rem; }
+
+.pill {
+  display: inline-block;
+  padding: 1px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  white-space: nowrap;
+}
+.pill-req  { background: rgba(248,81,73,.15); color: #ff9492; border: 1px solid rgba(248,81,73,.3); }
+.pill-opt  { background: var(--surface3); color: var(--text-3); border: 1px solid var(--border); }
+.pill-cond { background: rgba(210,153,34,.12); color: #f0c060; border: 1px solid rgba(210,153,34,.3); }
+
+/* ══════════════ Topology diagram (ASCII fallback) ══════════════ */
+.diagram {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 28px;
+  margin: 1.2em 0;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 2;
+  color: var(--text-3);
+  white-space: pre;
+  overflow-x: auto;
+}
+.d-acc  { color: var(--accent); }
+.d-acc2 { color: var(--accent2); }
+.d-grn  { color: var(--green); }
+.d-str  { color: #a5d6ff; }
+.d-yel  { color: var(--yellow); }
+
+/* ══════════════ CSS Diagrams ══════════════ */
+.topo {
+  margin: 1.4em 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  font-size: .85rem;
+}
+.topo-node {
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 28px;
+  color: var(--text);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+.topo-node.accent  { background: var(--accent-dim); border-color: #1d4276; color: var(--accent2); }
+.topo-node.green   { background: var(--green-bg);   border-color: rgba(63,185,80,.35); color: var(--green); }
+.topo-node.large {
+  width: 100%; max-width: 480px;
+  background: var(--surface);
+  border-color: var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+}
+.topo-node.large .topo-inner {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  text-align: center;
+  color: var(--text);
+}
+.topo-node.large .topo-inner .topo-inner-label {
+  font-size: .72rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+}
+.topo-node.large .topo-inner .topo-inner-val {
+  font-family: 'JetBrains Mono', monospace; font-size: .8rem; color: var(--text-2);
+}
+.topo-connector {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0; padding: 2px 0;
+}
+.topo-connector .tc-line {
+  width: 2px; height: 20px;
+  background: var(--border2);
+}
+.topo-connector .tc-label {
+  font-size: .72rem; color: var(--text-3); padding: 2px 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; white-space: nowrap;
+}
+.topo-connector .tc-arrow {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--border2);
+}
+.topo-server-box {
+  width: 100%; max-width: 480px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+}
+.topo-server-label {
+  font-size: .7rem; font-weight: 700; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+  align-self: flex-start; margin-bottom: 10px;
+}
+.topo-port-box {
+  width: 100%;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+}
+.topo-port-box .pb-name {
+  font-size: .78rem; font-weight: 600; color: var(--accent2);
+  margin-bottom: 2px;
+}
+.topo-port-box .pb-sub {
+  font-size: .72rem; color: var(--text-3);
+  font-family: 'JetBrains Mono', monospace;
+}
+.topo-mid-label {
+  font-size: .7rem; color: var(--text-3); margin: 6px 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.topo-mid-label::before, .topo-mid-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* one-to-many diagram */
+.fanout {
+  margin: 1.4em 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  font-size: .85rem;
+}
+.fanout-source {
+  background: var(--accent-dim); border: 1px solid #1d4276;
+  border-radius: var(--radius); padding: 8px 18px;
+  color: var(--accent2); font-weight: 600; margin-bottom: 12px;
+  align-self: flex-start;
+}
+.fanout-rows { display: flex; flex-direction: column; gap: 8px; padding-left: 16px; }
+.fanout-row  { display: flex; align-items: center; gap: 8px; }
+.fanout-row .fr-prefix { font-family: 'JetBrains Mono', monospace; color: var(--text-3); font-size: .8rem; width: 20px; }
+.fanout-row .fr-client { background: var(--surface3); border: 1px solid var(--border); border-radius: 5px; padding: 5px 12px; color: var(--text); font-size: .8rem; }
+.fanout-row .fr-arrow  { color: var(--text-3); }
+.fanout-row .fr-dest   { background: var(--green-bg); border: 1px solid rgba(63,185,80,.25); border-radius: 5px; padding: 5px 12px; color: var(--green); font-size: .8rem; font-family: 'JetBrains Mono', monospace; }
+
+/* Concurrent diagram */
+.concur {
+  margin: 1.4em 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  font-size: .84rem;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.concur-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cr-dev  { background: var(--surface3); border: 1px solid var(--border); border-radius: 5px; padding: 4px 12px; color: var(--text); white-space: nowrap; }
+.cr-arr  { color: var(--text-3); }
+.cr-corr { background: var(--accent-dim); border: 1px solid #1d4276; border-radius: 5px; padding: 4px 12px; color: var(--accent2); font-family: 'JetBrains Mono', monospace; font-size: .78rem; white-space: nowrap; }
+.cr-dest { background: var(--surface3); border: 1px solid var(--border); border-radius: 5px; padding: 4px 12px; color: var(--text-2); white-space: nowrap; }
+.cr-back { background: var(--green-bg); border: 1px solid rgba(63,185,80,.25); border-radius: 5px; padding: 4px 12px; color: var(--green); white-space: nowrap; }
+.concur-sep { border: none; border-top: 1px dashed var(--border); margin: 6px 0; }
+.concur-note { font-size: .72rem; color: var(--text-3); text-align: center; }
+
+/* ══════════════ Steps ══════════════ */
+.steps { list-style: none; margin: 1em 0; counter-reset: step; }
+.steps > li {
+  counter-increment: step;
+  display: flex;
+  gap: 16px;
+  margin: .8em 0;
+  align-items: flex-start;
+}
+.steps > li::before {
+  content: counter(step);
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid #1d4276;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+.steps > li > div { flex: 1; }
+
+/* ══════════════ Mode cards ══════════════ */
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin: 1.2em 0;
+}
+.mode-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  transition: border-color .15s;
+}
+.mode-card:hover { border-color: var(--border2); }
+.mode-card-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.mode-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.mode-icon.blue   { background: var(--accent-dim); }
+.mode-icon.yellow { background: rgba(210,153,34,.12); }
+.mode-icon.purple { background: rgba(188,140,255,.1); }
+.mode-title { font-size: .95rem; font-weight: 600; color: var(--text); }
+.mode-subtitle { font-size: .7rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; margin-top: 1px; }
+.mode-desc { font-size: .85rem; color: var(--text-2); line-height: 1.6; margin-bottom: 12px; }
+.mode-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mode-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: var(--surface3); border: 1px solid var(--border); color: var(--text-3);
+}
+.mode-tag.green { background: var(--green-bg); border-color: rgba(63,185,80,.3); color: var(--green); }
+.mode-tag.yellow{ background: var(--yellow-bg); border-color: rgba(210,153,34,.3); color: var(--yellow); }
+.mode-tag.blue  { background: var(--accent-dim); border-color: rgba(88,166,255,.3); color: var(--accent2); }
+
+/* ══════════════ Flow ══════════════ */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 1.2em 0;
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.flow-node {
+  background: var(--surface3);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: .8rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.flow-node.accent { background: var(--accent-dim); border-color: #1d4276; color: var(--accent2); }
+.flow-node.green  { background: var(--green-bg);   border-color: rgba(63,185,80,.3); color: var(--green); }
+.flow-arrow { color: var(--text-3); font-size: 1rem; }
+.flow-break { flex-basis: 100%; height: 0; }
+
+/* ══════════════ Info row ══════════════ */
+.info-row {
+  display: flex;
+  gap: 16px;
+  margin: 1.2em 0;
+  flex-wrap: wrap;
+}
+.info-card {
+  flex: 1; min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.info-card .ic-label { font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.info-card .ic-value { font-size: 1.4rem; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.info-card .ic-desc  { font-size: .78rem; color: var(--text-2); margin-top: 2px; }
+
+/* ══════════════ Back to top ══════════════ */
+#top-btn {
+  position: fixed;
+  bottom: 32px; right: 32px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2); font-size: .9rem;
+  cursor: pointer; opacity: 0;
+  transition: opacity .2s, color .15s, border-color .15s;
+  z-index: 99; text-decoration: none;
+}
+#top-btn.visible { opacity: 1; }
+#top-btn:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+
+/* ══════════════ Footer ══════════════ */
+.footer {
+  margin-top: 4em;
+  padding-top: 2em;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--text-3);
+  font-size: .8rem;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">EL</div>
+      <div class="sidebar-logo-text">
+        <h1>EdgeLink Server</h1>
+        <span>使用說明書</span>
+      </div>
+    </div>
+    <span class="sidebar-version">v1.0 · .NET 8</span>
+  </div>
+  <nav>
+    <div class="nav-group-title">入門</div>
+    <a href="#overview"><span class="nav-num">01</span>產品概述</a>
+    <a href="#install"><span class="nav-num">02</span>安裝與啟動</a>
+    <a href="#auth"><span class="nav-num">03</span>登入與安全</a>
+    <a href="#webui"><span class="nav-num">04</span>Web 管理介面</a>
+    <div class="nav-group-title">核心功能</div>
+    <a href="#ports"><span class="nav-num">05</span>Port 管理</a>
+    <a href="#keepalive"><span class="nav-num">06</span>PING/PONG 心跳</a>
+    <a href="#mask"><span class="nav-num">07</span>Mask 系統</a>
+    <a href="#routing"><span class="nav-num">08</span>訊息路由</a>
+    <a href="#reqmode"><span class="nav-num">09</span>請求模式</a>
+    <div class="nav-group-title">進階</div>
+    <a href="#monitor"><span class="nav-num">10</span>即時監控</a>
+    <a href="#settings"><span class="nav-num">11</span>設定匯出／匯入</a>
+    <a href="#cli"><span class="nav-num">12</span>CLI 選項</a>
+    <a href="#api"><span class="nav-num">13</span>API 參考</a>
+    <div class="nav-group-title">SDK</div>
+    <a href="#unity-sdk"><span class="nav-num">14</span>Unity SDK</a>
+    <a href="#arduino-sdk"><span class="nav-num">15</span>Arduino SDK</a>
+    <a href="#csharp-sdk"><span class="nav-num">16</span>C# SDK</a>
+    <a href="#python-sdk"><span class="nav-num">17</span>Python SDK</a>
+    <a href="#js-sdk"><span class="nav-num">18</span>JavaScript SDK</a>
+    <div class="nav-group-title">參考</div>
+    <a href="#examples"><span class="nav-num">19</span>常見情境</a>
+    <a href="#troubleshoot"><span class="nav-num">20</span>疑難排解</a>
+  </nav>
+</aside>
+
+<!-- ═══════ MAIN ═══════ -->
+<main id="content">
+
+<!-- Hero -->
+<div class="hero">
+  <h1>EdgeLink Server</h1>
+  <p class="subtitle">IoT 協定橋接器 · 訊息路由 · 資料轉換</p>
+  <div class="badges">
+    <span class="badge badge-blue">.NET 8 自含式</span>
+    <span class="badge badge-gray">Windows 10/11 x64</span>
+    <span class="badge badge-green">v1.0</span>
+    <span class="badge badge-gray">GPL-3.0</span>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="overview"><span class="section-num">01</span>產品概述</h2>
+
+<p>EdgeLink Server 是一個輕量化的 IoT 協定橋接器，執行於 Windows 上，<strong>無需安裝 .NET Runtime</strong>。核心功能是讓 <strong>TCP Server</strong>（設備端）收到的訊息，透過 <strong>Mask</strong>（資料轉換規則）處理後，自動路由到 <strong>TCP Client</strong>（系統端），回傳方向亦同。所有設定都可在瀏覽器介面即時操作，無需重啟服務。</p>
+
+<div class="topo">
+  <div class="topo-node accent">IoT 設備 ／ 感測器 ／ PLC</div>
+  <div class="topo-connector">
+    <div class="tc-line"></div>
+    <div class="tc-label">TCP 連線</div>
+    <div class="tc-line"></div>
+    <div class="tc-arrow"></div>
+  </div>
+  <div class="topo-server-box">
+    <div class="topo-server-label">EdgeLink Server</div>
+    <div class="topo-port-box">
+      <div class="pb-name">TCP Server Port　（監聽、接受連線）</div>
+      <div class="pb-sub">Local Port: 9001</div>
+    </div>
+    <div class="topo-connector" style="padding:4px 0">
+      <div class="tc-line"></div>
+      <div class="tc-label" style="font-size:.68rem">SourceProtocolId 路由</div>
+      <div class="tc-line"></div>
+      <div class="tc-arrow"></div>
+    </div>
+    <div class="topo-port-box">
+      <div class="pb-name">TCP Client Port　（主動連出轉發）</div>
+      <div class="pb-sub">→ 192.168.1.100:8080</div>
+    </div>
+  </div>
+  <div class="topo-connector">
+    <div class="tc-line"></div>
+    <div class="tc-label">TCP 連線</div>
+    <div class="tc-line"></div>
+    <div class="tc-arrow"></div>
+  </div>
+  <div class="topo-node green">後端系統 ／ 前端應用程式</div>
+</div>
+
+<h3>支援的連接類型</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>類型</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TCP Server</strong></td><td>開啟本機監聽 Port，被動等待設備連入，支援多個設備同時連線</td></tr>
+    <tr><td><strong>TCP Client</strong></td><td>主動連出至遠端系統，設備訊息經此路由轉發；斷線後自動重連</td></tr>
+    <tr><td><strong>UDP</strong></td><td>UDP 接收端，無連線狀態，純接收</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="install"><span class="section-num">02</span>安裝與啟動</h2>
+
+<ol class="steps">
+  <li><div>從 Releases 下載 <code>EdgeLink-Server-win-x64.zip</code> 並解壓縮到任意目錄</div></li>
+  <li><div>執行 <code>EdgeLinkServer.exe</code>（雙擊或在命令提示字元中執行）</div></li>
+  <li><div>開啟瀏覽器前往 <code>https://localhost:8443</code></div></li>
+  <li><div>輸入預設密碼 <code>admin</code> 登入，登入後<strong>立即修改密碼</strong></div></li>
+</ol>
+
+<div class="callout warn">
+
+  <div class="callout-body">
+    <strong>憑證警告</strong>
+    首次使用 HTTPS 時瀏覽器會顯示憑證警告（自簽憑證）。點「進階 → 繼續前往」即可正常使用。憑證已包含本機所有 IP（SAN），區域網路內的其他電腦同樣只需接受一次警告。
+  </div>
+</div>
+
+<h3>常用啟動參數</h3>
+<div class="code-block">
+  <div class="code-header">
+    <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+    <span class="lang-tag">CMD</span>
+  </div>
+<pre><code><span class="cmt"># 預設（HTTPS，port 8443）</span>
+EdgeLinkServer.exe
+
+<span class="cmt"># 僅 HTTP</span>
+EdgeLinkServer.exe --no-https
+
+<span class="cmt"># 自訂 port</span>
+EdgeLinkServer.exe --port 9090 --https-port 9443</code></pre>
+</div>
+
+<h3>自動建立的目錄結構</h3>
+<div class="code-block">
+  <div class="code-header">
+    <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+    <span class="lang-tag">目錄</span>
+  </div>
+<pre><code>EdgeLinkServer.exe 所在目錄/
+├── <span class="prop">Setting/</span>
+│   ├── PortDatas.setting        <span class="cmt">← Port 設定</span>
+│   └── MaskDefinitions.setting  <span class="cmt">← Mask 設定</span>
+└── <span class="prop">Data/</span>
+    ├── auth.json                <span class="cmt">← 密碼 hash（PBKDF2-SHA256）</span>
+    ├── sessions.json            <span class="cmt">← 登入 session</span>
+    ├── server.pfx               <span class="cmt">← HTTPS 自簽憑證（10 年有效）</span>
+    ├── cert.pass                <span class="cmt">← 憑證密碼</span>
+    └── <span class="prop">Logs/</span>                    <span class="cmt">← 每日日誌（保留 7 天）</span>
+        └── 2024-01-15.log</code></pre>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="auth"><span class="section-num">03</span>登入與安全</h2>
+
+<div class="info-row">
+  <div class="info-card">
+    <div class="ic-label">Session 有效期</div>
+    <div class="ic-value">8h</div>
+    <div class="ic-desc">每次操作自動延長</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">密碼雜湊</div>
+    <div class="ic-value">PBKDF2</div>
+    <div class="ic-desc">SHA-256 · 100,000 次迭代</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">Cookie</div>
+    <div class="ic-value">安全</div>
+    <div class="ic-desc">HttpOnly · SameSite=Strict</div>
+  </div>
+</div>
+
+<h3>修改密碼</h3>
+<p>登入後點右上角 → <strong>Change Password</strong>。修改後<strong>所有 Session 立即失效</strong>，需重新登入。</p>
+
+<div class="callout info">
+
+  <div class="callout-body">
+    <strong>密碼儲存方式</strong>
+    密碼以 PBKDF2-SHA256（100,000 次迭代、16 byte 亂數 salt）雜湊後儲存於 <code>Data/auth.json</code>，不儲存明文。
+  </div>
+</div>
+
+<h3>CORS</h3>
+<p>EdgeLink Server 預設對所有來源開放（<code>Access-Control-Allow-Origin: *</code>）。若需限制來源，請在反向代理層（如 Nginx）處理。</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="webui"><span class="section-num">04</span>Web 管理介面</h2>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>頁籤</th><th>功能</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Ports</strong></td><td>管理所有 Port：新增、刪除、啟用/停用、即時查看連線狀態與流量</td></tr>
+    <tr><td><strong>Mask</strong></td><td>管理資料轉換規則：建立、編輯、刪除、即時預覽 Mask 輸出</td></tr>
+    <tr><td><strong>System Log</strong></td><td>查看伺服器事件記錄，支援關鍵字搜尋</td></tr>
+  </tbody>
+</table></div>
+
+<p>此外，<a href="/docs">/docs</a> 提供互動式 Swagger API 文件，<a href="/manual">/manual</a> 為本說明書。</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="ports"><span class="section-num">05</span>Port 管理</h2>
+
+<h3>欄位說明</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th><th>必要性</th></tr></thead>
+  <tbody>
+    <tr><td>Protocol Name</td><td>此 Port 的識別名稱，全系統唯一</td><td><span class="pill pill-req">必填</span></td></tr>
+    <tr><td>Net Protocol</td><td>TCP SERVER / TCP CLIENT / UDP</td><td><span class="pill pill-req">必填</span></td></tr>
+    <tr><td>Local Port</td><td>本機監聽 port（TCP SERVER / UDP），TCP CLIENT 填 <code>--</code></td><td><span class="pill pill-cond">視類型</span></td></tr>
+    <tr><td>Target IP</td><td>遠端 IP（TCP CLIENT 專用）</td><td><span class="pill pill-cond">TCP CLIENT</span></td></tr>
+    <tr><td>Remote Port</td><td>遠端 port（TCP CLIENT 專用）</td><td><span class="pill pill-cond">TCP CLIENT</span></td></tr>
+    <tr><td>Mask Type</td><td>傳出訊息套用的遮罩（預設 OriginalData）</td><td><span class="pill pill-opt">選填</span></td></tr>
+    <tr><td>Response Mask Type</td><td>回應訊息套用的遮罩</td><td><span class="pill pill-opt">選填</span></td></tr>
+    <tr><td>Request Mode</td><td>serial / polling / concurrent（詳見第 9 節）</td><td><span class="pill pill-opt">選填</span></td></tr>
+    <tr><td>Source Protocol</td><td>路由來源 Port（TCP CLIENT 填入對應的 TCP SERVER）</td><td><span class="pill pill-cond">TCP CLIENT</span></td></tr>
+  </tbody>
+</table></div>
+
+<h3>TCP Client 自動重連策略</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>參數</th><th>預設值</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td>初始連線重試</td><td>無限</td><td>首次連線失敗時的最大重試次數（-1 = 無限）</td></tr>
+    <tr><td>斷線後重連</td><td>無限</td><td>斷線後重連的最大次數</td></tr>
+    <tr><td>初始等待</td><td>1,000 ms</td><td>第一次重試前的等待時間</td></tr>
+    <tr><td>最大等待上限</td><td>30,000 ms</td><td>指數退避的上限</td></tr>
+  </tbody>
+</table></div>
+
+<h3>已連線設備資訊（TCP Server）</h3>
+<p>展開 TCP SERVER Port 可查看所有已連線設備的即時數據：</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td>Endpoint</td><td>設備的 <code>IP:Port</code></td></tr>
+    <tr><td>Connected</td><td>連線持續秒數</td></tr>
+    <tr><td>Last Activity</td><td>最後收到資料距今秒數</td></tr>
+    <tr><td>Messages</td><td>收到的訊息筆數</td></tr>
+    <tr><td>Total Bytes</td><td>收到的總位元組數</td></tr>
+    <tr><td>Rate</td><td>目前傳輸速率（bytes/sec）</td></tr>
+    <tr><td>RTT</td><td>PING/PONG 往返延遲（ms）</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="keepalive"><span class="section-num">06</span>PING/PONG 心跳協定</h2>
+
+<div class="callout danger">
+
+  <div class="callout-body">
+    <strong>設備端必須實作</strong>
+    EdgeLink 會對每個連入的設備定期發送心跳。設備端程式<strong>必須回應 PONG</strong>，否則約 15～20 秒後被強制斷線。
+  </div>
+</div>
+
+<div class="info-row">
+  <div class="info-card">
+    <div class="ic-label">首次心跳</div>
+    <div class="ic-value">3s</div>
+    <div class="ic-desc">連線後發送</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">心跳間隔</div>
+    <div class="ic-value">5s</div>
+    <div class="ic-desc">持續發送</div>
+  </div>
+  <div class="info-card">
+    <div class="ic-label">斷線閾值</div>
+    <div class="ic-value">3次</div>
+    <div class="ic-desc">連續未回應即斷線</div>
+  </div>
+</div>
+
+<h3>訊息格式</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方向</th><th>格式</th><th>範例</th></tr></thead>
+  <tbody>
+    <tr><td>EdgeLink → 設備</td><td><code>EDGELINK_PING:&lt;16位元16進位&gt;\n</code></td><td><code>EDGELINK_PING:a3f7c291e05d8b4a\n</code></td></tr>
+    <tr><td>設備 → EdgeLink</td><td><code>EDGELINK_PONG:&lt;相同16進位&gt;\n</code></td><td><code>EDGELINK_PONG:a3f7c291e05d8b4a\n</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3>Python 實作範例</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Python</span></div>
+<pre><code><span class="kw">import</span> socket, threading
+
+<span class="kw">def</span> <span class="fn">receive_loop</span>(sock):
+    buf = <span class="str">b""</span>
+    <span class="kw">while True</span>:
+        data = sock.recv(<span class="num">4096</span>)
+        <span class="kw">if not</span> data:
+            <span class="kw">break</span>
+        buf += data
+        <span class="kw">while</span> <span class="str">b"\n"</span> <span class="kw">in</span> buf:
+            line, buf = buf.split(<span class="str">b"\n"</span>, <span class="num">1</span>)
+            msg = line.decode().strip()
+            <span class="kw">if</span> msg.startswith(<span class="str">"EDGELINK_PING:"</span>):
+                hex_val = msg.split(<span class="str">":"</span>)[<span class="num">1</span>]
+                sock.sendall(<span class="str">f"EDGELINK_PONG:{hex_val}\n"</span>.encode())
+            <span class="kw">elif not</span> msg.startswith(<span class="str">"EDGELINK_"</span>):
+                <span class="fn">handle_message</span>(msg)  <span class="cmt"># 處理業務邏輯</span>
+
+sock = socket.socket()
+sock.connect((<span class="str">"127.0.0.1"</span>, <span class="num">9001</span>))
+threading.Thread(target=receive_loop, args=(sock,), daemon=<span class="kw">True</span>).start()
+sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="mask"><span class="section-num">07</span>Mask 系統</h2>
+
+<p>Mask 定義如何將設備的原始訊息解析並轉換成新格式，再轉發給系統端（或反向）。</p>
+
+<div class="callout info">
+
+  <div class="callout-body">
+    <strong>設定位置</strong>
+    Request Mask 和 Response Mask 都設定在 <strong>TCP Client Port</strong> 上，不是 TCP Server Port。
+  </div>
+</div>
+
+<div class="topo" style="gap:0;max-width:520px">
+  <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0">
+    <div class="topo-node accent" style="width:100%;max-width:420px;text-align:left;padding:10px 16px">
+      <span style="font-size:.7rem;color:var(--text-3);display:block;margin-bottom:2px">設備送出</span>
+      <code style="color:#a5d6ff;font-size:.82rem">"id:DEV01;temp:36.5"</code>
+    </div>
+    <div class="topo-connector"><div class="tc-line"></div><div class="tc-arrow"></div></div>
+    <div class="topo-node" style="width:100%;max-width:420px;background:var(--accent-dim);border-color:#1d4276;text-align:center">
+      <span style="color:var(--accent);font-weight:600">Request Mask</span>
+      <span style="font-size:.72rem;color:var(--text-3);margin-left:8px">← TCP Client 的 Mask Type</span>
+    </div>
+    <div class="topo-connector"><div class="tc-line"></div><div class="tc-label">轉換後</div><div class="tc-line"></div><div class="tc-arrow"></div></div>
+    <div class="topo-node green" style="width:100%;max-width:420px;text-align:left;padding:10px 16px">
+      <span style="font-size:.7rem;color:var(--text-3);display:block;margin-bottom:2px">系統端收到</span>
+      <code style="color:#7ee787;font-size:.82rem">{"deviceId":"DEV01","temperature":36.5}</code>
+    </div>
+  </div>
+  <div style="height:24px"></div>
+  <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:0">
+    <div class="topo-node green" style="width:100%;max-width:420px;text-align:left;padding:10px 16px">
+      <span style="font-size:.7rem;color:var(--text-3);display:block;margin-bottom:2px">系統端回覆</span>
+      <code style="color:#7ee787;font-size:.82rem">"status:ok;code:200"</code>
+    </div>
+    <div class="topo-connector"><div class="tc-line"></div><div class="tc-arrow"></div></div>
+    <div class="topo-node" style="width:100%;max-width:420px;background:var(--accent-dim);border-color:#1d4276;text-align:center">
+      <span style="color:var(--accent);font-weight:600">Response Mask</span>
+      <span style="font-size:.72rem;color:var(--text-3);margin-left:8px">← TCP Client 的 Response Mask Type</span>
+    </div>
+    <div class="topo-connector"><div class="tc-line"></div><div class="tc-label">轉換後</div><div class="tc-line"></div><div class="tc-arrow"></div></div>
+    <div class="topo-node accent" style="width:100%;max-width:420px;text-align:left;padding:10px 16px">
+      <span style="font-size:.7rem;color:var(--text-3);display:block;margin-bottom:2px">設備收到</span>
+      <code style="color:#a5d6ff;font-size:.82rem">"OK:ok"</code>
+    </div>
+  </div>
+</div>
+
+<h3>Mask 定義欄位</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th><th>預設值</th></tr></thead>
+  <tbody>
+    <tr><td>Mask ID</td><td>唯一識別名稱</td><td>—</td></tr>
+    <tr><td>Field Delimiter</td><td>欄位之間的分隔符</td><td><code>;</code></td></tr>
+    <tr><td>KV Separator</td><td>鍵與值之間的分隔符</td><td><code>:</code></td></tr>
+    <tr><td>Output Template</td><td>輸出模板，以 <code>{欄位名}</code> 作為佔位符</td><td>—</td></tr>
+    <tr><td>Sample Data</td><td>範例輸入，用於即時預覽</td><td>—</td></tr>
+    <tr><td>Route Mode</td><td><code>broadcast</code> / <code>response</code>（控制回應發送對象）</td><td><code>broadcast</code></td></tr>
+    <tr><td>Correlation ID Field</td><td>Concurrent 模式：回應中帶有 correlationId 的欄位名</td><td>—</td></tr>
+  </tbody>
+</table></div>
+
+<h3>欄位解析範例</h3>
+<p>輸入：<code>id:DEV01;temp:36.5;unit:C</code>（分隔符 <code>;</code>、KV 分隔 <code>:</code>）</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位名</th><th>解析值</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td><code>DEV01</code></td></tr>
+    <tr><td><code>temp</code></td><td><code>36.5</code></td></tr>
+    <tr><td><code>unit</code></td><td><code>C</code></td></tr>
+  </tbody>
+</table></div>
+
+<p>模板：<code>{"id":"{id}","temp":{temp},"unit":"{unit}"}</code><br>
+輸出：<code>{"id":"DEV01","temp":36.5,"unit":"C"}</code></p>
+
+<h3>模板規則</h3>
+<ul>
+  <li>佔位符格式：<code>{欄位名}</code></li>
+  <li><strong>任何一個</strong>佔位符對應的欄位在訊息中不存在 → 整筆訊息<strong>丟棄</strong>，不轉發</li>
+  <li>模板為空或 <code>{raw}</code> → 原樣轉發，不做任何轉換</li>
+  <li>同一欄位可在模板中出現多次</li>
+</ul>
+
+<h3>Route Mode（回應路由模式）</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>模式</th><th>行為</th><th>適用場景</th></tr></thead>
+  <tbody>
+    <tr><td><code>broadcast</code>（預設）</td><td>所有已連線的設備都收到回應</td><td>廣播狀態更新、感測器推播</td></tr>
+    <tr><td><code>response</code></td><td>只有發出此次請求的設備收到回應</td><td>Request-Response 模式、設備獨立查詢</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="routing"><span class="section-num">08</span>訊息路由</h2>
+
+<h3>基本路由設定</h3>
+<p>在 <strong>TCP Client Port</strong> 的 <strong>Source Protocol</strong> 欄位，選擇對應的 <strong>TCP Server Port</strong>，即建立路由關係。</p>
+
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">設定範例</span></div>
+<pre><code><span class="cmt">TCP Server Port</span>
+  Protocol Name : <span class="str">DeviceServer</span>
+  Net Protocol  : <span class="cls">TCP SERVER</span>
+  Local Port    : <span class="num">9001</span>
+
+<span class="cmt">TCP Client Port</span>
+  Protocol Name   : <span class="str">BackendClient</span>
+  Net Protocol    : <span class="cls">TCP CLIENT</span>
+  Target IP       : <span class="str">192.168.1.100</span>
+  Remote Port     : <span class="num">8080</span>
+  Mask Type       : <span class="prop">SensorJSON</span>      <span class="cmt">← 套用在傳出訊息</span>
+  Response Mask   : <span class="prop">OriginalData</span>    <span class="cmt">← 套用在回應訊息</span>
+  Source Protocol : <span class="prop">DeviceServer</span>    <span class="cmt">← 指向上面的 TCP Server</span></code></pre>
+</div>
+
+<h3>一對多路由</h3>
+<p>同一個 TCP Server 可以路由到<strong>多個</strong> TCP Client，訊息同時廣播給所有目標。只需讓多個 TCP Client 的 <strong>Source Protocol</strong> 都指向同一個 TCP Server 即可。</p>
+
+<div class="fanout">
+  <div class="fanout-source">TCP Server "DeviceServer"</div>
+  <div class="fanout-rows">
+    <div class="fanout-row">
+      <span class="fr-prefix">├▶</span>
+      <span class="fr-client">TCP Client A</span>
+      <span class="fr-arrow">→</span>
+      <span class="fr-dest">系統 A &nbsp;192.168.1.10:8080</span>
+    </div>
+    <div class="fanout-row">
+      <span class="fr-prefix">├▶</span>
+      <span class="fr-client">TCP Client B</span>
+      <span class="fr-arrow">→</span>
+      <span class="fr-dest">系統 B &nbsp;192.168.1.20:8080</span>
+    </div>
+    <div class="fanout-row">
+      <span class="fr-prefix">└▶</span>
+      <span class="fr-client">TCP Client C</span>
+      <span class="fr-arrow">→</span>
+      <span class="fr-dest">系統 C &nbsp;192.168.1.30:8080</span>
+    </div>
+  </div>
+</div>
+
+<h3>完整路由流程</h3>
+<div class="flow">
+  <div class="flow-node">設備送訊息</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">TCP Server 接收</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">查找關聯 TCP Client</div>
+  <div class="flow-break"></div>
+  <div class="flow-node accent">套用 Request Mask</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node">結果為空？丟棄</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node accent">依 Request Mode 發送</div>
+  <div class="flow-break"></div>
+  <div class="flow-node">遠端回應</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node accent">套用 Response Mask</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-node green">依 Route Mode 送回設備</div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="reqmode"><span class="section-num">09</span>請求模式</h2>
+
+<p>Request Mode 設定在 <strong>TCP Client Port</strong> 上，控制如何處理同時進來的多筆請求。</p>
+
+<div class="mode-grid">
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon blue" style="font-size:.65rem;font-weight:700;font-family:'JetBrains Mono',monospace">S</div>
+      <div>
+        <div class="mode-title">Serial</div>
+        <div class="mode-subtitle">序列模式</div>
+      </div>
+    </div>
+    <p class="mode-desc">FIFO 佇列，一次處理一筆，等到收到回應（或 5 秒 timeout）後才處理下一筆。不遺漏任何訊息。</p>
+    <div class="mode-tags">
+      <span class="mode-tag blue">預設模式</span>
+      <span class="mode-tag green">不遺漏訊息</span>
+    </div>
+  </div>
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon yellow" style="font-size:.65rem;font-weight:700;font-family:'JetBrains Mono',monospace">P</div>
+      <div>
+        <div class="mode-title">Polling</div>
+        <div class="mode-subtitle">輪詢模式</div>
+      </div>
+    </div>
+    <p class="mode-desc">只保留最新一筆資料，中間的請求會被丟棄。適合持續傳送感測數值、只需最新值的場景。</p>
+    <div class="mode-tags">
+      <span class="mode-tag yellow">會丟棄舊訊息</span>
+    </div>
+  </div>
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon purple" style="font-size:.65rem;font-weight:700;font-family:'JetBrains Mono',monospace">C</div>
+      <div>
+        <div class="mode-title">Concurrent</div>
+        <div class="mode-subtitle">並發模式</div>
+      </div>
+    </div>
+    <p class="mode-desc">多個請求同時進行，EdgeLink 自動注入 <code>_corrId</code>，依 ID 將回應路由回正確的設備。</p>
+    <div class="mode-tags">
+      <span class="mode-tag">需設定 correlationId</span>
+    </div>
+  </div>
+</div>
+
+<h3>Concurrent 模式設定步驟</h3>
+<ol class="steps">
+  <li><div>
+    建立 <strong>Request Mask</strong>，模板中包含 <code>{_corrId}</code>（EdgeLink 自動注入）：
+    <div class="code-block" style="margin-top:.6em"><div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Template</span></div><pre><code>{data}:{_corrId}</code></pre></div>
+  </div></li>
+  <li><div>
+    建立 <strong>Response Mask</strong>，設定 Route Mode: <code>response</code>，Correlation ID Field 填入回應中帶有 correlationId 的欄位名（例如 <code>_corrId</code>）。
+  </div></li>
+  <li><div>
+    TCP Client Port 設定：Request Mode: <code>concurrent</code>，Mask Type 和 Response Mask Type 分別選剛才建立的兩個 Mask。
+  </div></li>
+  <li><div>
+    遠端系統回應時必須帶回相同的 correlationId 欄位。
+  </div></li>
+</ol>
+
+<h3>Concurrent 模式流程圖</h3>
+<div class="concur">
+  <div class="concur-row">
+    <span class="cr-dev">設備 A 送出</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=AAAA</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-dest">遠端系統</span>
+  </div>
+  <div class="concur-row">
+    <span class="cr-dev">設備 B 送出</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=BBBB</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-dest">遠端系統</span>
+  </div>
+  <div class="concur-row">
+    <span class="cr-dev">設備 C 送出</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=CCCC</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-dest">遠端系統</span>
+  </div>
+  <hr class="concur-sep">
+  <div class="concur-note">同時進行 → 各自回應</div>
+  <hr class="concur-sep">
+  <div class="concur-row">
+    <span class="cr-dest">遠端回應</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=BBBB</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-back">路由回設備 B</span>
+  </div>
+  <div class="concur-row">
+    <span class="cr-dest">遠端回應</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=AAAA</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-back">路由回設備 A</span>
+  </div>
+  <div class="concur-row">
+    <span class="cr-dest">遠端回應</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-corr">_corrId=CCCC</span>
+    <span class="cr-arr">→</span>
+    <span class="cr-back">路由回設備 C</span>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="monitor"><span class="section-num">10</span>即時監控</h2>
+
+<h3>Port Monitor</h3>
+<p>在 Port 列表中點選「Monitor」按鈕，開啟該 Port 的即時訊息串流（Server-Sent Events）：</p>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Monitor 輸出格式</span></div>
+<pre><code>[#001] [Router] [TCP Server | DeviceServer] [from 192.168.1.50:12345] Received: id:DEV01;temp:36.5
+[#002] [Router] [TCP Client | BackendClient] Sent: {"id":"DEV01","temp":36.5}</code></pre>
+</div>
+
+<h3>System Log</h3>
+<p>伺服器自身的事件記錄，包含 Port 啟停、設備連線/斷線、錯誤訊息。支援關鍵字篩選，日誌保留 <strong>7 天</strong>，每日一個檔案儲存於 <code>Data/Logs/</code>。</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="settings"><span class="section-num">11</span>設定匯出／匯入</h2>
+
+<h3>匯出</h3>
+<p>點 <strong>System → Export Settings</strong> 下載 JSON 檔案，包含所有 Port 和 Mask 定義。</p>
+
+<div class="callout info">
+
+  <div class="callout-body">
+    <strong>注意</strong>
+    OriginalData（內建 Mask）不會出現在匯出檔案中。
+  </div>
+</div>
+
+<h3>匯入規則</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>項目</th><th>匯入行為</th></tr></thead>
+  <tbody>
+    <tr><td>Mask</td><td>ID 不存在則<strong>新增</strong>；已存在則<strong>跳過</strong></td></tr>
+    <tr><td>Port</td><td>Protocol Name 不重複且 port 號不衝突則<strong>新增</strong>；否則<strong>跳過</strong></td></tr>
+  </tbody>
+</table></div>
+
+<div class="callout warn">
+
+  <div class="callout-body">
+    <strong>注意</strong>
+    匯入不會刪除現有設定，只會新增不存在的項目。
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="cli"><span class="section-num">12</span>CLI 選項</h2>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>CLI 參數</th><th>環境變數</th><th>說明</th><th>預設值</th></tr></thead>
+  <tbody>
+    <tr><td><code>--port &lt;n&gt;</code></td><td><code>EDGELINK_PORT</code></td><td>HTTP 監聽 port</td><td><code>8081</code></td></tr>
+    <tr><td><code>--no-https</code></td><td><code>EDGELINK_HTTPS=0</code></td><td>停用 HTTPS</td><td>啟用</td></tr>
+    <tr><td><code>--https-port &lt;n&gt;</code></td><td><code>EDGELINK_HTTPS_PORT</code></td><td>HTTPS 監聽 port</td><td><code>8443</code></td></tr>
+  </tbody>
+</table></div>
+
+<p><strong>優先順序：</strong> CLI 參數 &gt; 環境變數 &gt; 預設值</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="api"><span class="section-num">13</span>API 參考</h2>
+
+<p>Base URL：<code>https://&lt;host&gt;:8443</code>（或 HTTP）。所有 <code>/api/*</code> 端點（除認證外）皆需 Session Cookie。詳細互動式文件請見 <a href="/docs">/docs</a>。</p>
+
+<h3>認證</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方法</th><th>路徑</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>登入，Body: <code>{"password":"..."}</code></td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/auth/logout</code></td><td>登出</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/auth/status</code></td><td>檢查登入狀態</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/auth/change-password</code></td><td>修改密碼</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Port 管理</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方法</th><th>路徑</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td><code>/api/ports</code></td><td>取得所有 Port 列表</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/ports</code></td><td>新增 Port → <code>{"success":true,"id":"a1b2c3d4"}</code>（201）</td></tr>
+    <tr><td><code>PUT</code></td><td><code>/api/ports/{id}</code></td><td>更新 Port</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/api/ports</code></td><td>刪除 Port，Body: <code>{"id":"..."}</code></td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/ports/{id}/enabled</code></td><td>啟用/停用，Body: <code>{"enabled":true}</code></td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/ports/{id}/mask</code></td><td>更換 Mask</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/ports/{id}/clients</code></td><td>已連線設備列表（TCP SERVER）</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Mask 管理</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方法</th><th>路徑</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td><code>/api/masks</code></td><td>取得所有 Mask ID 列表</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/masks</code></td><td>新增 Mask，Body: <code>{"maskId":"..."}</code></td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/masks/{maskId}</code></td><td>取得 Mask 定義</td></tr>
+    <tr><td><code>PUT</code></td><td><code>/api/masks/{maskId}</code></td><td>儲存 Mask 定義</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/api/masks/{maskId}</code></td><td>刪除 Mask</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/masks/{maskId}/rename</code></td><td>重新命名，Body: <code>{"newId":"..."}</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3>監控 / 日誌</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方法</th><th>路徑</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td><code>/api/monitor-stream</code></td><td>SSE 即時訊息串流</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/monitor/port</code></td><td>設定監控 Port</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/api/monitor/port</code></td><td>清除監控 Port</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/logs?cursor=0</code></td><td>系統日誌（cursor 分頁）</td></tr>
+    <tr><td><code>GET</code></td><td><code>/api/monitor-logs?cursor=0</code></td><td>監控日誌（cursor 分頁）</td></tr>
+  </tbody>
+</table></div>
+
+<h3>設定</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>方法</th><th>路徑</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td><code>/api/settings/export</code></td><td>匯出所有設定為 JSON</td></tr>
+    <tr><td><code>POST</code></td><td><code>/api/settings/import</code></td><td>匯入設定 JSON</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<!-- ─────────────────────────────────────────── -->
+<h2 id="unity-sdk"><span class="section-num">14</span>Unity SDK</h2>
+
+<p>EdgeLink Unity SDK 讓 Unity 應用程式直接接收 EdgeLink Server 轉發的訊息，支援 TCP Client、TCP Listener、UDP 三種連線模式，並可在執行期自動從 Server 拉取 Mask 設定。</p>
+
+<h3>安裝（UPM Git URL）</h3>
+<ol class="steps">
+  <li><div>開啟 Unity → <strong>Window → Package Manager</strong></div></li>
+  <li><div>點左上角 <strong>＋ → Add package from git URL…</strong></div></li>
+  <li><div>輸入：<code>https://github.com/Reymer/EdgeLink-Server.git?path=SDK/Unity/Package#feature/dotnet-migration</code></div></li>
+  <li><div>點 <strong>Add</strong>，等待 Unity 匯入完成</div></li>
+  <li><div>（選用）Package Manager → EdgeLink SDK → Samples → <strong>Import Basic Example</strong></div></li>
+</ol>
+
+<h3>Inspector 設定</h3>
+<p>在任意 GameObject 上加入 <code>EdgeLinkManager</code> 組件，Inspector 提供以下欄位：</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th><th>預設值</th></tr></thead>
+  <tbody>
+    <tr><td>Server URL</td><td>EdgeLink Server 位址，用於執行期拉取 Mask 定義</td><td><code>https://192.168.1.100:8443</code></td></tr>
+    <tr><td>Password</td><td>登入密碼</td><td>（空）</td></tr>
+    <tr><td>Mask ID</td><td>要套用的 Mask 名稱（留空則不解析）</td><td><code>OriginalData</code></td></tr>
+    <tr><td>Protocol</td><td>連線模式：<code>TCP</code> / <code>TCPListener</code> / <code>UDP</code></td><td><code>TCP</code></td></tr>
+    <tr><td>TCP Host</td><td>（TCP 模式）EdgeLink Server IP</td><td><code>192.168.1.100</code></td></tr>
+    <tr><td>TCP Port</td><td>（TCP 模式）EdgeLink TCP Client Port 號</td><td><code>9001</code></td></tr>
+    <tr><td>Listen Port</td><td>（TCPListener 模式）Unity 本地監聽 Port</td><td><code>9001</code></td></tr>
+    <tr><td>UDP Local Port</td><td>（UDP 模式）Unity 本地 UDP Port</td><td><code>9002</code></td></tr>
+    <tr><td>Device Id Key</td><td>訊息中代表設備 ID 的欄位名稱（例如 <code>id</code>）；留空則不啟用超時追蹤</td><td><code>id</code></td></tr>
+    <tr><td>Device Timeout (s)</td><td>超過幾秒沒收到訊息視為設備離線（<code>0</code> = 停用）</td><td><code>20</code></td></tr>
+  </tbody>
+</table></div>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>Mask 自動拉取</strong>
+    啟動時 EdgeLinkManager 會向 Server 登入並取得指定 Mask 的 Field Delimiter 和 KV Separator，讓 <code>Get(key)</code> 能正確解析欄位。若 Server 無法連線，則以預設值（<code>;</code> 和 <code>:</code>）繼續運行。
+  </div>
+</div>
+
+<h3>三種連線模式</h3>
+<div class="mode-grid">
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon blue">→</div>
+      <div>
+        <div class="mode-title">TCP</div>
+        <div class="mode-subtitle">Unity 主動連出</div>
+      </div>
+    </div>
+    <p class="mode-desc">Unity 主動連線到 EdgeLink Server 的 TCP Client Port。EdgeLink 向 Unity 推送訊息。</p>
+    <div class="mode-tags">
+      <span class="mode-tag blue">推薦</span>
+      <span class="mode-tag green">自動重連</span>
+    </div>
+  </div>
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon yellow">←</div>
+      <div>
+        <div class="mode-title">TCP Listener</div>
+        <div class="mode-subtitle">Unity 被動監聽</div>
+      </div>
+    </div>
+    <p class="mode-desc">Unity 開啟本地 Port 等待 EdgeLink 連入（EdgeLink 設定 TCP Client 指向 Unity）。</p>
+    <div class="mode-tags">
+      <span class="mode-tag">EdgeLink 主動連出</span>
+    </div>
+  </div>
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon purple">◎</div>
+      <div>
+        <div class="mode-title">UDP</div>
+        <div class="mode-subtitle">無連線</div>
+      </div>
+    </div>
+    <p class="mode-desc">Unity 監聽 UDP Port，EdgeLink 以 UDP 推送訊息。無連線狀態，純接收。</p>
+    <div class="mode-tags">
+      <span class="mode-tag yellow">無重連機制</span>
+    </div>
+  </div>
+</div>
+
+<h3>讀取資料 API</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>成員</th><th>型別</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>Raw</code></td><td><code>string</code></td><td>最新一筆原始訊息字串（未解析）</td></tr>
+    <tr><td><code>Get(key)</code></td><td><code>string</code></td><td>依欄位名取得最新解析值，不存在則回傳 <code>null</code></td></tr>
+  </tbody>
+</table></div>
+
+<h3>使用範例</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">C# — Example.cs</span></div>
+<pre><code><span class="kw">using</span> UnityEngine;
+
+<span class="kw">public class</span> <span class="cls">Example</span> : <span class="cls">MonoBehaviour</span>
+{
+    <span class="cls">EdgeLinkManager</span> edgeLink;
+    <span class="kw">string</span>          lastRaw;
+
+    <span class="kw">void</span> <span class="fn">Start</span>()
+    {
+        edgeLink = <span class="fn">GetComponent</span>&lt;<span class="cls">EdgeLinkManager</span>&gt;();
+    }
+
+    <span class="kw">void</span> <span class="fn">Update</span>()
+    {
+        <span class="kw">if</span> (edgeLink.Raw == lastRaw) <span class="kw">return</span>;
+        lastRaw = edgeLink.Raw;
+
+        <span class="kw">string</span> temp  = edgeLink.<span class="fn">Get</span>(<span class="str">"temp"</span>);
+        <span class="kw">string</span> humid = edgeLink.<span class="fn">Get</span>(<span class="str">"humid"</span>);
+
+        Debug.<span class="fn">Log</span>(<span class="str">$"溫度:{temp} 濕度:{humid}"</span>);
+    }
+}</code></pre>
+</div>
+
+<div class="callout tip">
+  <div class="callout-body">
+    <strong>取得原始未解析訊息</strong>
+    若需要原始字串（例如 JSON、自訂格式），直接讀取 <code>edgeLink.Raw</code> 即可，不需要呼叫 <code>Get()</code>。
+  </div>
+</div>
+
+<h3>設備連線 / 斷線偵測</h3>
+
+<p><code>EdgeLinkManager</code> 提供兩種互補的斷線偵測機制，可同時使用：</p>
+
+<div class="table-wrap"><table>
+  <thead><tr><th>事件</th><th>觸發來源</th><th>識別單位</th><th>適用情境</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>OnDeviceStatus(bool, string)</code></td>
+      <td>EdgeLink Server 偵測到 TCP 連線開/關</td>
+      <td>IP 位址</td>
+      <td>快速感知連線層斷線（含拔電約 15 秒）</td>
+    </tr>
+    <tr>
+      <td><code>OnDeviceTimeout(string)</code></td>
+      <td>Unity 本地計時，超過 Device Timeout 秒無訊息</td>
+      <td>設備 ID 欄位</td>
+      <td>多台設備共用一條連線，精確追蹤個別設備</td>
+    </tr>
+    <tr>
+      <td><code>OnDeviceReconnected(string)</code></td>
+      <td>超時後再次收到該設備訊息</td>
+      <td>設備 ID 欄位</td>
+      <td>設備重新上線通知</td>
+    </tr>
+  </tbody>
+</table></div>
+
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">C# — 斷線偵測範例</span></div>
+<pre><code><span class="kw">void</span> <span class="fn">Start</span>()
+{
+    edgeLink = <span class="fn">GetComponent</span>&lt;<span class="cls">EdgeLinkManager</span>&gt;();
+
+    <span class="cmt">// TCP 連線層事件（由 EdgeLink Server 推送）</span>
+    edgeLink.OnDeviceStatus += (connected, endpoint) =>
+        Debug.<span class="fn">Log</span>(connected ? <span class="str">$"設備上線: {endpoint}"</span> : <span class="str">$"設備斷線: {endpoint}"</span>);
+
+    <span class="cmt">// 業務層事件（Unity 本地計時，依 Device Id Key 欄位追蹤）</span>
+    edgeLink.OnDeviceTimeout     += id => Debug.<span class="fn">LogWarning</span>(<span class="str">$"{id} 離線（超時）"</span>);
+    edgeLink.OnDeviceReconnected += id => Debug.<span class="fn">Log</span>(<span class="str">$"{id} 重新上線"</span>);
+}</code></pre>
+</div>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>拔電斷線情境</strong>
+    設備突然斷電（無 FIN 封包）時，EdgeLink 透過 PING/PONG 機制偵測：連續 3 次 PING 無回應（約 15 秒）後，Server 強制關閉連線並推送 <code>OnDeviceStatus(false, …)</code>。之後若超過 <code>Device Timeout</code> 秒仍無訊息，<code>OnDeviceTimeout</code> 也會觸發。兩個事件一起使用可獲得最完整的斷線資訊。
+  </div>
+</div>
+
+<h3>TCP 模式拓樸（推薦）</h3>
+<div class="topo">
+  <div class="topo-node green">IoT 設備（TCP 連入 EdgeLink）</div>
+  <div class="topo-connector">
+    <div class="tc-line"></div>
+    <div class="tc-label">TCP Server Port 9001</div>
+    <div class="tc-line"></div>
+    <div class="tc-arrow"></div>
+  </div>
+  <div class="topo-node accent">EdgeLink Server（TCP Client 主動連 Unity）</div>
+  <div class="topo-connector">
+    <div class="tc-line"></div>
+    <div class="tc-label">TCP Client → Unity Host:Port</div>
+    <div class="tc-line"></div>
+    <div class="tc-arrow"></div>
+  </div>
+  <div class="topo-node" style="background:var(--surface3);border-color:var(--border2)">Unity 應用程式（EdgeLinkManager Protocol = TCP）</div>
+</div>
+
+<p>EdgeLink Server 端需設定一個 <strong>TCP Client Port</strong>，Target IP 填 Unity 機器 IP，Remote Port 對應 <code>TCP Port</code> 欄位值，Source Protocol 指向接收設備的 TCP Server Port。</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="arduino-sdk"><span class="section-num">15</span>Arduino SDK</h2>
+
+<p>EdgeLink Arduino Library 讓 ESP32 / ESP8266 / Arduino 設備連線到 EdgeLink Server。PING/PONG 心跳自動處理，開發者只需專注在資料傳送邏輯。</p>
+
+<h3>安裝</h3>
+<div class="mode-grid" style="grid-template-columns:1fr 1fr">
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon blue" style="font-size:.75rem;font-weight:700">ZIP</div>
+      <div><div class="mode-title">ZIP 匯入</div></div>
+    </div>
+    <p class="mode-desc">下載 <code>SDK/Arduino/EdgeLink.zip</code>，在 Arduino IDE 選 <strong>Sketch → Include Library → Add .ZIP Library…</strong></p>
+  </div>
+  <div class="mode-card">
+    <div class="mode-card-header">
+      <div class="mode-icon yellow" style="font-size:.75rem;font-weight:700">手動</div>
+      <div><div class="mode-title">手動複製</div></div>
+    </div>
+    <p class="mode-desc">將 <code>SDK/Arduino/EdgeLink/</code> 資料夾複製到 Arduino <code>libraries/</code> 目錄，重啟 IDE。</p>
+  </div>
+</div>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>支援平台</strong>
+    ESP32、ESP8266、Arduino Uno（需搭配 Ethernet Shield）、SAMD、RP2040。TCP 模式只需傳入任何 <code>Client</code> 物件即可。
+  </div>
+</div>
+
+<h3>TCP 模式（ESP32 / ESP8266）</h3>
+<p>設備主動連線到 EdgeLink Server 的 TCP Server Port，EdgeLink 自動管理 PING/PONG。</p>
+
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Arduino C++ — tcp_sensor.ino</span></div>
+<pre><code><span class="kw">#include</span> <span class="str">&lt;WiFi.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;EdgeLink.h&gt;</span>
+
+<span class="cls">WiFiClient</span>  wifiClient;
+<span class="cls">EdgeLinkTCP</span> edgelink(wifiClient);
+
+<span class="kw">void</span> <span class="fn">onMessage</span>(<span class="kw">const</span> <span class="cls">String</span>&amp; msg) {
+    Serial.<span class="fn">println</span>(msg);  <span class="cmt">// 後端系統的回應</span>
+}
+
+<span class="kw">void</span> <span class="fn">setup</span>() {
+    Serial.<span class="fn">begin</span>(<span class="num">115200</span>);
+    WiFi.<span class="fn">begin</span>(<span class="str">"your-ssid"</span>, <span class="str">"your-password"</span>);
+    <span class="kw">while</span> (WiFi.<span class="fn">status</span>() != WL_CONNECTED) <span class="fn">delay</span>(<span class="num">500</span>);
+
+    edgelink.<span class="fn">onMessage</span>(onMessage);
+    edgelink.<span class="fn">setAutoReconnect</span>(<span class="kw">true</span>, <span class="num">5000</span>);   <span class="cmt">// 斷線後 5 秒重連</span>
+    edgelink.<span class="fn">begin</span>(<span class="str">"192.168.1.100"</span>, <span class="num">9001</span>);  <span class="cmt">// EdgeLink TCP Server Port</span>
+}
+
+<span class="kw">void</span> <span class="fn">loop</span>() {
+    edgelink.<span class="fn">loop</span>();  <span class="cmt">// 必須呼叫，處理 PING/PONG 與接收</span>
+
+    <span class="kw">static</span> uint32_t t = <span class="num">0</span>;
+    <span class="kw">if</span> (millis() - t &gt;= <span class="num">3000</span> &amp;&amp; edgelink.<span class="fn">isConnected</span>()) {
+        edgelink.<span class="fn">send</span>(<span class="str">"id:ESP32_01;temp:25.3;humidity:60.0"</span>);
+        t = millis();
+    }
+}</code></pre>
+</div>
+
+<h3>UDP 模式（ESP32 / ESP8266）</h3>
+<p>無連線狀態，每次直接傳送 UDP 封包到 EdgeLink Server 的 UDP Port。EdgeLink 不對 UDP 設備發送 PING/PONG。</p>
+
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Arduino C++ — udp_sensor.ino</span></div>
+<pre><code><span class="kw">#include</span> <span class="str">&lt;WiFi.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;WiFiUdp.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;EdgeLink.h&gt;</span>
+
+<span class="cls">WiFiUDP</span>     wifiUdp;
+<span class="cls">EdgeLinkUDP</span> edgelink(wifiUdp);
+
+<span class="kw">void</span> <span class="fn">onMessage</span>(<span class="kw">const</span> <span class="cls">String</span>&amp; msg, <span class="cls">IPAddress</span> ip, uint16_t port) {
+    Serial.<span class="fn">println</span>(msg);
+}
+
+<span class="kw">void</span> <span class="fn">setup</span>() {
+    Serial.<span class="fn">begin</span>(<span class="num">115200</span>);
+    WiFi.<span class="fn">begin</span>(<span class="str">"your-ssid"</span>, <span class="str">"your-password"</span>);
+    <span class="kw">while</span> (WiFi.<span class="fn">status</span>() != WL_CONNECTED) <span class="fn">delay</span>(<span class="num">500</span>);
+
+    edgelink.<span class="fn">begin</span>(<span class="num">4210</span>);          <span class="cmt">// 本機接收 Port</span>
+    edgelink.<span class="fn">onMessage</span>(onMessage);
+}
+
+<span class="kw">void</span> <span class="fn">loop</span>() {
+    edgelink.<span class="fn">loop</span>();  <span class="cmt">// 接收 UDP 封包</span>
+
+    <span class="kw">static</span> uint32_t t = <span class="num">0</span>;
+    <span class="kw">if</span> (millis() - t &gt;= <span class="num">3000</span>) {
+        edgelink.<span class="fn">send</span>(<span class="str">"192.168.1.100"</span>, <span class="num">9002</span>, <span class="str">"id:ESP32_01;temp:25.3;humidity:60.0"</span>);
+        t = millis();
+    }
+}</code></pre>
+</div>
+
+<h3>API 參考</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>類別</th><th>方法</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="6"><code>EdgeLinkTCP</code></td><td><code>begin(host, port)</code></td><td>連線到 EdgeLink TCP Server Port</td></tr>
+    <tr><td><code>loop()</code></td><td>必須在 <code>loop()</code> 中呼叫，處理 PING/PONG 與接收</td></tr>
+    <tr><td><code>send(msg)</code></td><td>傳送訊息（自動附加換行）</td></tr>
+    <tr><td><code>onMessage(cb)</code></td><td>設定接收回呼（<code>EDGELINK_*</code> 訊息自動過濾）</td></tr>
+    <tr><td><code>isConnected()</code></td><td>回傳目前連線狀態</td></tr>
+    <tr><td><code>setAutoReconnect(enable, ms)</code></td><td>斷線後自動重連（預設啟用，5000 ms）</td></tr>
+    <tr><td rowspan="3"><code>EdgeLinkUDP</code></td><td><code>begin(localPort = 0)</code></td><td>開始監聽本機 UDP Port（<code>0</code> = 僅傳送）</td></tr>
+    <tr><td><code>loop()</code></td><td>必須在 <code>loop()</code> 中呼叫，處理接收</td></tr>
+    <tr><td><code>send(host, port, msg)</code></td><td>傳送 UDP 封包到指定目標</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="csharp-sdk"><span class="section-num">16</span>C# SDK</h2>
+
+<p>EdgeLink C# SDK 適用於任何 <strong>.NET 6+</strong> 應用程式（Console、WPF、ASP.NET Core 等），不依賴任何第三方套件。Unity 使用者請改用 Unity SDK。</p>
+
+<h3>安裝</h3>
+<p>將 <code>SDK/CSharp/</code> 資料夾加入你的 Solution 並加入專案參考，或直接將四個 <code>.cs</code> 檔案複製到你的專案中。</p>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>需求</strong>　.NET 6 或更新版本。所有類別位於 <code>EdgeLink</code> namespace。
+  </div>
+</div>
+
+<h3>TCP 範例</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">C#</span></div>
+<pre><code><span class="kw">using</span> EdgeLink;
+
+<span class="kw">using var</span> client = <span class="kw">new</span> <span class="cls">EdgeLinkClient</span>(<span class="str">"192.168.1.100"</span>, <span class="num">9001</span>);
+
+client.OnConnected    += ()    =&gt; Console.<span class="fn">WriteLine</span>(<span class="str">"Connected"</span>);
+client.OnDisconnected += ()    =&gt; Console.<span class="fn">WriteLine</span>(<span class="str">"Disconnected"</span>);
+client.OnMessage      += msg   =&gt; Console.<span class="fn">WriteLine</span>(<span class="str">$"Received: {msg}"</span>);
+client.OnError        += ex    =&gt; Console.<span class="fn">WriteLine</span>(<span class="str">$"Error: {ex.Message}"</span>);
+
+client.<span class="fn">SetAutoReconnect</span>(<span class="kw">true</span>, delayMs: <span class="num">5000</span>);
+<span class="kw">await</span> client.<span class="fn">ConnectAsync</span>();
+
+<span class="kw">await</span> client.<span class="fn">SendAsync</span>(<span class="str">"id:DOTNET_01;temp:25.3;humidity:60.0"</span>);</code></pre>
+</div>
+
+<h3>API 參考</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>類別</th><th>成員</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="6"><code>EdgeLinkClient</code></td><td><code>ConnectAsync()</code></td><td>連線並在背景啟動讀取迴圈</td></tr>
+    <tr><td><code>SendAsync(msg)</code></td><td>傳送訊息</td></tr>
+    <tr><td><code>IsConnected</code></td><td>目前連線狀態</td></tr>
+    <tr><td><code>SetAutoReconnect(enable, delayMs)</code></td><td>斷線後自動重連（預設啟用，5000 ms）</td></tr>
+    <tr><td><code>OnMessage / OnConnected / OnDisconnected / OnError</code></td><td>事件</td></tr>
+    <tr><td><code>TryDequeue(out msg)</code></td><td>Poll 式替代方案（不用事件）</td></tr>
+    <tr><td rowspan="3"><code>EdgeLinkTcpListener</code></td><td><code>Start()</code></td><td>開始接受連入 TCP 連線</td></tr>
+    <tr><td><code>Stop()</code></td><td>停止監聽</td></tr>
+    <tr><td><code>OnMessage / OnConnected / OnDisconnected / OnError</code></td><td>事件</td></tr>
+    <tr><td rowspan="2"><code>EdgeLinkUdpClient</code></td><td><code>Start()</code></td><td>綁定本機 Port 並接收 UDP 封包</td></tr>
+    <tr><td><code>OnMessage / OnError</code></td><td>事件</td></tr>
+    <tr><td rowspan="2"><code>EdgeLinkUdpSender</code></td><td><code>SendAsync(host, port, msg)</code></td><td>傳送 UDP 封包（僅傳送，不綁定 Port）</td></tr>
+    <tr><td><code>Dispose()</code></td><td>釋放 socket</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="python-sdk"><span class="section-num">17</span>Python SDK</h2>
+
+<p>EdgeLink Python SDK 適用於 <strong>Python 3.10+</strong>，基於標準函式庫 <code>asyncio</code> 與 <code>socket</code>，不需安裝任何第三方套件。</p>
+
+<h3>安裝</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">bash</span></div>
+<pre><code>pip install SDK/Python          <span class="cmt"># 本地安裝</span>
+<span class="cmt"># 或直接將 edgelink/ 資料夾複製到你的專案中</span></code></pre>
+</div>
+
+<h3>TCP 範例</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Python</span></div>
+<pre><code><span class="kw">import</span> asyncio
+<span class="kw">from</span> edgelink <span class="kw">import</span> EdgeLinkClient
+
+<span class="kw">async def</span> <span class="fn">main</span>():
+    client = <span class="cls">EdgeLinkClient</span>(<span class="str">"192.168.1.100"</span>, <span class="num">9001</span>)
+
+    client.<span class="fn">on_connected</span>(<span class="kw">lambda</span>: <span class="fn">print</span>(<span class="str">"Connected"</span>))
+    client.<span class="fn">on_message</span>(<span class="kw">lambda</span> msg: <span class="fn">print</span>(<span class="str">f"Received: {msg}"</span>))
+    client.<span class="fn">set_auto_reconnect</span>(<span class="kw">True</span>, delay=<span class="num">5.0</span>)
+
+    <span class="kw">await</span> client.<span class="fn">connect</span>()
+
+    <span class="kw">while True</span>:
+        <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(<span class="num">3</span>)
+        <span class="kw">if</span> client.is_connected:
+            <span class="kw">await</span> client.<span class="fn">send</span>(<span class="str">"id:PYTHON_01;temp:25.3;humidity:60.0"</span>)
+
+asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</code></pre>
+</div>
+
+<h3>API 參考</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>類別</th><th>成員</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="7"><code>EdgeLinkClient</code></td><td><code>connect()</code></td><td>連線並啟動讀取迴圈（coroutine）</td></tr>
+    <tr><td><code>send(msg)</code></td><td>傳送訊息（coroutine）</td></tr>
+    <tr><td><code>is_connected</code></td><td>目前連線狀態</td></tr>
+    <tr><td><code>set_auto_reconnect(enable, delay)</code></td><td>斷線後自動重連（預設啟用，5 秒）</td></tr>
+    <tr><td><code>on_message / on_connected / on_disconnected / on_error</code></td><td>註冊回呼函式</td></tr>
+    <tr><td><code>try_dequeue()</code></td><td>Poll 式替代方案</td></tr>
+    <tr><td><code>disconnect()</code></td><td>關閉連線（coroutine）</td></tr>
+    <tr><td rowspan="3"><code>EdgeLinkTcpListener</code></td><td><code>start()</code></td><td>開始監聽（coroutine）</td></tr>
+    <tr><td><code>stop()</code></td><td>停止監聽（coroutine）</td></tr>
+    <tr><td><code>on_message / on_connected / on_disconnected / on_error</code></td><td>註冊回呼函式</td></tr>
+    <tr><td rowspan="2"><code>EdgeLinkUdpClient</code></td><td><code>start()</code></td><td>綁定並開始接收（coroutine）</td></tr>
+    <tr><td><code>on_message / on_error</code></td><td>註冊回呼函式</td></tr>
+    <tr><td rowspan="2"><code>EdgeLinkUdpSender</code></td><td><code>send(host, port, msg)</code></td><td>傳送 UDP 封包</td></tr>
+    <tr><td><code>send_async(host, port, msg)</code></td><td>傳送 UDP 封包（coroutine）</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="js-sdk"><span class="section-num">18</span>JavaScript SDK</h2>
+
+<p>EdgeLink JavaScript SDK 適用於 <strong>Node.js 18+</strong>，基於內建模組 <code>net</code>、<code>dgram</code>、<code>events</code>，不需任何第三方套件。</p>
+
+<h3>安裝</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">JavaScript</span></div>
+<pre><code><span class="kw">const</span> { <span class="cls">EdgeLinkClient</span> } = <span class="fn">require</span>(<span class="str">"./SDK/JavaScript/src"</span>);</code></pre>
+</div>
+
+<h3>TCP 範例</h3>
+<div class="code-block">
+  <div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">JavaScript (Node.js)</span></div>
+<pre><code><span class="kw">const</span> { <span class="cls">EdgeLinkClient</span> } = <span class="fn">require</span>(<span class="str">"./SDK/JavaScript/src"</span>);
+
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="cls">EdgeLinkClient</span>(<span class="str">"192.168.1.100"</span>, <span class="num">9001</span>);
+
+client.<span class="fn">on</span>(<span class="str">"connected"</span>,    ()    =&gt; console.<span class="fn">log</span>(<span class="str">"Connected"</span>));
+client.<span class="fn">on</span>(<span class="str">"message"</span>,      (msg) =&gt; console.<span class="fn">log</span>(<span class="str">"Received:"</span>, msg));
+client.<span class="fn">on</span>(<span class="str">"error"</span>,        (err) =&gt; console.<span class="fn">error</span>(<span class="str">"Error:"</span>, err.message));
+
+client.<span class="fn">setAutoReconnect</span>(<span class="kw">true</span>, <span class="num">5000</span>);
+client.<span class="fn">connect</span>();
+
+<span class="fn">setInterval</span>(() =&gt; {
+    <span class="kw">if</span> (client.isConnected)
+        client.<span class="fn">send</span>(<span class="str">"id:NODE_01;temp:25.3;humidity:60.0"</span>);
+}, <span class="num">3000</span>);</code></pre>
+</div>
+
+<h3>API 參考</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>類別</th><th>成員</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="5"><code>EdgeLinkClient</code></td><td><code>connect()</code></td><td>連線並開始讀取</td></tr>
+    <tr><td><code>send(msg)</code></td><td>傳送訊息</td></tr>
+    <tr><td><code>isConnected</code></td><td>目前連線狀態</td></tr>
+    <tr><td><code>setAutoReconnect(enable, delayMs)</code></td><td>斷線後自動重連（預設啟用，5000 ms）</td></tr>
+    <tr><td>事件：<code>"connected" / "disconnected" / "message" / "error"</code></td><td>EventEmitter 事件</td></tr>
+    <tr><td rowspan="3"><code>EdgeLinkTcpListener</code></td><td><code>start()</code></td><td>啟動 TCP Server</td></tr>
+    <tr><td><code>stop()</code></td><td>停止 TCP Server</td></tr>
+    <tr><td>事件：<code>"connected" / "disconnected" / "message" / "error"</code></td><td>EventEmitter 事件</td></tr>
+    <tr><td rowspan="3"><code>EdgeLinkUdpClient</code></td><td><code>start()</code></td><td>綁定 Port 並接收 UDP 封包</td></tr>
+    <tr><td><code>stop()</code></td><td>停止接收</td></tr>
+    <tr><td>事件：<code>"message" / "error"</code></td><td>EventEmitter 事件</td></tr>
+    <tr><td rowspan="2"><code>EdgeLinkUdpSender</code></td><td><code>send(host, port, msg)</code></td><td>傳送 UDP 封包（回傳 Promise）</td></tr>
+    <tr><td><code>close()</code></td><td>關閉 socket</td></tr>
+  </tbody>
+</table></div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="examples"><span class="section-num">19</span>常見情境範例</h2>
+
+<h3>情境 A：感測器 → 後端 JSON API（單向轉發）</h3>
+<p><strong>設備傳送：</strong> <code>id:SENSOR01;temp:25.3;humidity:60</code><br>
+<strong>目標：</strong> 後端收到 <code>{"device":"SENSOR01","temp":25.3,"humidity":60}</code></p>
+
+<ol class="steps">
+  <li><div>
+    建立 Mask <code>SensorJSON</code>：
+    <div class="code-block" style="margin-top:.6em"><div class="code-header"><div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div><span class="lang-tag">Mask 設定</span></div><pre><code>Field Delimiter : ;
+KV Separator    : :
+Output Template : {"device":"{id}","temp":{temp},"humidity":{humidity}}</code></pre></div>
+  </div></li>
+  <li><div>新增 TCP Server Port：Protocol Name: <code>SensorServer</code>，Local Port: <code>9001</code></div></li>
+  <li><div>新增 TCP Client Port：Protocol Name: <code>BackendClient</code>，Target IP: <code>192.168.1.100</code>，Remote Port: <code>8080</code>，Mask Type: <code>SensorJSON</code>，Source Protocol: <code>SensorServer</code></div></li>
+</ol>
+
+<hr>
+
+<h3>情境 B：多台設備同時查詢各自收到回應（Concurrent）</h3>
+<p><strong>場景：</strong> 多台設備同時送出請求，每台只收到自己的回應。</p>
+<ol class="steps">
+  <li><div>建立 Request Mask，模板包含 <code>{_corrId}</code>：<code>{barcode}:{_corrId}</code></div></li>
+  <li><div>建立 Response Mask，Route Mode: <code>response</code>，Correlation ID Field: <code>_corrId</code></div></li>
+  <li><div>TCP Client Port 設定 Request Mode: <code>concurrent</code></div></li>
+  <li><div>後端系統解析 correlationId，回應時帶回同一個值</div></li>
+</ol>
+
+<hr>
+
+<h3>情境 C：設備查詢並等待個別回應（Serial Request-Response）</h3>
+<ol class="steps">
+  <li><div>TCP Client Port：Request Mode: <code>serial</code></div></li>
+  <li><div>Response Mask：Route Mode: <code>response</code></div></li>
+  <li><div>後端在 5 秒內於同一 TCP 連線上回覆，EdgeLink 自動路由回對應的設備</div></li>
+</ol>
+
+<hr>
+
+<h3>情境 D：同一組設備廣播到多個系統（一對多）</h3>
+<ol class="steps">
+  <li><div>建立一個 TCP Server Port（設備連入）</div></li>
+  <li><div>為每個系統建立一個 TCP Client Port，Source Protocol 全部指向同一個 TCP Server</div></li>
+  <li><div>每個 TCP Client 可設定不同的 Mask 規則（不同系統不同格式）</div></li>
+</ol>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="troubleshoot"><span class="section-num">20</span>疑難排解</h2>
+
+<h3>設備連線後約 15 秒斷線</h3>
+<div class="callout danger">
+
+  <div class="callout-body">
+    <strong>原因：未實作 PING/PONG</strong>
+    EdgeLink 連續 3 次收不到 PONG 後強制斷線。請在設備程式中加入接收 <code>EDGELINK_PING:</code> 並回覆 <code>EDGELINK_PONG:</code> 的邏輯（詳見第 6 節）。
+  </div>
+</div>
+
+<h3>瀏覽器無法連線</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>情況</th><th>解法</th></tr></thead>
+  <tbody>
+    <tr><td>剛啟動，程式還在初始化</td><td>等待 3～5 秒後重新整理</td></tr>
+    <tr><td>Port 已被其他程式佔用</td><td>用 <code>--port</code> 換一個 port</td></tr>
+    <tr><td>防火牆阻擋</td><td>允許 EdgeLinkServer.exe 或對應 port 通過防火牆</td></tr>
+    <tr><td>LAN 存取被拒</td><td>以系統管理員身分執行</td></tr>
+  </tbody>
+</table></div>
+
+<h3>訊息沒有被路由到後端</h3>
+<ul>
+  <li>TCP Client Port 的 <strong>Source Protocol</strong> 是否正確指向 TCP Server</li>
+  <li>TCP Client Port 是否顯示<strong>已連線</strong></li>
+  <li>Mask 設定：訊息是否包含模板中<strong>所有</strong>的佔位符欄位（缺一個就整筆丟棄）</li>
+  <li>在 <strong>Monitor</strong> 頁面即時查看訊息是否有進來</li>
+</ul>
+
+<h3>後端回應沒有送回設備</h3>
+<ul>
+  <li><code>broadcast</code> 模式：確認設備是否真的有連線</li>
+  <li><code>response</code> 模式（Serial）：5 秒內沒收到回應會 timeout</li>
+  <li><code>response</code> 模式（Concurrent）：後端是否有帶回正確的 correlationId</li>
+  <li>Response Mask 的欄位是否都能被正確解析</li>
+</ul>
+
+<h3>TCP Client 一直顯示未連線</h3>
+<ul>
+  <li>確認遠端系統的 IP 和 port 是否正確</li>
+  <li>確認遠端系統是否正在監聽</li>
+  <li>EdgeLink 會自動重連：首次等待 1 秒，之後指數退避最長 30 秒</li>
+</ul>
+
+<div class="footer">
+  EdgeLink Server &nbsp;·&nbsp; GPL-3.0 &nbsp;·&nbsp; Extrakyo
+</div>
+
+</main>
+
+<!-- Back to top -->
+<a href="#" id="top-btn" title="回到頂部">↑</a>
+
+<script>
+const sections = document.querySelectorAll('h2[id]');
+const links    = document.querySelectorAll('#sidebar nav a');
+const topBtn   = document.getElementById('top-btn');
+
+function updateActive() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  links.forEach(l => {
+    l.classList.toggle('active', l.getAttribute('href') === '#' + current);
+  });
+  topBtn.classList.toggle('visible', window.scrollY > 400);
+}
+
+window.addEventListener('scroll', updateActive, { passive: true });
+updateActive();
+</script>
+</body>
+</html>

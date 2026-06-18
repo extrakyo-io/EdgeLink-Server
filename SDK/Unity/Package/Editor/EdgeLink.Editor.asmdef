@@ -1,0 +1,13 @@
+{
+  "name": "EdgeLink.Editor",
+  "rootNamespace": "EdgeLink",
+  "references": [
+    "EdgeLink.Runtime"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": false
+}

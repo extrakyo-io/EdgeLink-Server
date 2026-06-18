@@ -1,0 +1,9 @@
+{
+  "name": "edgelink",
+  "version": "1.0.0",
+  "description": "EdgeLink SDK for Node.js — TCP client, TCP listener, and UDP client/sender.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "author": "Extrakyo",
+  "engines": { "node": ">=18" }
+}

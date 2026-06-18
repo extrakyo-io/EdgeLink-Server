@@ -1,0 +1,83 @@
+name: 🐛 Bug Report
+description: Server / WebUI / SDK 有問題或行為不如預期。
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        在開 issue 前請先確認：
+        - 已看過 [README](https://github.com/Reymer/EdgeLink-Server/blob/main/README.md)
+        - 已在 [Issues](https://github.com/Reymer/EdgeLink-Server/issues?q=is%3Aissue) 搜尋過類似問題
+        - 用的是最新版（[Releases](https://github.com/Reymer/EdgeLink-Server/releases)）
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本 (Version)
+      description: EdgeLink Server 版本。輸入 `EdgeLinkServer.exe --version` 或看 zip 檔名。
+      placeholder: v2.1.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 哪個元件出問題？
+      multiple: true
+      options:
+        - Server / Backend
+        - WebUI
+        - Unity SDK
+        - Arduino SDK
+        - C# SDK
+        - Python SDK
+        - JavaScript SDK
+        - Modbus TCP Master
+        - 文件 / Docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 問題描述
+      description: 簡單描述什麼壞掉、預期應該怎樣、實際怎樣。
+      placeholder: |
+        預期：點下「新增 Port」之後 ...
+        實際：點下後跳錯誤 "..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 重現步驟
+      description: 一步一步寫怎麼讓 bug 再次發生。越具體越快修。
+      placeholder: |
+        1. 開啟 EdgeLinkServer.exe
+        2. 進 WebUI 按 "+ 新增 Port"
+        3. 選 Modbus TCP Master
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console / 錯誤訊息
+      description: |
+        貼 server console 的紅字錯誤、瀏覽器 DevTools Console 輸出、或 Unity Console log。
+        建議貼程式碼區塊：\`\`\`...\`\`\`
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: 環境
+      description: OS / .NET / Unity / Arduino 板子 等等。
+      placeholder: Windows 11 / Unity 2022.3 / ESP32
+    validations:
+      required: false

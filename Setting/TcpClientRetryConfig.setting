@@ -1,0 +1,7 @@
+{
+    "MaxRetryFirst": -1,
+    "MaxRetrySubsequent": -1,
+    "InitialDelayMs": 1000,
+    "MaxDelayMs": 10000,
+    "HeartbeatIntervalMs": 1000
+}

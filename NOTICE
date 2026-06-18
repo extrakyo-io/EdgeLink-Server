@@ -1,0 +1,46 @@
+EdgeLink Server
+Copyright (c) 2024-2026 Extrakyo (Chang-Lin Cai)
+
+================================================================================
+SOLE AUTHORSHIP NOTICE
+================================================================================
+
+This software is the personal work of Chang-Lin Cai ("Extrakyo"),
+contactable at cy96241@gmail.com.
+
+All source code in this repository is original work created on personal time
+and personal equipment.
+
+Some historical commits in the Git log were authored using the email address
+changlin.cai@yunhetech.com.tw — this was a development-machine Git
+configuration convenience and does not imply work-for-hire status. The
+copyright remains with the individual author.
+
+================================================================================
+LICENSE TERMS
+================================================================================
+
+This software is dual-licensed:
+
+  1. GPL-3.0-or-later (default, see LICENSE)
+     - Free for personal, educational, and Open Source use.
+     - Any distributed work that incorporates this software must also be
+       released under GPL-3.0-or-later, including full source code.
+
+  2. Commercial License (paid, see COMMERCIAL-LICENSE.md)
+     - For closed-source / proprietary integration, OEM embedding, or any
+       use case incompatible with GPL-3.0.
+     - Contact cy96241@gmail.com for terms and pricing.
+
+You must choose ONE of these licenses to use this software. Pick whichever
+fits your use case.
+
+================================================================================
+THIRD-PARTY DEPENDENCIES
+================================================================================
+
+This software depends on the following third-party packages. Each retains
+its own license; this NOTICE does not relicense them.
+
+  FluentModbus     MIT License        https://github.com/Apollo3zehn/FluentModbus
+  .NET 8 runtime   MIT License        https://github.com/dotnet/runtime

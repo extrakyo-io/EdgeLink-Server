@@ -1,0 +1,56 @@
+name: ✨ Feature Request
+description: 建議新功能 / 改進現有功能。
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝想讓 EdgeLink 更好！
+
+        在開 issue 前請先：
+        - 確認 [Issues](https://github.com/Reymer/EdgeLink-Server/issues) 沒有人提過
+        - 想想看是不是 [Discussions](https://github.com/Reymer/EdgeLink-Server/discussions) 比較適合（討論性想法）
+
+        如果這個功能對你「商業關鍵」、希望加速開發，可以看 [COMMERCIAL-LICENSE.md](https://github.com/Reymer/EdgeLink-Server/blob/main/COMMERCIAL-LICENSE.md) 的「Custom feature dev」方案。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解決什麼問題？
+      description: 描述使用情境跟卡住的點。**先講問題、再講方案**。
+      placeholder: |
+        我在做 XXX，目前 EdgeLink 沒有 YYY，導致只能用很繞的方式 ZZZ。
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 你期望的功能 / 行為
+      placeholder: |
+        希望可以 ...
+        WebUI 可以 ...
+        SDK 加一個 method ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 有想過其他做法嗎？
+      description: 替代方案、變通辦法、其他工具怎麼做的 — 都可以講。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 對你的優先度
+      options:
+        - 沒這個我也能繼續用，純粹建議
+        - 有的話會省很多時間
+        - 沒這個會影響上線時程
+        - 商業關鍵，願意考慮贊助開發
+    validations:
+      required: true

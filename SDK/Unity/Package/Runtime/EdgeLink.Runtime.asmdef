@@ -1,0 +1,9 @@
+{
+  "name": "EdgeLink.Runtime",
+  "rootNamespace": "EdgeLink",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true
+}

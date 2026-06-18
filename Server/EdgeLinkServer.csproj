@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>EdgeLinkServer</AssemblyName>
+    <RootNamespace>EdgeLink</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting"             Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging"             Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console"     Version="8.0.0" />
+    <PackageReference Include="FluentModbus"                             Version="5.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="WebUI\**\*"
+             CopyToOutputDirectory="PreserveNewest"
+             Link="WebUI\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="..\Setting\**\*"
+             CopyToOutputDirectory="PreserveNewest"
+             Link="Setting\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

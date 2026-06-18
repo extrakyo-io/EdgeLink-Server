@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore EdgeLink-Server.sln
+
+      - name: Test
+        run: dotnet test Server.Tests/Server.Tests.csproj -c Release --verbosity normal
+
+      - name: Publish
+        run: >
+          dotnet publish Server/EdgeLinkServer.csproj
+          -c Release -r win-x64 --self-contained true
+          -o publish_output
+
+      - name: Package server zip
+        run: Compress-Archive -Path publish_output\* -DestinationPath EdgeLink-Server-${{ github.ref_name }}-win-x64.zip
+        shell: pwsh
+
+      - name: Pack Unity UPM
+        run: npm pack
+        working-directory: SDK/Unity/Package
+
+      - name: Rename UPM tgz
+        run: Move-Item SDK/Unity/Package/com.extrakyo.edgelink-*.tgz com.extrakyo.edgelink-${{ github.ref_name }}.tgz
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "EdgeLink Server ${{ github.ref_name }}"
+          files: |
+            EdgeLink-Server-${{ github.ref_name }}-win-x64.zip
+            SDK/Arduino/EdgeLink.zip
+            com.extrakyo.edgelink-${{ github.ref_name }}.tgz
+          generate_release_notes: true
+          body: |
+            ## EdgeLink Server ${{ github.ref_name }}
+
+            An IoT protocol bridge and message routing server. Supports TCP/UDP multi-port management, custom Mask protocol transformation, real-time monitoring, and a browser-based management interface.
+
+            ---
+
+            ## Requirements
+
+            - Windows 10 / 11 x64
+            - No .NET Runtime required (self-contained)
+
+            ## Installation
+
+            1. Extract `EdgeLink-Server-${{ github.ref_name }}-win-x64.zip`
+            2. Run `EdgeLinkServer.exe`
+            3. Open `https://localhost:8443` in your browser
+            4. Accept the self-signed certificate warning (Advanced → Proceed)
+            5. Default password: `admin` — **change it immediately after login**
+
+            ## Downloads
+
+            | File | Description |
+            |------|-------------|
+            | `EdgeLink-Server-${{ github.ref_name }}-win-x64.zip` | Server application (Windows x64, self-contained) |
+            | `EdgeLink.zip` | Arduino SDK — install via Arduino IDE → Sketch → Include Library → Add .ZIP |
+            | `com.extrakyo.edgelink-${{ github.ref_name }}.tgz` | Unity UPM package (offline install) |
+
+            ## Unity SDK (UPM)
+
+            **Option A — Git URL** (Window → Package Manager → + → Add package from git URL):
+            ```
+            https://github.com/Reymer/EdgeLink-Server.git?path=SDK/Unity/Package#feature/dotnet-migration
+            ```
+
+            **Option B — Tarball** (Window → Package Manager → + → Add package from tarball):
+            Download `com.extrakyo.edgelink-${{ github.ref_name }}.tgz` from this release.
+
+            ## CLI Options
+
+            ```
+            EdgeLinkServer.exe [options]
+              --port <n>          HTTP port (default: 8081)
+              --no-https          Disable HTTPS
+              --https-port <n>    HTTPS port (default: 8443)
+            ```

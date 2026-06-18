@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "edgelink"
+version = "1.0.0"
+description = "EdgeLink SDK for Python — TCP client, TCP listener, and UDP client/sender."
+requires-python = ">=3.10"
+authors = [{ name = "Extrakyo" }]

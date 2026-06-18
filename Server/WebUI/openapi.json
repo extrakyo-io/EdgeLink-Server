@@ -1,0 +1,421 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "EdgeLink Server API",
+    "description": "IoT 訊息中繼與協定管理平台 REST API",
+    "version": "1.4.0",
+    "license": { "name": "GPL-3.0", "url": "https://www.gnu.org/licenses/gpl-3.0.html" }
+  },
+  "servers": [{ "url": "http://localhost:8181", "description": "本機伺服器" }],
+  "security": [{ "cookieAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": { "type": "apiKey", "in": "cookie", "name": "edgelink_token" }
+    },
+    "schemas": {
+      "ApiResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "error":   { "type": "string", "nullable": true }
+        }
+      },
+      "PortDto": {
+        "type": "object",
+        "properties": {
+          "id":                  { "type": "string" },
+          "protocolName":        { "type": "string" },
+          "netProtocol":         { "type": "string", "enum": ["TCP Server","TCP Client","UDP"] },
+          "maskType":            { "type": "string" },
+          "responseMaskType":    { "type": "string" },
+          "requestMode":         { "type": "string" },
+          "localPort":           { "type": "string" },
+          "remotePort":          { "type": "string" },
+          "targetIp":            { "type": "string" },
+          "isConnected":         { "type": "boolean" },
+          "isEnabled":           { "type": "boolean" },
+          "sourceProtocolName":  { "type": "string" },
+          "sourceProtocolId":    { "type": "string" },
+          "currentConnections":  { "type": "integer" },
+          "totalConnections":    { "type": "integer" },
+          "totalReceivedBytes":  { "type": "integer", "format": "int64" }
+        }
+      },
+      "AddPortReq": {
+        "type": "object",
+        "required": ["protocolName","netProtocol"],
+        "properties": {
+          "protocolName":       { "type": "string", "example": "MyDevice" },
+          "netProtocol":        { "type": "string", "enum": ["TCP Server","TCP Client","UDP"] },
+          "localPort":          { "type": "string", "example": "5000" },
+          "remotePort":         { "type": "string" },
+          "targetIp":           { "type": "string" },
+          "maskType":           { "type": "string" },
+          "responseMaskType":   { "type": "string" },
+          "requestMode":        { "type": "string" },
+          "sourceProtocolName": { "type": "string" },
+          "sourceProtocolId":   { "type": "string" }
+        }
+      },
+      "UpdatePortReq": {
+        "type": "object",
+        "properties": {
+          "protocolName":       { "type": "string" },
+          "netProtocol":        { "type": "string", "enum": ["TCP Server","TCP Client","UDP"] },
+          "localPort":          { "type": "string" },
+          "remotePort":         { "type": "string" },
+          "targetIp":           { "type": "string" },
+          "maskType":           { "type": "string" },
+          "responseMaskType":   { "type": "string" },
+          "requestMode":        { "type": "string" },
+          "sourceProtocolName": { "type": "string" },
+          "sourceProtocolId":   { "type": "string" }
+        }
+      },
+      "TcpClientInfo": {
+        "type": "object",
+        "properties": {
+          "endpoint":         { "type": "string", "example": "192.168.1.10:49152" },
+          "connectedSeconds": { "type": "number" },
+          "lastActivitySec":  { "type": "number" },
+          "messageCount":     { "type": "integer", "format": "int64" },
+          "totalBytes":       { "type": "integer", "format": "int64" },
+          "rateBytesPerSec":  { "type": "number" },
+          "rttMs":            { "type": "number", "description": "-1 表示尚無量測" }
+        }
+      },
+      "MaskDefinitionDto": {
+        "type": "object",
+        "properties": {
+          "maskId":             { "type": "string" },
+          "localizationKey":    { "type": "string" },
+          "description":        { "type": "string" },
+          "fieldDelimiter":     { "type": "string" },
+          "kvSeparator":        { "type": "string" },
+          "outputTemplate":     { "type": "string" },
+          "sampleData":         { "type": "string" },
+          "routeMode":          { "type": "string" },
+          "correlationIdField": { "type": "string" }
+        }
+      },
+      "SettingsExportDto": {
+        "type": "object",
+        "properties": {
+          "ports": { "type": "array", "items": { "$ref": "#/components/schemas/AddPortReq" } },
+          "masks": { "type": "array", "items": { "$ref": "#/components/schemas/MaskDefinitionDto" } }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "未登入或 Token 無效",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Auth",     "description": "登入驗證" },
+    { "name": "Ports",    "description": "Port 管理" },
+    { "name": "Masks",    "description": "遮罩管理" },
+    { "name": "Monitor",  "description": "即時監控" },
+    { "name": "Logs",     "description": "系統日誌" },
+    { "name": "Language", "description": "語系設定" },
+    { "name": "Settings", "description": "設定匯入匯出" }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"], "summary": "登入",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "required": ["password"],
+            "properties": { "password": { "type": "string", "example": "admin" } }
+          }}}
+        },
+        "responses": {
+          "200": { "description": "登入成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "description": "密碼錯誤" }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": ["Auth"], "summary": "登出", "security": [],
+        "responses": { "200": { "description": "已登出" } }
+      }
+    },
+    "/api/auth/status": {
+      "get": {
+        "tags": ["Auth"], "summary": "查詢登入狀態", "security": [],
+        "responses": { "200": { "description": "回傳是否已登入",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "authenticated": { "type": "boolean" } }
+          }}}
+        }}
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "tags": ["Auth"], "summary": "修改密碼",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "required": ["oldPassword","newPassword"],
+            "properties": {
+              "oldPassword": { "type": "string" },
+              "newPassword": { "type": "string" }
+            }
+          }}}
+        },
+        "responses": {
+          "200": { "description": "修改成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/ports": {
+      "get": {
+        "tags": ["Ports"], "summary": "取得所有 Port",
+        "responses": { "200": { "description": "Port 清單",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "ports": { "type": "array", "items": { "$ref": "#/components/schemas/PortDto" } } }
+          }}}
+        }}
+      },
+      "post": {
+        "tags": ["Ports"], "summary": "新增 Port",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddPortReq" } } } },
+        "responses": {
+          "200": { "description": "新增成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "delete": {
+        "tags": ["Ports"], "summary": "刪除 Port",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["id"],
+          "properties": { "id": { "type": "string" } }
+        }}}},
+        "responses": {
+          "200": { "description": "刪除成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/ports/{id}": {
+      "put": {
+        "tags": ["Ports"], "summary": "更新 Port 設定",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePortReq" } } } },
+        "responses": {
+          "200": { "description": "更新成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/ports/{id}/mask": {
+      "post": {
+        "tags": ["Ports"], "summary": "變更 Port 遮罩",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "properties": { "maskType": { "type": "string" } }
+        }}}},
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/ports/{id}/enabled": {
+      "post": {
+        "tags": ["Ports"], "summary": "啟用 / 停用 Port",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "properties": { "enabled": { "type": "boolean" } }
+        }}}},
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/ports/{id}/clients": {
+      "get": {
+        "tags": ["Ports"], "summary": "取得 TCP Server 已連線的 Client 列表",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Client 列表",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "clients": { "type": "array", "items": { "$ref": "#/components/schemas/TcpClientInfo" } } }
+          }}}
+        }}
+      }
+    },
+    "/api/masks": {
+      "get": {
+        "tags": ["Masks"], "summary": "取得所有遮罩 ID 清單",
+        "responses": { "200": { "description": "遮罩清單",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "maskTypes": { "type": "array", "items": { "type": "string" } } }
+          }}}
+        }}
+      },
+      "post": {
+        "tags": ["Masks"], "summary": "新增遮罩",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["maskId"],
+          "properties": {
+            "maskId":          { "type": "string" },
+            "localizationKey": { "type": "string" }
+          }
+        }}}},
+        "responses": {
+          "200": { "description": "新增成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/masks/{id}": {
+      "get": {
+        "tags": ["Masks"], "summary": "取得遮罩定義",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "遮罩定義", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MaskDefinitionDto" } } } } }
+      },
+      "put": {
+        "tags": ["Masks"], "summary": "儲存遮罩定義",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MaskDefinitionDto" } } } },
+        "responses": {
+          "200": { "description": "儲存成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "delete": {
+        "tags": ["Masks"], "summary": "刪除遮罩",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "刪除成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/masks/{id}/rename": {
+      "post": {
+        "tags": ["Masks"], "summary": "重新命名遮罩",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["newId"],
+          "properties": { "newId": { "type": "string" } }
+        }}}},
+        "responses": {
+          "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/logs": {
+      "get": {
+        "tags": ["Logs"], "summary": "取得系統日誌",
+        "parameters": [{ "name": "cursor", "in": "query", "schema": { "type": "integer", "default": 0 }, "description": "上次取得的 total，用於增量拉取" }],
+        "responses": { "200": { "description": "日誌清單",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "logs":  { "type": "array", "items": { "type": "string" } }
+            }
+          }}}
+        }}
+      }
+    },
+    "/api/monitor-logs": {
+      "get": {
+        "tags": ["Monitor"], "summary": "取得監控日誌",
+        "parameters": [{ "name": "cursor", "in": "query", "schema": { "type": "integer", "default": 0 } }],
+        "responses": { "200": { "description": "監控日誌",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "logs":  { "type": "array", "items": { "type": "string" } }
+            }
+          }}}
+        }}
+      }
+    },
+    "/api/monitor-stream": {
+      "get": {
+        "tags": ["Monitor"], "summary": "SSE 即時監控串流",
+        "description": "Server-Sent Events，持續推送監控訊息",
+        "responses": { "200": { "description": "text/event-stream" } }
+      }
+    },
+    "/api/monitor/port": {
+      "get": {
+        "tags": ["Monitor"], "summary": "取得目前監控的 Port",
+        "responses": { "200": { "description": "監控 Port 名稱",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "protocolName": { "type": "string" } }
+          }}}
+        }}
+      },
+      "post": {
+        "tags": ["Monitor"], "summary": "設定監控 Port",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["id"],
+          "properties": { "id": { "type": "string" } }
+        }}}},
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } } }
+      },
+      "delete": {
+        "tags": ["Monitor"], "summary": "清除監控 Port",
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } } }
+      }
+    },
+    "/api/language": {
+      "get": {
+        "tags": ["Language"], "summary": "取得目前語系",
+        "responses": { "200": { "description": "語系代碼",
+          "content": { "application/json": { "schema": {
+            "type": "object",
+            "properties": { "languageCode": { "type": "string", "example": "zh-TW" } }
+          }}}
+        }}
+      },
+      "post": {
+        "tags": ["Language"], "summary": "設定語系",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["languageCode"],
+          "properties": { "languageCode": { "type": "string", "example": "en-US" } }
+        }}}},
+        "responses": { "200": { "description": "成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } } }
+      }
+    },
+    "/api/settings/export": {
+      "get": {
+        "tags": ["Settings"], "summary": "匯出所有設定（Port + 遮罩）",
+        "responses": { "200": { "description": "設定 JSON",
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SettingsExportDto" } } }
+        }}
+      }
+    },
+    "/api/settings/import": {
+      "post": {
+        "tags": ["Settings"], "summary": "匯入設定",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SettingsExportDto" } } } },
+        "responses": {
+          "200": { "description": "匯入成功", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiResult" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  }
+}

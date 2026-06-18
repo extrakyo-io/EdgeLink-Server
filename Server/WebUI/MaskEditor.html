@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>遮罩定義編輯器</title>
+<style>
+  :root {
+    --pri:#4f46e5;--pri-hover:#4338ca;--pri-light:#eef2ff;--pri-border:#c7d2fe;
+    --success:#10b981;--success-bg:#d1fae5;--danger:#ef4444;--danger-bg:#fee2e2;
+    --bg:#f8fafc;--card:#fff;--border:#e2e8f0;--border-2:#cbd5e1;
+    --text:#0f172a;--text-2:#475569;--text-3:#94a3b8;
+    --r:8px;--r-sm:6px;--sh:0 1px 3px rgba(0,0,0,.07);
+  }
+  [data-theme="dark"] {
+    --pri:#818cf8;--pri-hover:#a5b4fc;--pri-light:#1e1b4b;--pri-border:#4338ca;
+    --success:#34d399;--success-bg:#022c22;--danger:#f87171;--danger-bg:#450a0a;
+    --bg:#0d1117;--card:#161b22;--border:#30363d;--border-2:#484f58;
+    --text:#e6edf3;--text-2:#8b949e;--text-3:#6e7681;--sh:0 1px 4px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+  header{background:var(--card);border-bottom:1px solid var(--border);height:54px;
+    padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:100}
+  .h-brand{display:flex;align-items:center;gap:10px}
+  .h-logo{width:30px;height:30px;background:var(--pri);border-radius:7px;
+    display:flex;align-items:center;justify-content:center}
+  .h-title{font-size:15px;font-weight:700}
+  .h-badge{font-size:11px;color:var(--text-3);background:var(--bg);
+    border:1px solid var(--border);border-radius:20px;padding:2px 9px;font-weight:500}
+  .main{max-width:900px;margin:0 auto;padding:24px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+    box-shadow:var(--sh);margin-bottom:16px}
+  .card-hd{padding:13px 16px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .card-title{font-size:13px;font-weight:600}
+  .card-bd{padding:14px 16px}
+  .btn{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:var(--r-sm);
+    padding:6px 13px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .14s}
+  .btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{background:var(--pri-hover)}
+  .btn-ok{background:var(--success);color:#fff}.btn-ok:hover{opacity:.88}
+  .btn-ghost{background:transparent;color:var(--text-2);border:1px solid var(--border)}
+  .btn-ghost:hover{background:var(--bg);border-color:var(--border-2)}
+  .btn-del{background:transparent;color:var(--text-3);border:1px solid transparent;
+    border-radius:5px;padding:3px 5px}
+  .btn-del:hover{background:var(--danger-bg);color:var(--danger)}
+  .btn-sm{padding:4px 10px;font-size:12px}
+  input,textarea,select{border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:7px 10px;font-size:13px;font-family:inherit;color:var(--text);
+    background:var(--card);outline:none;transition:border-color .14s;width:100%}
+  input:focus,textarea:focus,select:focus{border-color:var(--pri);
+    box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+  .tabs{display:flex;background:var(--bg);border:1px solid var(--border);
+    border-radius:var(--r-sm);padding:3px;gap:2px;width:fit-content;margin-bottom:16px}
+  .tab{padding:5px 18px;font-size:13px;font-weight:500;cursor:pointer;border-radius:4px;
+    color:var(--text-2);border:none;background:transparent;font-family:inherit;transition:all .14s}
+  .tab.on{background:#fff;color:var(--pri);box-shadow:var(--sh)}
+  [data-theme="dark"] .tab.on{background:var(--border);color:var(--pri)}
+  [data-theme="dark"] .tabs{background:#0d1117}
+  .steps{display:grid;gap:12px}
+  .step{border:1px solid var(--border);border-radius:var(--r);padding:16px;background:var(--card)}
+  .step-hd{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+  .step-n{width:22px;height:22px;border-radius:50%;background:var(--pri);color:#fff;
+    font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-t{font-size:13px;font-weight:600}
+  .step-t small{font-weight:400;color:var(--text-3);font-size:12px;margin-left:6px}
+  .sample-row{display:flex;gap:8px}
+  .sample-row textarea{flex:1;height:58px;resize:none;
+    font-family:Consolas,'Cascadia Code','SF Mono',Monaco,monospace;font-size:13px}
+  .delim-row{display:flex;align-items:center;gap:14px;margin-top:10px;flex-wrap:wrap}
+  .dlm{display:flex;align-items:center;gap:7px}
+  .dlm label{font-size:12px;color:var(--text-3);white-space:nowrap}
+  .dlm input{width:52px;text-align:center;font-family:monospace}
+  .fields-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;min-height:22px}
+  .ftag{background:#fef9c3;border:1px solid #fde047;border-radius:4px;padding:2px 8px;
+    font-size:11px;font-family:Consolas,monospace;color:#713f12}
+  [data-theme="dark"] .ftag{background:#1c1204;border-color:#854d0e;color:#fcd34d}
+  .fhint{font-size:12px;color:var(--text-3)}
+  .btable{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+  .btable th{background:var(--bg);padding:6px 8px;font-weight:600;color:var(--text-2);
+    border-bottom:1px solid var(--border);text-align:left;font-size:10px;
+    text-transform:uppercase;letter-spacing:.05em}
+  .btable td{padding:4px 5px;border-bottom:1px solid var(--border)}
+  .btable tr:last-child td{border-bottom:none}
+  .btable input,.btable select{padding:4px 6px;font-size:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+  .chip{display:inline-flex;align-items:center;background:var(--pri-light);
+    border:1px solid var(--pri-border);border-radius:20px;padding:3px 11px;
+    font-size:12px;font-family:Consolas,monospace;color:var(--pri);
+    cursor:pointer;user-select:none;transition:background .12s}
+  .chip:hover{background:#c7d2fe}
+  .chip.raw{background:#f3e8ff;border-color:#d8b4fe;color:#7c3aed}
+  .chip.raw:hover{background:#e9d5ff}
+  [data-theme="dark"] .chip{background:#1e1b4b;border-color:#4338ca;color:#a5b4fc}
+  [data-theme="dark"] .chip.raw{background:#2e1065;border-color:#7c3aed;color:#c4b5fd}
+  .tmpl-input{font-family:Consolas,monospace}
+  .preview-grid{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;gap:10px;margin-top:2px}
+  .preview-lbl{font-size:11px;color:var(--text-3);font-weight:500;text-transform:uppercase;
+    letter-spacing:.06em;margin-bottom:5px}
+  .pbox{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:9px 12px;font-family:Consolas,monospace;font-size:13px;min-height:40px;word-break:break-all}
+  .pbox.muted{color:var(--text-3);font-style:italic}
+  .pbox.warn{color:var(--danger);background:var(--danger-bg);border-color:#fca5a5}
+  .arrow{text-align:center;color:var(--text-3);font-size:20px}
+  .err{color:var(--danger);font-size:12px;margin-top:4px;min-height:14px}
+  .theme-btn{background:none;border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:5px 9px;cursor:pointer;color:var(--text-2);display:flex;align-items:center;
+    gap:5px;font-size:12px;font-family:inherit;transition:all .14s}
+  .theme-btn:hover{background:var(--bg)}
+  .lang-sel{background:none;border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:4px 7px;cursor:pointer;color:var(--text-2);font-size:12px;font-family:inherit;
+    transition:all .14s;width:auto}
+  .lang-sel:focus{box-shadow:none;border-color:var(--pri)}
+  [data-theme="dark"] .lang-sel{background:#161b22;color:var(--text-2);border-color:var(--border)}
+  [data-theme="dark"] .icon-sun{display:block}
+  [data-theme="dark"] .icon-moon{display:none}
+  .icon-sun{display:none}.icon-moon{display:block}
+  .file-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .field-lbl{font-size:12px;color:var(--text-3);margin-bottom:4px;font-weight:500}
+  .export-zone{background:var(--success-bg);border:1px solid var(--success);
+    border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;
+    justify-content:space-between;gap:12px;margin-top:4px}
+  .export-hint{font-size:12px;color:var(--text-2)}
+  @media(max-width:640px){
+    .preview-grid{grid-template-columns:1fr}.arrow{display:none}
+    .file-meta{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="h-brand">
+    <div class="h-logo">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <span class="h-title" data-i18n="title"></span>
+    <span class="h-badge" data-i18n="badge"></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+  <select class="lang-sel" onchange="setLang(this.value)" id="lang-sel">
+    <option value="zh-TW">繁中</option>
+    <option value="en-US">EN</option>
+    <option value="ja-JP">日本語</option>
+  </select>
+  <button class="theme-btn" onclick="toggleTheme()">
+    <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+    </svg>
+    <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  </button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- 基本資訊 -->
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title" data-i18n="maskInfo"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="importFile()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span data-i18n="loadJson"></span>
+        </button>
+      </div>
+    </div>
+    <div class="card-bd">
+      <div class="file-meta">
+        <div>
+          <div class="field-lbl">Mask ID <span style="color:var(--danger)">*</span></div>
+          <input id="maskId" data-i18n-ph="maskIdPh" oninput="validateId()">
+          <div class="err" id="id-err"></div>
+        </div>
+        <div>
+          <div class="field-lbl" data-i18n="descLabel"></div>
+          <input id="desc" data-i18n-ph="descPh">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 定義編輯器 -->
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title" data-i18n="protoDef"></span>
+    </div>
+    <div class="card-bd">
+      <div class="tabs">
+        <button class="tab on" id="tab-text" onclick="switchMode('text')" data-i18n="textMode"></button>
+        <button class="tab" id="tab-bin" onclick="switchMode('binary')" data-i18n="binaryMode"></button>
+      </div>
+      <div class="steps">
+
+        <!-- ① 範例 / 欄位結構 -->
+        <div class="step">
+          <div class="step-hd">
+            <div class="step-n">1</div>
+            <div class="step-t" id="s1t">貼上韌體範例資料</div>
+          </div>
+          <div id="s1-text">
+            <div class="sample-row">
+              <textarea id="sample" data-i18n-ph="samplePh" oninput="reparse()"></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="autoDetect()" style="white-space:nowrap;align-self:flex-start" data-i18n="autoDetect"></button>
+            </div>
+            <div class="delim-row">
+              <div class="dlm"><label data-i18n="fieldDelim"></label><input id="fd" value=";" oninput="reparse()"></div>
+              <div class="dlm"><label data-i18n="kvDelim"></label><input id="kv" value=":" oninput="reparse()"></div>
+            </div>
+            <div class="fields-row" id="fields"></div>
+          </div>
+          <div id="s1-bin" style="display:none">
+            <table class="btable">
+              <thead><tr><th data-i18n="fieldName"></th><th>Offset</th><th>Length</th><th data-i18n="type"></th><th></th></tr></thead>
+              <tbody id="bin-body"></tbody>
+            </table>
+            <button class="btn btn-ghost btn-sm" onclick="addBinRow()" data-i18n="addField"></button>
+          </div>
+        </div>
+
+        <!-- ② 輸出格式 -->
+        <div class="step">
+          <div class="step-hd">
+            <div class="step-n">2</div>
+            <div class="step-t"><span data-i18n="defineOutput"></span> <small data-i18n="clickToInsert"></small></div>
+          </div>
+          <div class="chips" id="chips">
+            <span class="chip raw" onclick="insertChip('{raw}')">{raw}</span>
+          </div>
+          <input id="tmpl" class="tmpl-input" data-i18n-ph="tmplPh" oninput="updatePreview()">
+        </div>
+
+        <!-- ③ 即時預覽 -->
+        <div class="step">
+          <div class="step-hd">
+            <div class="step-n">3</div>
+            <div class="step-t" data-i18n="preview"></div>
+          </div>
+          <div class="preview-grid">
+            <div>
+              <div class="preview-lbl" data-i18n="input"></div>
+              <div class="pbox muted" id="prev-in"></div>
+            </div>
+            <div class="arrow">→</div>
+            <div>
+              <div class="preview-lbl" data-i18n="output"></div>
+              <div class="pbox muted" id="prev-out">—</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 匯出 -->
+  <div class="export-zone">
+    <div>
+      <div style="font-weight:600;font-size:13px;color:var(--text)" data-i18n="exportTitle"></div>
+      <div class="export-hint" data-i18n="exportHint"></div>
+    </div>
+    <button class="btn btn-ok" onclick="exportJson()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <span data-i18n="downloadJson"></span>
+    </button>
+  </div>
+
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="onFileLoad(event)">
+
+<script>
+// ── Theme ──────────────────────────────────────────────
+(function(){
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('mask-editor-theme') ?? 'dark');
+})();
+function toggleTheme(){
+  const d = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', d ? 'light' : 'dark');
+  localStorage.setItem('mask-editor-theme', d ? 'light' : 'dark');
+}
+
+// ── i18n ───────────────────────────────────────────────
+const LANGS = {
+  'zh-TW': {
+    title:        '遮罩定義編輯器',
+    badge:        '離線版',
+    maskInfo:     '遮罩資訊',
+    loadJson:     '載入 JSON',
+    maskIdPh:     '例：SENSOR_V2',
+    descLabel:    '描述（選填）',
+    descPh:       '說明這個遮罩的用途',
+    protoDef:     '協定定義',
+    textMode:     '文字模式',
+    binaryMode:   '二進位模式',
+    pasteData:    '貼上韌體範例資料',
+    defBinary:    '定義二進位欄位結構',
+    samplePh:     '例：ID:2;TEMP:36.5;HUM:80',
+    autoDetect:   '自動偵測',
+    fieldDelim:   '欄位分隔符',
+    kvDelim:      'KV 分隔符',
+    fieldName:    '欄位名稱',
+    type:         '型別',
+    addField:     '+ 新增欄位',
+    defineOutput: '定義輸出格式',
+    clickToInsert:'點擊欄位名稱可插入',
+    tmplPh:       '{raw} 或 ID={ID}&T={TEMP}',
+    preview:      '即時預覽',
+    input:        '輸入',
+    output:       '輸出',
+    waitInput:    '（等待輸入）',
+    rawPassthru:  '（raw 直通）',
+    binaryTest:   '（二進位模式請在實際裝置測試）',
+    noField:      '未解析到欄位，請確認分隔符',
+    placeholderWarn: '⚠ 佔位符 {p} 無對應欄位 → 實際輸出為空字串',
+    exportTitle:  '匯出定義 JSON',
+    exportHint:   '將此檔案交給 IoT Server 管理員，從網頁介面匯入',
+    downloadJson: '下載 JSON',
+    errIdEmpty:   'Mask ID 不能為空',
+    errPasteFirst:'請先貼上範例資料',
+    errJsonFmt:   'JSON 格式錯誤',
+  },
+  'en-US': {
+    title:        'Mask Definition Editor',
+    badge:        'Offline',
+    maskInfo:     'Mask Info',
+    loadJson:     'Load JSON',
+    maskIdPh:     'e.g. SENSOR_V2',
+    descLabel:    'Description (optional)',
+    descPh:       'Describe the purpose of this mask',
+    protoDef:     'Protocol Definition',
+    textMode:     'Text',
+    binaryMode:   'Binary',
+    pasteData:    'Paste firmware sample data',
+    defBinary:    'Define binary field structure',
+    samplePh:     'e.g. ID:2;TEMP:36.5;HUM:80',
+    autoDetect:   'Auto Detect',
+    fieldDelim:   'Field delimiter',
+    kvDelim:      'KV separator',
+    fieldName:    'Field name',
+    type:         'Type',
+    addField:     '+ Add Field',
+    defineOutput: 'Define output format',
+    clickToInsert:'Click field name to insert',
+    tmplPh:       '{raw} or ID={ID}&T={TEMP}',
+    preview:      'Live Preview',
+    input:        'Input',
+    output:       'Output',
+    waitInput:    '(waiting for input)',
+    rawPassthru:  '(raw passthrough)',
+    binaryTest:   '(binary mode: test on device)',
+    noField:      'No fields parsed, check delimiters',
+    placeholderWarn: '⚠ Placeholder {p} has no matching field → outputs empty string',
+    exportTitle:  'Export Definition JSON',
+    exportHint:   'Send this file to the IoT Server admin to import via the web UI',
+    downloadJson: 'Download JSON',
+    errIdEmpty:   'Mask ID is required',
+    errPasteFirst:'Please paste sample data first',
+    errJsonFmt:   'Invalid JSON format',
+  },
+  'ja-JP': {
+    title:        'マスク定義エディター',
+    badge:        'オフライン',
+    maskInfo:     'マスク情報',
+    loadJson:     'JSON を読み込む',
+    maskIdPh:     '例：SENSOR_V2',
+    descLabel:    '説明（任意）',
+    descPh:       'このマスクの用途を説明してください',
+    protoDef:     'プロトコル定義',
+    textMode:     'テキスト',
+    binaryMode:   'バイナリ',
+    pasteData:    'ファームウェアサンプルを貼り付け',
+    defBinary:    'バイナリフィールド構造を定義',
+    samplePh:     '例：ID:2;TEMP:36.5;HUM:80',
+    autoDetect:   '自動検出',
+    fieldDelim:   'フィールド区切り文字',
+    kvDelim:      'KV 区切り文字',
+    fieldName:    'フィールド名',
+    type:         '型',
+    addField:     '+ フィールドを追加',
+    defineOutput: '出力形式を定義',
+    clickToInsert:'フィールド名をクリックして挿入',
+    tmplPh:       '{raw} または ID={ID}&T={TEMP}',
+    preview:      'リアルタイムプレビュー',
+    input:        '入力',
+    output:       '出力',
+    waitInput:    '（入力待ち）',
+    rawPassthru:  '（rawパススルー）',
+    binaryTest:   '（バイナリ：実機でテスト）',
+    noField:      'フィールドが解析できません、区切り文字を確認してください',
+    placeholderWarn: '⚠ プレースホルダー {p} に対応フィールドなし → 空文字列を出力',
+    exportTitle:  '定義 JSON をエクスポート',
+    exportHint:   'このファイルを IoT Server 管理者に渡し、Web UI からインポートしてください',
+    downloadJson: 'JSON をダウンロード',
+    errIdEmpty:   'マスク ID は必須です',
+    errPasteFirst:'先にサンプルデータを貼り付けてください',
+    errJsonFmt:   'JSON 形式エラー',
+  }
+};
+
+let lang = localStorage.getItem('mask-editor-lang') || 'zh-TW';
+function t(k) { return (LANGS[lang] || LANGS['zh-TW'])[k] || k; }
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  document.getElementById('lang-sel').value = lang;
+  document.getElementById('prev-in').textContent = t('waitInput');
+  document.getElementById('s1t').textContent = mode === 'text' ? t('pasteData') : t('defBinary');
+  document.title = t('title');
+}
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem('mask-editor-lang', l);
+  applyI18n();
+  reparse();
+}
+
+applyI18n();
+
+let mode = 'text', binIdx = 0;
+
+// ── Mode ───────────────────────────────────────────────
+function switchMode(m) {
+  mode = m;
+  document.getElementById('tab-text').classList.toggle('on', m === 'text');
+  document.getElementById('tab-bin').classList.toggle('on', m === 'binary');
+  document.getElementById('s1-text').style.display = m === 'text' ? '' : 'none';
+  document.getElementById('s1-bin').style.display  = m === 'binary' ? '' : 'none';
+  document.getElementById('s1t').textContent = m === 'text' ? t('pasteData') : t('defBinary');
+  updateChips(); updatePreview();
+}
+
+// ── Validate ───────────────────────────────────────────
+function validateId() {
+  const v = document.getElementById('maskId').value.trim();
+  document.getElementById('id-err').textContent = v ? '' : t('errIdEmpty');
+  return !!v;
+}
+
+// ── Auto-detect ────────────────────────────────────────
+function autoDetect() {
+  const s = document.getElementById('sample').value.trim();
+  if (!s) { alert(t('errPasteFirst')); return; }
+  let best = { score: 0, fd: ';', kv: ':' };
+  for (const fd of [';', ',', '|', '\t'])
+    for (const kv of [':', '=']) {
+      const parts = s.split(fd);
+      if (parts.length < 2) continue;
+      const score = parts.filter(p => p.includes(kv)).length;
+      if (score > best.score) best = { score, fd, kv };
+    }
+  document.getElementById('fd').value = best.fd;
+  document.getElementById('kv').value = best.kv;
+  reparse();
+}
+
+// ── Parse + preview ────────────────────────────────────
+function reparse() {
+  const s = document.getElementById('sample').value.trim();
+  const pIn = document.getElementById('prev-in');
+  pIn.textContent = s || t('waitInput');
+  pIn.className = s ? 'pbox' : 'pbox muted';
+  const f = parseText(s);
+  const names = Object.keys(f);
+  document.getElementById('fields').innerHTML = names.length
+    ? names.map(k => `<span class="ftag">${esc(k)} = ${esc(f[k])}</span>`).join('')
+    : (s ? `<span class="fhint">${t('noField')}</span>` : '');
+  updateChips(names); updatePreview(s, f);
+}
+
+function parseText(s) {
+  const fd = document.getElementById('fd').value || ';';
+  const kv = document.getElementById('kv').value || ':';
+  const r = {};
+  if (!s) return r;
+  for (const p of s.split(fd)) {
+    const i = p.indexOf(kv);
+    if (i < 0) continue;
+    const k = p.slice(0, i).trim(), v = p.slice(i + kv.length).trim();
+    if (k) r[k] = v;
+  }
+  return r;
+}
+
+function updateChips(names) {
+  if (!names) names = mode === 'binary'
+    ? collectBin().map(f => f.name).filter(Boolean)
+    : Object.keys(parseText(document.getElementById('sample').value.trim()));
+  document.getElementById('chips').innerHTML =
+    `<span class="chip raw" onclick="insertChip('{raw}')">{raw}</span>` +
+    names.map(n => `<span class="chip" onclick="insertChip('{${esc(n)}}')">{${esc(n)}}</span>`).join('');
+}
+
+function insertChip(t) {
+  const el = document.getElementById('tmpl');
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = el.value.slice(0, s) + t + el.value.slice(e);
+  el.selectionStart = el.selectionEnd = s + t.length;
+  el.focus(); updatePreview();
+}
+
+function updatePreview(raw, fields) {
+  const tmpl = document.getElementById('tmpl').value.trim();
+  const out  = document.getElementById('prev-out');
+  const s    = raw ?? document.getElementById('sample').value.trim();
+  if (!tmpl || tmpl === '{raw}') {
+    out.textContent = s || t('rawPassthru'); out.className = s ? 'pbox' : 'pbox muted'; return;
+  }
+  if (mode === 'binary') {
+    out.textContent = t('binaryTest'); out.className = 'pbox muted'; return;
+  }
+  const f = fields ?? parseText(s);
+  let res = tmpl;
+  for (const [k, v] of Object.entries(f)) res = res.split(`{${k}}`).join(v);
+  const bad = res.match(/\{[^}]+\}/);
+  if (bad) { out.textContent = t('placeholderWarn').replace('{p}', bad[0]); out.className = 'pbox warn'; }
+  else     { out.textContent = res; out.className = 'pbox'; }
+}
+
+// ── Binary rows ────────────────────────────────────────
+function binRow(i, f) {
+  const ts = ['uint8','uint16_le','uint16_be','int32_le','float_le','hex'];
+  return `<tr id="br-${i}">
+    <td><input value="${esc(f.name||'')}" id="bn-${i}" oninput="updateChips()"></td>
+    <td><input type="number" value="${f.offset||0}" id="bo-${i}" min="0" style="width:60px"></td>
+    <td><input type="number" value="${f.length||1}" id="bl-${i}" min="1" style="width:60px"></td>
+    <td><select id="bt-${i}">${ts.map(t=>`<option ${t===f.dataType?'selected':''}>${t}</option>`).join('')}</select></td>
+    <td><button class="btn btn-del" onclick="rmBinRow(${i})">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button></td>
+  </tr>`;
+}
+function addBinRow() {
+  const i = binIdx++;
+  document.getElementById('bin-body').insertAdjacentHTML('beforeend',
+    binRow(i, { name:'', offset:0, length:1, dataType:'uint8' }));
+}
+function rmBinRow(i) { document.getElementById(`br-${i}`)?.remove(); updateChips(); }
+function collectBin() {
+  return Array.from(document.getElementById('bin-body').querySelectorAll('tr')).map(r => {
+    const i = r.id.replace('br-','');
+    return { name: document.getElementById(`bn-${i}`)?.value.trim()||'',
+             offset: +document.getElementById(`bo-${i}`)?.value||0,
+             length: +document.getElementById(`bl-${i}`)?.value||1,
+             dataType: document.getElementById(`bt-${i}`)?.value||'uint8' };
+  }).filter(f => f.name);
+}
+
+// ── Export ─────────────────────────────────────────────
+function buildDef() {
+  return {
+    maskId:         document.getElementById('maskId').value.trim(),
+    localizationKey:document.getElementById('maskId').value.trim(),
+    description:    document.getElementById('desc').value.trim(),
+    inputEncoding:  mode,
+    fieldDelimiter: document.getElementById('fd').value || ';',
+    kvSeparator:    document.getElementById('kv').value || ':',
+    binaryFields:   mode === 'binary' ? collectBin() : [],
+    outputTemplate: document.getElementById('tmpl').value.trim() || '{raw}',
+    sampleData:     document.getElementById('sample').value
+  };
+}
+
+async function exportJson() {
+  if (!validateId()) { document.getElementById('maskId').focus(); return; }
+  const def = buildDef();
+  const json = JSON.stringify(def, null, 2);
+  const filename = `mask_${def.maskId}.json`;
+
+  // 在 pywebview exe 裡用 Python API 開存檔對話框
+  // base64 編碼避免中文字在 JS→Python 橋接層損壞
+  if (window.pywebview) {
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    await window.pywebview.api.save_file(filename, b64);
+    return;
+  }
+
+  // 普通瀏覽器：Blob 下載
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Import (load existing JSON) ────────────────────────
+function importFile() { document.getElementById('file-input').click(); }
+
+function onFileLoad(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      document.getElementById('maskId').value = d.maskId || '';
+      document.getElementById('desc').value   = d.description || '';
+      document.getElementById('fd').value     = d.fieldDelimiter || ';';
+      document.getElementById('kv').value     = d.kvSeparator || ':';
+      document.getElementById('tmpl').value   = d.outputTemplate || '{raw}';
+      document.getElementById('sample').value = d.sampleData || '';
+      switchMode(d.inputEncoding === 'binary' ? 'binary' : 'text');
+      if (d.binaryFields?.length) {
+        binIdx = 0;
+        document.getElementById('bin-body').innerHTML = d.binaryFields.map(f => binRow(binIdx++, f)).join('');
+      }
+      reparse();
+    } catch { alert(t('errJsonFmt')); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
