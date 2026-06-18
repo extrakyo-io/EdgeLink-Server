@@ -1,6 +1,6 @@
 {
   "name": "com.extrakyo.edgelink",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "displayName": "EdgeLink SDK",
   "description": "Unity SDK for EdgeLink Server — TCP/UDP data receiving with automatic PING/PONG keepalive and mask-based message parsing.",
   "unity": "2021.2",
