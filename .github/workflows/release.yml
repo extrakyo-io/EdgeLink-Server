@@ -83,7 +83,7 @@ jobs:
 
             **Option A — Git URL** (Window → Package Manager → + → Add package from git URL):
             ```
-            https://github.com/Reymer/EdgeLink-Server.git?path=SDK/Unity/Package#feature/dotnet-migration
+            https://github.com/extrakyo-io/EdgeLink-Server.git?path=SDK/Unity/Package
             ```
 
             **Option B — Tarball** (Window → Package Manager → + → Add package from tarball):

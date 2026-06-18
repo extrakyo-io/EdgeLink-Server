@@ -5,9 +5,9 @@
 **IoT Protocol Bridge & Message Routing Server**
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/Reymer/EdgeLink-Server/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-GPL_3.0_%2F_Commercial-blue)](COMMERCIAL-LICENSE.md)
-[![Version](https://img.shields.io/badge/Version-2.1.1-informational)](https://github.com/Reymer/EdgeLink-Server/releases/tag/v2.1.1)
+[![Version](https://img.shields.io/badge/Version-2.1.1-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.1.1)
 
 A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms protocol data via custom Mask definitions, and provides a browser-based management interface.
 
@@ -42,7 +42,7 @@ A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms pr
 
 ## Installation
 
-1. Download `EdgeLink-Server-v2.1.1-win-x64.zip` from [Releases](https://github.com/Reymer/EdgeLink-Server/releases)
+1. Download `EdgeLink-Server-v2.1.1-win-x64.zip` from [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 2. Extract the zip
 3. Run `EdgeLinkServer.exe`
 4. Open your browser at `https://localhost:8443`
@@ -187,7 +187,7 @@ The EdgeLink Unity SDK lets Unity applications receive data forwarded by EdgeLin
 In Unity → **Window → Package Manager → + → Add package from git URL**:
 
 ```
-https://github.com/Reymer/EdgeLink-Server.git?path=SDK/Unity/Package#feature/dotnet-migration
+https://github.com/extrakyo-io/EdgeLink-Server.git?path=SDK/Unity/Package
 ```
 
 Then import the **Basic Example** sample via Package Manager → EdgeLink SDK → Samples.

@@ -7,9 +7,9 @@ body:
     attributes:
       value: |
         在開 issue 前請先確認：
-        - 已看過 [README](https://github.com/Reymer/EdgeLink-Server/blob/main/README.md)
-        - 已在 [Issues](https://github.com/Reymer/EdgeLink-Server/issues?q=is%3Aissue) 搜尋過類似問題
-        - 用的是最新版（[Releases](https://github.com/Reymer/EdgeLink-Server/releases)）
+        - 已看過 [README](https://github.com/extrakyo-io/EdgeLink-Server/blob/main/README.md)
+        - 已在 [Issues](https://github.com/extrakyo-io/EdgeLink-Server/issues?q=is%3Aissue) 搜尋過類似問題
+        - 用的是最新版（[Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases)）
 
   - type: input
     id: version

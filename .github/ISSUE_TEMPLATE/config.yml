@@ -7,9 +7,9 @@ contact_links:
     about: 想把 EdgeLink 嵌入閉源產品 / OEM / 不公開原始碼整合，請來信詢問商用授權。GPL-3.0 不適用的情境都走這條。
 
   - name: 📖 說明文件 (Documentation)
-    url: https://github.com/Reymer/EdgeLink-Server/blob/main/README.md
+    url: https://github.com/extrakyo-io/EdgeLink-Server/blob/main/README.md
     about: 在開 issue 前先看 README，多數問題已有答案。
 
   - name: 💬 一般討論 (Discussions)
-    url: https://github.com/Reymer/EdgeLink-Server/discussions
+    url: https://github.com/extrakyo-io/EdgeLink-Server/discussions
     about: 想法 / 用法分享 / 求救 — 不是 bug 或 feature 請用 Discussions。

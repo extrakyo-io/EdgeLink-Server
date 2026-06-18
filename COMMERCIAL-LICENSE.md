@@ -99,4 +99,4 @@ For legal questions about whether your specific use case requires a commercial l
 
 **Author**: Extrakyo (Chang-Lin Cai)
 **Email**: cy96241@gmail.com
-**GitHub**: https://github.com/Reymer/EdgeLink-Server
+**GitHub**: https://github.com/extrakyo-io/EdgeLink-Server
