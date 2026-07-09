@@ -27,7 +27,18 @@ public class UdpData : DisposableBase
     public string SourceData = string.Empty;
 
     public readonly ConcurrentDictionary<string, UdpDeviceState> Devices = new();
-    public TimeSpan DeviceTimeout = TimeSpan.FromSeconds(30);
+
+    // Devices are marked stale after DeviceTimeout with no messages. Defaults to 30s;
+    // set EDGELINK_UDP_DEVICE_TIMEOUT_SEC to override (integration tests use a short value).
+    public TimeSpan DeviceTimeout = ResolveDeviceTimeout();
+
+    private static TimeSpan ResolveDeviceTimeout()
+    {
+        var env = Environment.GetEnvironmentVariable("EDGELINK_UDP_DEVICE_TIMEOUT_SEC");
+        if (double.TryParse(env, out double sec) && sec > 0)
+            return TimeSpan.FromSeconds(sec);
+        return TimeSpan.FromSeconds(30);
+    }
 
     protected override void DisposeManagedResources()
     {
