@@ -33,6 +33,18 @@ A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms pr
 
 ---
 
+## System Architecture
+
+EdgeLink Server sits at the center of a control system as the **fan-out hub**: a numeric-processing program polls field hardware over **Modbus TCP**, computes the application values, then pushes them into EdgeLink through an SDK client. EdgeLink applies a **Mask** to each message and **routes** it (by `SourceProtocolId`) over **UDP / TCP** to every downstream consumer at once.
+
+The reference deployment below is an aerial-ladder water-cannon training rig. An **AX-5 motion controller** (Hall-joystick buttons / pedal / e-stop, servo drives) and a **3-axis platform signal-acquisition module** (16× DI absolute encoders, 4× AI dual-axis joysticks) are read by the numeric-processing program — Gray-code→angle, low-pass filtering, joystick 0.25–4.75 V / dual-axis 5 V check, attitude + singularity detection + inverse kinematics — which then feeds EdgeLink. EdgeLink fans the processed values out to Unity 3D and two additional computers.
+
+![EdgeLink system architecture](docs/architecture.png)
+
+> **Editable source (FigJam):** <https://www.figma.com/board/scwJNojVE3A1ouhtjYIwLU>
+
+---
+
 ## Requirements
 
 - Windows 10 / 11 x64

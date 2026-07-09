@@ -252,7 +252,35 @@ public class UdpConnector : NetworkConnectorBase
 
                 var result        = receiveTask.Result;
                 int messageLength = result.Buffer.Length;
+                udpData.portData.COMReceived += messageLength;
 
+                string maskId = udpData.portData.MaskType?.Trim() ?? "OriginalData";
+                var def = MaskDefinitionManager.Instance.GetDefinition(maskId)
+                       ?? MaskDefinitionManager.Instance.GetDefinition("OriginalData");
+
+                // ── 二進位 mask:直接吃原始 datagram bytes,不做 UTF8 解碼/切行 ──
+                if (def?.binary != null)
+                {
+                    string outLine = MaskProcessor.Process(def, result.Buffer, "");
+                    if (!string.IsNullOrEmpty(outLine))
+                    {
+                        RouterLogHelper.LogReceive(udpData.portData, MonitorTargetType.UDP, outLine);
+                        TrackDevice(udpData, def, outLine, messageLength, result.RemoteEndPoint);
+                        var ob = Encoding.UTF8.GetBytes(outLine.EndsWith("\n") ? outLine : outLine + "\n");
+                        _ = sendClient.SendAsync(ob, ob.Length, sendEndPoint).ContinueWith(t => { _ = t.Exception; });
+                        udpData.portData.NetReceived += ob.Length;
+                        RouterLogHelper.LogSend(udpData.portData, MonitorTargetType.UDP, outLine);
+                        long nowB = DateTime.UtcNow.Ticks;
+                        if (nowB - lastUiUpdateTicks >= UiUpdateIntervalTicks)
+                        {
+                            lastUiUpdateTicks = nowB;
+                            _dispatcher.Enqueue(() => udpData.portData.OnUpdate?.Invoke(udpData.portData));
+                        }
+                    }
+                    continue;
+                }
+
+                // ── 文字路徑 ──
                 if (messageLength > buffer.Length) buffer = new byte[messageLength];
                 Array.Copy(result.Buffer, buffer, messageLength);
 
@@ -264,12 +292,7 @@ public class UdpConnector : NetworkConnectorBase
                     LogHelper.LogToConsole($"{LogHelper.Tag("UDP", udpData.portData)} Invalid UTF-8 in data", isError: true);
                 }
 
-                udpData.portData.COMReceived += messageLength;
                 udpData.SourceData = message;
-
-                string maskId = udpData.portData.MaskType?.Trim() ?? "OriginalData";
-                var def = MaskDefinitionManager.Instance.GetDefinition(maskId)
-                       ?? MaskDefinitionManager.Instance.GetDefinition("OriginalData");
 
                 bool anyOutput = false;
                 foreach (var rawLine in message.Split('\n'))
