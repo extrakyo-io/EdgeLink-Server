@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using FluentModbus;
 using Xunit;
 
 namespace EdgeLink.Tests.Integration;
@@ -11,6 +12,7 @@ namespace EdgeLink.Tests.Integration;
 ///   • TCP Client re-dials its remote target after the established connection drops.
 ///   • TCP Server re-accepts a device that disconnects and reconnects.
 ///   • UDP device liveness: id-timeout emits DISCONNECTED, resume emits CONNECTED.
+///   • Modbus TCP Master re-connects to the slave after it goes down and returns.
 ///
 /// Timing note: the shared ServerFixture wipes Setting/ on start, so the TCP Client
 /// retry config falls back to class defaults (HeartbeatIntervalMs = 5s, InitialDelayMs = 1s),
@@ -125,6 +127,39 @@ public class ReconnectTests(ServerFixture fixture) : IAsyncLifetime
         }
     }
 
+    // ── 4. Modbus TCP Master — reconnect after slave returns ───────────────────
+
+    [Fact]
+    public async Task Modbus_Master_Reconnects_AfterSlaveReturns()
+    {
+        const int mbPort = 19193;
+        var server = StartModbusServer(mbPort);
+        try
+        {
+            string id = await AddModbusMaster("RC_Modbus", mbPort);
+
+            // 1) EdgeLink connects to the slave and starts polling.
+            Assert.True(await WaitIsConnectedAsync(id, true, 8000),
+                "Modbus Master never connected to the slave");
+
+            // 2) Slave goes down → the poll read fails → EdgeLink marks it disconnected.
+            server.Stop();
+            server.Dispose();
+            Assert.True(await WaitIsConnectedAsync(id, false, 8000),
+                "Modbus Master did not detect the slave going down");
+
+            // 3) Slave returns → the poll loop auto-reconnects on the next TryConnect.
+            server = StartModbusServer(mbPort);
+            Assert.True(await WaitIsConnectedAsync(id, true, 12000),
+                "Modbus Master did not auto-reconnect after the slave returned");
+        }
+        finally
+        {
+            try { server.Stop(); } catch { }
+            try { server.Dispose(); } catch { }
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private async Task<string> AddTcpServer(string name, int port)
@@ -186,6 +221,81 @@ public class ReconnectTests(ServerFixture fixture) : IAsyncLifetime
         _portIds.Add(id);
         await Task.Delay(300);   // let the socket bind + sweep loop start
         return id;
+    }
+
+    private async Task<string> AddModbusMaster(string name, int port)
+    {
+        var resp = await _client.PostJsonAsync("/api/ports", new
+        {
+            protocolName = name,
+            netProtocol  = "Modbus TCP Master",
+            localPort    = "",
+            remotePort   = port.ToString(),
+            targetIp     = "127.0.0.1",
+            isEnabled    = true,
+            modbus = new
+            {
+                slaveId          = 1,
+                pollIntervalMs   = 200,
+                connectTimeoutMs = 1000,
+                readTimeoutMs    = 1000,
+                deviceId         = "mbtest",
+                registers = new[]
+                {
+                    new { name = "x", functionCode = 4, startAddress = 0, quantity = 1, dataType = "uint16" },
+                },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        using var doc = await resp.ReadDocAsync();
+        string id = doc.RootElement.GetProperty("id").GetString()!;
+        _portIds.Add(id);
+        await Task.Delay(300);
+        return id;
+    }
+
+    /// <summary>Starts an in-process Modbus TCP slave (unit 1) on the given port, retrying the bind.</summary>
+    private static ModbusTcpServer StartModbusServer(int port)
+    {
+        Exception? last = null;
+        for (int i = 0; i < 20; i++)
+        {
+            var srv = new ModbusTcpServer();
+            try
+            {
+                srv.AddUnit(1);
+                srv.Start(new IPEndPoint(IPAddress.Loopback, port));
+                return srv;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                try { srv.Dispose(); } catch { }
+                Thread.Sleep(250);
+            }
+        }
+        throw new InvalidOperationException($"Could not start ModbusTcpServer on {port}: {last?.Message}");
+    }
+
+    /// <summary>Polls the port list until the port's isConnected matches <paramref name="expected"/>.</summary>
+    private async Task<bool> WaitIsConnectedAsync(string portId, bool expected, int timeoutMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (DateTime.UtcNow < deadline)
+        {
+            var resp = await _client.GetAsync("/api/ports");
+            using var doc = await resp.ReadDocAsync();
+            foreach (var p in doc.RootElement.GetProperty("ports").EnumerateArray())
+            {
+                if (p.GetProperty("id").GetString() == portId)
+                {
+                    if (p.GetProperty("isConnected").GetBoolean() == expected) return true;
+                    break;
+                }
+            }
+            await Task.Delay(250);
+        }
+        return false;
     }
 
     /// <summary>Polls the port's client list until it reports <paramref name="expected"/> clients.</summary>
