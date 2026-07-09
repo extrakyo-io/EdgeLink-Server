@@ -98,6 +98,10 @@ public class ApiRouter
             {
                 await _maskHandler.RenameAsync(ctx, Uri.UnescapeDataString(segments[2])); return;
             }
+            if (method == "POST" && segments.Length == 3 && segments[2] == "preview-binary")
+            {
+                await _maskHandler.PreviewBinaryAsync(ctx); return;
+            }
             if (segments.Length == 3)
             {
                 string maskId = Uri.UnescapeDataString(segments[2]);
