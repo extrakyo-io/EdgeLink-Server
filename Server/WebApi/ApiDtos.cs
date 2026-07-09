@@ -68,7 +68,11 @@ public class MaskDefinitionDto
     public string sampleData = "";
     public string routeMode = "";
     public string correlationIdField = "";
+    public BinarySpec? binary;   // 二進位 mask 版面(null = 純文字 mask)
 }
+
+public class BinaryPreviewReq  { public BinarySpec? binary; public string? hex; }
+public class BinaryPreviewResp { public string output = ""; public bool dropped; public string? error; }
 
 public class PortExportDto
 {

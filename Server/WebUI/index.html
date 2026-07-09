@@ -631,6 +631,25 @@
             </div>
           </div>
 
+          <!-- ⑤ 二進位版面(選填)-->
+          <div class="step">
+            <div class="step-hd">
+              <div class="step-n">5</div>
+              <div class="step-t">二進位版面（選填）— 貼 JSON;非空時此 mask 改走二進位解析</div>
+            </div>
+            <textarea id="bin-spec" rows="8" placeholder='{ "byteOrder":"little", "discriminator":{"offset":3,"type":"u8"}, "variants":[ {"match":1,"length":37,"template":"id:{id};jlx:{jlx}","fields":[ {"name":"id","type":"const","value":"rig1"}, {"name":"jlx","offset":19,"type":"f32","format":"0.###"} ]} ] }'
+              style="width:100%;box-sizing:border-box;font-family:Consolas,monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical" oninput="onBinSpecChange()"></textarea>
+            <div style="font-size:10px;color:var(--text-3);line-height:1.5;margin-top:4px">
+              type: u8/u16/u32/u64/i8/i16/i32/f32/f64/bit/bitrange/const ｜ 每個 variant 各自 template（用 {欄位}）｜ 空白 = 純文字 mask（用上方設定）
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+              <input id="bin-hex" type="text" placeholder="貼封包 hex 測解碼,如 4f4b010100..." style="flex:1;font-family:Consolas,monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 8px">
+              <button class="btn btn-ghost btn-sm" onclick="previewBinary()" style="white-space:nowrap">解碼預覽</button>
+            </div>
+            <div class="pbox muted" id="bin-out" style="margin-top:6px">（貼封包 hex → 按解碼預覽,顯示解出的 KV)</div>
+            <div class="err" id="bin-err" style="margin-top:4px"></div>
+          </div>
+
         </div>
         <div class="err" id="def-err" style="margin-top:8px"></div>
       </div>
@@ -1638,8 +1657,40 @@ function fillForm(d) {
   document.getElementById('sample').value         = d.sampleData     || '';
   document.getElementById('def-route-mode').value = d.routeMode      || '';
   document.getElementById('def-corr-field').value = d.correlationIdField || '';
+  document.getElementById('bin-spec').value       = d.binary ? JSON.stringify(d.binary, null, 2) : '';
+  document.getElementById('bin-err').textContent  = '';
   onRouteModeChange();
   reparse();
+}
+
+// 二進位版面:回傳解析後物件;空白=null(純文字 mask);JSON 壞 → 拋錯
+function buildBinary() {
+  const s = document.getElementById('bin-spec').value.trim();
+  document.getElementById('bin-err').textContent = '';
+  if (!s) return null;
+  try { return JSON.parse(s); }
+  catch (e) { document.getElementById('bin-err').textContent = 'binary JSON 錯誤: ' + e.message; throw e; }
+}
+function onBinSpecChange() { try { buildBinary(); } catch {} }
+
+// 二進位解碼預覽:把目前⑤的 spec + hex 送後端(重用同一個解碼器)顯示結果
+async function previewBinary() {
+  const out = document.getElementById('bin-out');
+  let binary;
+  try { binary = buildBinary(); }
+  catch { out.textContent = 'binary JSON 有誤(見上方紅字)'; out.className = 'pbox warn'; return; }
+  if (!binary) { out.textContent = '（步驟⑤ 沒有 binary JSON）'; out.className = 'pbox muted'; return; }
+  const hex = document.getElementById('bin-hex').value.trim();
+  if (!hex) { out.textContent = '（先貼封包 hex）'; out.className = 'pbox muted'; return; }
+  try {
+    const r = await (await fetch(`${BASE}/api/masks/preview-binary`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ binary, hex })
+    })).json();
+    if (r.error)        { out.textContent = '錯誤: ' + r.error; out.className = 'pbox warn'; }
+    else if (r.dropped) { out.textContent = '(丟棄:長度/discriminator 不符或 template 缺欄位)'; out.className = 'pbox warn'; }
+    else                { out.textContent = r.output; out.className = 'pbox'; }
+  } catch (e) { out.textContent = '請求失敗: ' + e.message; out.className = 'pbox warn'; }
 }
 
 function onRouteModeChange() {
@@ -1744,7 +1795,8 @@ function exportDefinition() {
     outputTemplate:     document.getElementById('tmpl').value.trim() || '{raw}',
     sampleData:         document.getElementById('sample').value || '',
     routeMode:          document.getElementById('def-route-mode').value || '',
-    correlationIdField: document.getElementById('def-corr-field').value.trim() || ''
+    correlationIdField: document.getElementById('def-corr-field').value.trim() || '',
+    binary:             (() => { try { return buildBinary(); } catch { return null; } })()
   };
   const blob = new Blob([JSON.stringify(def, null, 2)], { type: 'application/json;charset=utf-8' });
   const a = document.createElement('a');
@@ -1758,6 +1810,9 @@ function exportDefinition() {
 async function saveDefinition() {
   document.getElementById('def-err').textContent = '';
   if (!curId) return;
+  let binary;
+  try { binary = buildBinary(); }
+  catch { document.getElementById('def-err').textContent = t('errSave'); return; }
   const def = {
     maskId:             curId,
     localizationKey:    curDef?.localizationKey || curId,
@@ -1768,7 +1823,8 @@ async function saveDefinition() {
     outputTemplate:     document.getElementById('tmpl').value.trim() || '{raw}',
     sampleData:         document.getElementById('sample').value || '',
     routeMode:          document.getElementById('def-route-mode').value || '',
-    correlationIdField: document.getElementById('def-corr-field').value.trim() || ''
+    correlationIdField: document.getElementById('def-corr-field').value.trim() || '',
+    binary:             binary
   };
   try {
     const d = await (await fetch(`${BASE}/api/masks/${encodeURIComponent(curId)}`,

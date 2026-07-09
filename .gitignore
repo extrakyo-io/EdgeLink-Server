@@ -126,7 +126,11 @@ Assets/DevKit.meta
 
 # Server publish output
 publish/
+publish_output/
 EdgeLink-*.zip
+
+# 客戶專案本地文件(消防 rig / Okome 整合,不進公開 repo)
+docs/FireRig*
 
 # Build artifacts
 SDK/CSharp/**/bin/

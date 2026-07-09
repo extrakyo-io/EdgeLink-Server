@@ -97,6 +97,43 @@ public class MaskApiHandler
         catch (Exception ex) { HttpApiServer.WriteError(ctx, 400, ex.Message); }
     }
 
+    // 二進位解碼預覽:{ binary: BinarySpec, hex: "4f4b..." } → { output, dropped }
+    public async Task PreviewBinaryAsync(HttpListenerContext ctx)
+    {
+        string body;
+        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
+            body = await sr.ReadToEndAsync();
+
+        BinaryPreviewReq? req;
+        try { req = Json.FromJson<BinaryPreviewReq>(body); }
+        catch { HttpApiServer.WriteError(ctx, 400, "Invalid JSON body"); return; }
+
+        if (req?.binary == null)
+        {
+            HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp { error = "無 binary spec" }));
+            return;
+        }
+
+        byte[] bytes;
+        try
+        {
+            string hex = (req.hex ?? "");
+            foreach (var c in new[] { " ", "\n", "\r", "\t", "-", "0x", "0X" }) hex = hex.Replace(c, "");
+            bytes = Convert.FromHexString(hex);
+        }
+        catch { HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp { error = "hex 格式錯誤(需偶數個 0-9A-F)" })); return; }
+
+        string? outp;
+        try { outp = BinaryMaskDecoder.Decode(bytes, req.binary); }
+        catch (Exception ex) { HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp { error = ex.Message })); return; }
+
+        HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp
+        {
+            output  = outp ?? "",
+            dropped = string.IsNullOrEmpty(outp)
+        }));
+    }
+
     public Task DeleteAsync(HttpListenerContext ctx, string maskId)
     {
         try
@@ -115,13 +152,15 @@ public class MaskApiHandler
     {
         maskId = def.maskId, localizationKey = def.localizationKey, description = def.description,
         fieldDelimiter = def.fieldDelimiter, kvSeparator = def.kvSeparator, outputTemplate = def.outputTemplate,
-        sampleData = def.sampleData, routeMode = def.routeMode ?? "", correlationIdField = def.correlationIdField ?? ""
+        sampleData = def.sampleData, routeMode = def.routeMode ?? "", correlationIdField = def.correlationIdField ?? "",
+        binary = def.binary
     };
 
     private static MaskDefinition FromDto(MaskDefinitionDto dto) => new MaskDefinition
     {
         maskId = dto.maskId, localizationKey = dto.localizationKey, description = dto.description,
         fieldDelimiter = dto.fieldDelimiter, kvSeparator = dto.kvSeparator, outputTemplate = dto.outputTemplate,
-        sampleData = dto.sampleData, routeMode = dto.routeMode, correlationIdField = dto.correlationIdField
+        sampleData = dto.sampleData, routeMode = dto.routeMode, correlationIdField = dto.correlationIdField,
+        binary = dto.binary
     };
 }

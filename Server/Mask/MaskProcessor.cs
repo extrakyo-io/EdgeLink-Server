@@ -11,6 +11,11 @@ public static class MaskProcessor
     public static string Process(MaskDefinition? def, byte[] rawBytes, string textMessage, Dictionary<string, string>? extraFields = null)
     {
         if (def == null) return textMessage;
+
+        // 二進位 mask:直接吃原始封包 bytes(呼叫端須傳未經 UTF8 破壞的原始 datagram)
+        if (def.binary != null)
+            return BinaryMaskDecoder.Decode(rawBytes, def.binary) ?? "";
+
         if (def.outputTemplate == "{raw}" || string.IsNullOrEmpty(def.outputTemplate))
             return textMessage;
 
