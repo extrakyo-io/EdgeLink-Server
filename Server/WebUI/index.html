@@ -2238,22 +2238,52 @@ async function clearMonitor() {
 
 // ── Monitor SSE ───────────────────────────────────────
 let _monEs = null;
+// ── Monitor 前端節流 ──────────────────────────────────────────
+// 高頻 port(如 50Hz、~100 筆/秒)若逐筆即時 append + scroll + DOM 無限成長,
+// 會把瀏覽器分頁拖垮。改為緩衝進佇列、每 MON_FLUSH_MS 批次渲染,
+// 並限制單批與 DOM 總行數。
+let _monQueue = [], _monFlush = null;
+const MON_FLUSH_MS = 120, MON_MAX_LINES = 500, MON_MAX_PER_FLUSH = 200;
 
 function startMonitorStream() {
   if (_monEs) { _monEs.close(); _monEs = null; }
   _monEs = new EventSource(`${BASE}/api/monitor-stream`);
   _monEs.onmessage = e => {
     if (!e.data || e.data.startsWith(':')) return;
-    appendLogLine(e.data);
+    _monQueue.push(e.data);              // 只入佇列,不即時渲染
   };
   _monEs.onerror = () => {
     if (_monEs) { _monEs.close(); _monEs = null; }
     if (activeMon) setTimeout(startMonitorStream, 2000);
   };
+  if (!_monFlush) _monFlush = setInterval(flushMonQueue, MON_FLUSH_MS);
 }
 
 function stopMonitorStream() {
   if (_monEs) { _monEs.close(); _monEs = null; }
+  if (_monFlush) { clearInterval(_monFlush); _monFlush = null; }
+  _monQueue = [];
+}
+
+function flushMonQueue() {
+  if (!_monQueue.length) return;
+  let batch = _monQueue; _monQueue = [];
+  let dropped = 0;
+  if (batch.length > MON_MAX_PER_FLUSH) {           // 高頻:單批只渲染最新 N,其餘略過(不靜默)
+    dropped = batch.length - MON_MAX_PER_FLUSH;
+    batch = batch.slice(-MON_MAX_PER_FLUSH);
+  }
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  for (const t of batch) appendLogLine(t);
+  if (dropped > 0) {
+    const note = document.createElement('div');
+    note.style.color = 'var(--text-3)';
+    note.textContent = `… 高頻:本批略過 ${dropped} 筆(僅顯示最新 ${MON_MAX_PER_FLUSH})`;
+    box.appendChild(note);
+  }
+  while (box.childElementCount > MON_MAX_LINES) box.removeChild(box.firstChild);  // 限 DOM 總行數
+  if (autoScroll) box.scrollTop = box.scrollHeight;
 }
 
 // ── Monitor Log helpers ────────────────────────────────
