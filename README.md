@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-GPL_3.0_%2F_Commercial-blue)](COMMERCIAL-LICENSE.md)
-[![Version](https://img.shields.io/badge/Version-2.1.1-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.1.1)
+[![Version](https://img.shields.io/badge/Version-2.2.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.2.0)
 
 A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms protocol data via custom Mask definitions, and provides a browser-based management interface.
 
@@ -619,6 +619,9 @@ EdgeLink-Server/
 
 | Version | Changes |
 |---------|---------|
+| v2.2.0 | **Generic binary-parsing Mask** (`BinarySpec`: offsets / types u8–f64 / bit / bitrange / const, little-big-endian, discriminator dispatch, length validation) — decode fixed-layout binary UDP into KV; WebUI binary-layout editor + hex decode preview; `POST /api/masks/preview-binary`. Monitor SSE front-end throttling (high-rate ports no longer choke the browser) |
+| v2.1.3 | Unity SDK: connection resource cleanup — prevent socket / CTS leak |
+| v2.1.2 | Unity SDK: add `EdgeLinkBridge.cs.meta`; package version bump |
 | v2.1.1 | Unity SDK: extracted `EdgeLinkBridge` POCO with constructor-injected URL/Host/Port (MonoBehaviour `EdgeLinkManager` still works as a thin wrapper); README updated with Modbus + POCO docs |
 | v2.1.0 | **Modbus TCP Master** port type (FluentModbus, FC 01/02/03/04, scale/offset); WebUI card-grid overhaul; 4× fire-and-forget tasks suppressed; UDP port-list polling preserves user selection |
 | v2.0.1 | Unity SDK: `OnDeviceStatus` adds device-ID parameter; Arduino AsyncUDP example; HttpClientHandler cert fallback to `ServicePointManager` on Mono |
