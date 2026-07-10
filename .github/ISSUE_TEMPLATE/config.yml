@@ -2,10 +2,6 @@
 blank_issues_enabled: false
 
 contact_links:
-  - name: 💼 商用授權詢問 (Commercial License Inquiry)
-    url: mailto:cy96241@gmail.com?subject=%5BEdgeLink%20Commercial%20License%5D
-    about: 想把 EdgeLink 嵌入閉源產品 / OEM / 不公開原始碼整合，請來信詢問商用授權。GPL-3.0 不適用的情境都走這條。
-
   - name: 📖 說明文件 (Documentation)
     url: https://github.com/extrakyo-io/EdgeLink-Server/blob/main/README.md
     about: 在開 issue 前先看 README，多數問題已有答案。

@@ -12,8 +12,6 @@ body:
         - 確認 [Issues](https://github.com/extrakyo-io/EdgeLink-Server/issues) 沒有人提過
         - 想想看是不是 [Discussions](https://github.com/extrakyo-io/EdgeLink-Server/discussions) 比較適合（討論性想法）
 
-        如果這個功能對你「商業關鍵」、希望加速開發，可以看 [COMMERCIAL-LICENSE.md](https://github.com/extrakyo-io/EdgeLink-Server/blob/main/COMMERCIAL-LICENSE.md) 的「Custom feature dev」方案。
-
   - type: textarea
     id: problem
     attributes:

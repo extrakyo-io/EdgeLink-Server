@@ -20,20 +20,13 @@ copyright remains with the individual author.
 LICENSE TERMS
 ================================================================================
 
-This software is dual-licensed:
+This software is licensed under the MIT License (see LICENSE).
 
-  1. GPL-3.0-or-later (default, see LICENSE)
-     - Free for personal, educational, and Open Source use.
-     - Any distributed work that incorporates this software must also be
-       released under GPL-3.0-or-later, including full source code.
-
-  2. Commercial License (paid, see COMMERCIAL-LICENSE.md)
-     - For closed-source / proprietary integration, OEM embedding, or any
-       use case incompatible with GPL-3.0.
-     - Contact cy96241@gmail.com for terms and pricing.
-
-You must choose ONE of these licenses to use this software. Pick whichever
-fits your use case.
+  - Free for personal, commercial, and closed-source use, including
+    proprietary integration and OEM embedding.
+  - No copyleft obligation: you are not required to release your source code.
+  - The only condition is that the above copyright notice and the MIT license
+    text be retained in copies or substantial portions of the software.
 
 ================================================================================
 THIRD-PARTY DEPENDENCIES
