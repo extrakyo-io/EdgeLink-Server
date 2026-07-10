@@ -4,7 +4,7 @@
     "title": "EdgeLink Server API",
     "description": "IoT 訊息中繼與協定管理平台 REST API",
     "version": "1.4.0",
-    "license": { "name": "GPL-3.0", "url": "https://www.gnu.org/licenses/gpl-3.0.html" }
+    "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
   },
   "servers": [{ "url": "http://localhost:8181", "description": "本機伺服器" }],
   "security": [{ "cookieAuth": [] }],
