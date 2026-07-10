@@ -2,114 +2,114 @@
 
 # EdgeLink Server
 
-**IoT Protocol Bridge & Message Routing Server**
+**IoT 協定橋接與訊息路由伺服器**
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.2.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.2.0)
 
-A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms protocol data via custom Mask definitions, and provides a browser-based management interface.
+輕量級 .NET 8 伺服器：透過 TCP/UDP 橋接 IoT 裝置，以自訂 Mask 定義轉換協定資料，並提供瀏覽器端管理介面。
 
 </div>
 
 ---
 
-## Features
+## 功能特色
 
-| Feature | Description |
+| 功能 | 說明 |
 |---------|-------------|
-| **Multi-protocol** | TCP Server, TCP Client, UDP, **Modbus TCP Master** — each port configured independently |
-| **Modbus polling** | Built-in FluentModbus master — poll ICP DAS / generic Modbus slaves at configurable intervals, results enter the routing pipeline as native EdgeLink messages |
-| **Message Routing** | Automatically bridges ports via `SourceProtocolId` |
-| **Mask System** | Custom protocol parsing and transformation rules for IoT firmware output |
-| **Real-time Monitor** | Per-port SSE-streamed log with keyword search |
-| **Web UI** | Browser-based management — card-grid port view, no frontend setup required |
-| **Device Identification** | Per-connection device ID tracking on TCP Server and UDP, exposed in WebUI and SDKs |
-| **HTTPS** | Auto-generated self-signed certificate with SAN for all local IPs |
-| **Security** | PBKDF2 password hashing, session persistence, HttpOnly cookies |
-| **File Logging** | Daily rolling log files with 7-day retention |
-| **Client SDKs** | Unity (UPM, POCO + MonoBehaviour), Arduino, C# (.NET 6), Python (asyncio), JavaScript (Node.js) |
+| **多協定** | TCP Server、TCP Client、UDP、**Modbus TCP Master** — 每個 port 獨立設定 |
+| **Modbus 輪詢** | 內建 FluentModbus master — 以可設定的間隔輪詢 ICP DAS / 一般 Modbus slave，結果以原生 EdgeLink 訊息進入路由管線 |
+| **訊息路由** | 透過 `SourceProtocolId` 自動橋接各 port |
+| **Mask 系統** | 針對 IoT 韌體輸出的自訂協定解析與轉換規則 |
+| **即時監控** | 每個 port 的 SSE 串流日誌，支援關鍵字搜尋 |
+| **Web 管理介面** | 瀏覽器端管理 — 卡片式 port 檢視，免前端建置 |
+| **裝置識別** | TCP Server 與 UDP 上逐連線的裝置 ID 追蹤，於 WebUI 與 SDK 中呈現 |
+| **HTTPS** | 自動產生含所有本機 IP SAN 的自簽憑證 |
+| **安全性** | PBKDF2 密碼雜湊、工作階段持久化、HttpOnly cookie |
+| **檔案日誌** | 每日輪替日誌檔，保留 7 天 |
+| **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js） |
 
 ---
 
-## System Architecture
+## 系統架構
 
-EdgeLink Server sits at the center of a control system as the **fan-out hub**: a numeric-processing program polls field hardware over **Modbus TCP**, computes the application values, then pushes them into EdgeLink through an SDK client. EdgeLink applies a **Mask** to each message and **routes** it (by `SourceProtocolId`) over **UDP / TCP** to every downstream consumer at once.
+EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub）**：數值處理程式透過 **Modbus TCP** 輪詢現場硬體、計算出應用數值，再經由 SDK 用戶端推送進 EdgeLink。EdgeLink 對每筆訊息套用 **Mask**，並依 `SourceProtocolId` **路由**，透過 **UDP / TCP** 一次送達所有下游消費端。
 
-The reference deployment below is an aerial-ladder water-cannon training rig. An **AX-5 motion controller** (Hall-joystick buttons / pedal / e-stop, servo drives) and a **3-axis platform signal-acquisition module** (16× DI absolute encoders, 4× AI dual-axis joysticks) are read by the numeric-processing program — Gray-code→angle, low-pass filtering, joystick 0.25–4.75 V / dual-axis 5 V check, attitude + singularity detection + inverse kinematics — which then feeds EdgeLink. EdgeLink fans the processed values out to Unity 3D and two additional computers.
+下方的參考部署是一套雲梯消防車水炮訓練平台。**AX-5 運動控制器**（霍爾搖桿按鈕 / 踏板 / 緊急停止、伺服驅動器）與**三軸平台訊號擷取模組**（16× DI 絕對編碼器、4× AI 雙軸搖桿）由數值處理程式讀取 —— 進行 Gray code→角度轉換、低通濾波、搖桿 0.25–4.75 V / 雙軸 5 V 檢查、姿態 + 奇異點偵測 + 逆向運動學 —— 再餵給 EdgeLink。EdgeLink 將處理後的數值扇出到 Unity 3D 與另外兩台電腦。
 
-![EdgeLink system architecture](docs/architecture.png)
+![EdgeLink 系統架構](docs/architecture.png)
 
-> **Editable source (FigJam):** <https://www.figma.com/board/scwJNojVE3A1ouhtjYIwLU>
+> **可編輯原始檔（FigJam）：** <https://www.figma.com/board/scwJNojVE3A1ouhtjYIwLU>
 
 ---
 
-## Requirements
+## 系統需求
 
 - Windows 10 / 11 x64
-- No .NET Runtime required (self-contained)
+- 免安裝 .NET Runtime（self-contained 自帶執行環境）
 
 ---
 
-## Installation
+## 安裝
 
-1. Download `EdgeLink-Server-v2.1.1-win-x64.zip` from [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases)
-2. Extract the zip
-3. Run `EdgeLinkServer.exe`
-4. Open your browser at `https://localhost:8443`
-   - Accept the self-signed certificate warning (click Advanced → Proceed)
-   - Default password: `admin` — **change it immediately after login**
-
----
-
-## Web UI
-
-| Tab | Description |
-|-----|-------------|
-| **Ports** | Add / remove / toggle ports, monitor connection status and traffic in real-time |
-| **Mask** | Create / edit / delete Mask definitions — field parsing rules and output templates |
-| **System Log** | View server event logs with keyword filtering |
-
-Full documentation available at `/manual` after starting the server.
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.1.1-win-x64.zip`
+2. 解壓縮 zip
+3. 執行 `EdgeLinkServer.exe`
+4. 開啟瀏覽器前往 `https://localhost:8443`
+   - 接受自簽憑證警告（點 進階 → 繼續前往）
+   - 預設密碼：`admin` — **登入後請立即修改**
 
 ---
 
-## CLI Options
+## Web 管理介面
+
+| 分頁 | 說明 |
+|-----|------|
+| **Ports** | 新增 / 移除 / 切換 port，即時監控連線狀態與流量 |
+| **Mask** | 建立 / 編輯 / 刪除 Mask 定義 — 欄位解析規則與輸出範本 |
+| **系統日誌** | 檢視伺服器事件日誌，支援關鍵字過濾 |
+
+啟動伺服器後，完整文件位於 `/manual`。
+
+---
+
+## 命令列選項
 
 ```
 EdgeLinkServer.exe [options]
 
-  --port <n>          HTTP port (default: 8081)
-  --no-https          Disable HTTPS (HTTPS is enabled by default)
-  --https-port <n>    HTTPS port (default: 8443)
+  --port <n>          HTTP 埠（預設：8081）
+  --no-https          停用 HTTPS（預設啟用 HTTPS）
+  --https-port <n>    HTTPS 埠（預設：8443）
 
-Environment variables:
+環境變數：
   EDGELINK_PORT, EDGELINK_HTTPS, EDGELINK_HTTPS_PORT
 ```
 
-Priority: CLI args > environment variables > defaults
+優先順序：命令列參數 > 環境變數 > 預設值
 
 ---
 
 ## Modbus TCP Master
 
-Built-in Modbus TCP master can poll any Modbus slave (ICP DAS ET-7xxx, generic PLC, simulators like ModRSsim2) and inject results into the EdgeLink routing pipeline as standard messages — downstream consumers (Unity / dashboards / TCP Clients) don't know or care whether the source is Modbus or raw TCP.
+內建的 Modbus TCP master 可輪詢任何 Modbus slave（ICP DAS ET-7xxx、一般 PLC、ModRSsim2 等模擬器），並將結果以標準訊息注入 EdgeLink 路由管線 —— 下游消費端（Unity / 儀表板 / TCP Client）無從得知、也不在乎來源是 Modbus 還是原始 TCP。
 
-### Quick example
+### 快速範例
 
-Add a port via WebUI → **+ Add Port** → select `Modbus TCP Master`:
+於 WebUI 新增 port → **+ Add Port** → 選擇 `Modbus TCP Master`：
 
-| Field | Value |
-|-------|-------|
-| Slave IP | `192.168.1.10` (or `127.0.0.1` for local simulator) |
-| Modbus Port | `502` (default) |
+| 欄位 | 值 |
+|-------|-----|
+| Slave IP | `192.168.1.10`（本機模擬器用 `127.0.0.1`） |
+| Modbus Port | `502`（預設） |
 | Slave ID | `1` |
-| Polling Interval (ms) | `100` (10 Hz) |
-| Device ID | `WaterCannon01` — becomes the `id:` field in synthesized messages |
-| Registers | JSON array (see below) |
+| Polling Interval (ms) | `100`（10 Hz） |
+| Device ID | `WaterCannon01` — 成為合成訊息中的 `id:` 欄位 |
+| Registers | JSON 陣列（見下方） |
 
-Register mapping JSON:
+暫存器對應 JSON：
 
 ```json
 [
@@ -120,118 +120,118 @@ Register mapping JSON:
 ]
 ```
 
-Every poll interval, EdgeLink emits a synthesized message like:
+每個輪詢間隔，EdgeLink 會發出如下的合成訊息：
 
 ```
 id:WaterCannon01;yaw:128;pitch:64;joyx:2.5;joyy:1.802
 ```
 
-### Function codes
+### 功能碼（Function Code）
 
-| FunctionCode | Modbus operation | Use |
+| FunctionCode | Modbus 操作 | 用途 |
 |:-:|---|---|
-| `1` | Read Coils | Output bits (relay state, LED) |
-| `2` | Read Discrete Inputs | Switches, buttons, GrayCode encoder bits |
-| `3` | Read Holding Registers | Generic 16-bit, read/write |
-| `4` | Read Input Registers | Analog input (joystick, sensor voltage) |
+| `1` | Read Coils | 輸出位元（繼電器狀態、LED） |
+| `2` | Read Discrete Inputs | 開關、按鈕、GrayCode 編碼器位元 |
+| `3` | Read Holding Registers | 一般 16-bit，可讀寫 |
+| `4` | Read Input Registers | 類比輸入（搖桿、感測器電壓） |
 
-### Data types
+### 資料型別
 
-| dataType | Bytes | Notes |
+| dataType | 位元組 | 說明 |
 |---|:-:|---|
-| `bit` | 1 bit | Single Coil / DI (`quantity` must be 1) |
-| `bits` | N bits | Packs `quantity` bits into an unsigned int (LSB first) |
-| `uint16` / `int16` | 2 | One register |
-| `uint32` / `int32` | 4 | Two registers, big-endian |
-| `float32` | 4 | Two registers, IEEE 754 big-endian |
+| `bit` | 1 bit | 單一 Coil / DI（`quantity` 必須為 1） |
+| `bits` | N bits | 將 `quantity` 個位元打包成無號整數（LSB first） |
+| `uint16` / `int16` | 2 | 一個暫存器 |
+| `uint32` / `int32` | 4 | 兩個暫存器，big-endian |
+| `float32` | 4 | 兩個暫存器，IEEE 754 big-endian |
 
-Optional `scale` and `offset` apply to register reads: `output = raw * scale + offset`.
+選用的 `scale` 與 `offset` 會套用到暫存器讀值：`output = raw * scale + offset`。
 
-### Test simulator
+### 測試模擬器
 
-For development without real hardware, [`modbus_slave_sim.py`](modbus_slave_sim.py) provides a `pymodbus`-based Modbus TCP slave that generates synthetic GrayCode + sine wave data:
+若在無實體硬體的情況下開發，[`modbus_slave_sim.py`](modbus_slave_sim.py) 提供一個以 `pymodbus` 為基礎的 Modbus TCP slave，可產生合成的 GrayCode + 正弦波資料：
 
 ```bash
 pip install pymodbus==3.6.6
 python modbus_slave_sim.py
-# Listens on 127.0.0.1:5020
+# 監聽 127.0.0.1:5020
 ```
 
 ---
 
-## API Reference
+## API 參考
 
-Base URL: `https://<host>:8443`
+Base URL：`https://<host>:8443`
 
-All `/api/*` endpoints (except auth) require a session cookie. Interactive docs at `/docs`.
+除認證外，所有 `/api/*` 端點都需要工作階段 cookie。互動式文件位於 `/docs`。
 
-| Tag | Method | Path | Description |
-|-----|--------|------|-------------|
-| Auth | `POST` | `/api/auth/login` | Login — body: `{"password":"..."}` |
-| Auth | `POST` | `/api/auth/logout` | Logout |
-| Auth | `GET` | `/api/auth/status` | Check session status |
-| Auth | `POST` | `/api/auth/change-password` | Change password |
-| Ports | `GET` | `/api/ports` | List all ports |
-| Ports | `POST` | `/api/ports` | Add port |
-| Ports | `PUT` | `/api/ports/{id}` | Update port |
-| Ports | `DELETE` | `/api/ports` | Delete port |
-| Ports | `POST` | `/api/ports/{id}/enabled` | Toggle port enabled |
-| Ports | `GET` | `/api/ports/{id}/clients` | List connected TCP clients |
-| Masks | `GET` | `/api/masks` | List all mask IDs |
-| Masks | `POST` | `/api/masks` | Add mask |
-| Masks | `GET` | `/api/masks/{maskId}` | Get mask definition |
-| Masks | `PUT` | `/api/masks/{maskId}` | Update mask |
-| Masks | `DELETE` | `/api/masks/{maskId}` | Delete mask |
-| Monitor | `GET` | `/api/monitor-stream` | SSE real-time message stream |
-| Monitor | `POST` | `/api/monitor/port` | Set monitor port |
-| Logs | `GET` | `/api/logs` | System logs (cursor pagination) |
-| Settings | `GET` | `/api/settings/export` | Export all settings as JSON |
-| Settings | `POST` | `/api/settings/import` | Import settings JSON |
+| 分類 | 方法 | 路徑 | 說明 |
+|-----|--------|------|------|
+| Auth | `POST` | `/api/auth/login` | 登入 — body：`{"password":"..."}` |
+| Auth | `POST` | `/api/auth/logout` | 登出 |
+| Auth | `GET` | `/api/auth/status` | 查詢工作階段狀態 |
+| Auth | `POST` | `/api/auth/change-password` | 修改密碼 |
+| Ports | `GET` | `/api/ports` | 列出所有 port |
+| Ports | `POST` | `/api/ports` | 新增 port |
+| Ports | `PUT` | `/api/ports/{id}` | 更新 port |
+| Ports | `DELETE` | `/api/ports` | 刪除 port |
+| Ports | `POST` | `/api/ports/{id}/enabled` | 切換 port 啟用狀態 |
+| Ports | `GET` | `/api/ports/{id}/clients` | 列出已連線的 TCP client |
+| Masks | `GET` | `/api/masks` | 列出所有 mask ID |
+| Masks | `POST` | `/api/masks` | 新增 mask |
+| Masks | `GET` | `/api/masks/{maskId}` | 取得 mask 定義 |
+| Masks | `PUT` | `/api/masks/{maskId}` | 更新 mask |
+| Masks | `DELETE` | `/api/masks/{maskId}` | 刪除 mask |
+| Monitor | `GET` | `/api/monitor-stream` | SSE 即時訊息串流 |
+| Monitor | `POST` | `/api/monitor/port` | 設定監控 port |
+| Logs | `GET` | `/api/logs` | 系統日誌（cursor 分頁） |
+| Settings | `GET` | `/api/settings/export` | 以 JSON 匯出所有設定 |
+| Settings | `POST` | `/api/settings/import` | 匯入設定 JSON |
 
 ---
 
 ## Unity SDK
 
-The EdgeLink Unity SDK lets Unity applications receive data forwarded by EdgeLink Server. Supports TCP, TCP Listener, and UDP connection modes with automatic Mask fetching at runtime.
+EdgeLink Unity SDK 讓 Unity 應用程式接收 EdgeLink Server 轉發的資料。支援 TCP、TCP Listener 與 UDP 三種連線模式，並在執行期自動取得 Mask。
 
-### Installation (UPM)
+### 安裝（UPM）
 
-In Unity → **Window → Package Manager → + → Add package from git URL**:
+在 Unity 中 → **Window → Package Manager → + → Add package from git URL**：
 
 ```
 https://github.com/extrakyo-io/EdgeLink-Server.git?path=SDK/Unity/Package
 ```
 
-Then import the **Basic Example** sample via Package Manager → EdgeLink SDK → Samples.
+接著透過 Package Manager → EdgeLink SDK → Samples 匯入 **Basic Example** 範例。
 
-### Usage — two flavors
+### 用法 — 兩種風格
 
-| Style | Class | Setup |
+| 風格 | 類別 | 設定方式 |
 |---|---|---|
-| **MonoBehaviour** (drag onto GameObject, Inspector-configured) | `EdgeLinkManager` | Drop on any GameObject, fill in Inspector fields |
-| **POCO** (constructor-configured, runtime URL/Host/Port) | `EdgeLinkBridge` | `new EdgeLinkBridge(...)` — drives lifecycle manually |
+| **MonoBehaviour**（拖到 GameObject，以 Inspector 設定） | `EdgeLinkManager` | 掛到任一 GameObject，填入 Inspector 欄位 |
+| **POCO**（以建構子設定，執行期決定 URL/Host/Port） | `EdgeLinkBridge` | `new EdgeLinkBridge(...)` — 自行驅動生命週期 |
 
-Use `EdgeLinkManager` for the common case (static settings). Use `EdgeLinkBridge` when URL / Host / Port must be decided at runtime (lobby-assigned IP, config file, multi-instance scenarios).
+一般情況（靜態設定）用 `EdgeLinkManager`。當 URL / Host / Port 必須在執行期才決定（大廳分配的 IP、設定檔、多實例情境）時，用 `EdgeLinkBridge`。
 
-### Usage — MonoBehaviour (`EdgeLinkManager`)
+### 用法 — MonoBehaviour（`EdgeLinkManager`）
 
-Add `EdgeLinkManager` to any GameObject and configure in the Inspector:
+將 `EdgeLinkManager` 掛到任一 GameObject，並在 Inspector 中設定：
 
-| Field | Description |
-|-------|-------------|
-| Server URL | EdgeLink Server address for runtime Mask fetching |
-| Password | Login password |
-| Mask ID | Name of the Mask to apply for field parsing |
+| 欄位 | 說明 |
+|-------|------|
+| Server URL | 供執行期取得 Mask 的 EdgeLink Server 位址 |
+| Password | 登入密碼 |
+| Mask ID | 用於欄位解析的 Mask 名稱 |
 | Protocol | `TCP` / `TCPListener` / `UDP` |
-| TCP Host / Port | (TCP mode) EdgeLink Server IP and port |
-| Listen Port | (TCPListener mode) Local port Unity listens on |
-| UDP Local Port | (UDP mode) Local UDP port |
-| Device Id Key | Field name in the message that identifies the device (e.g. `id`). Leave empty to disable timeout tracking. |
-| Device Timeout (s) | Seconds without a message before a device is considered offline (`0` = disabled) |
+| TCP Host / Port | （TCP 模式）EdgeLink Server IP 與埠 |
+| Listen Port | （TCPListener 模式）Unity 監聽的本機埠 |
+| UDP Local Port | （UDP 模式）本機 UDP 埠 |
+| Device Id Key | 訊息中用來識別裝置的欄位名（例如 `id`）。留空則停用逾時追蹤。 |
+| Device Timeout (s) | 多少秒未收到訊息即視為裝置離線（`0` = 停用） |
 
-### Usage — POCO (`EdgeLinkBridge`)
+### 用法 — POCO（`EdgeLinkBridge`）
 
-Pure C# class — construct with parameters, drive the lifecycle from your own MonoBehaviour:
+純 C# 類別 — 以參數建構，由你自己的 MonoBehaviour 驅動生命週期：
 
 ```csharp
 using System.Collections;
@@ -244,13 +244,13 @@ public class RuntimeConfigured : MonoBehaviour
 
     IEnumerator Start()
     {
-        // URL / Host / Port from anywhere — lobby, config.json, PlayerPrefs ...
+        // URL / Host / Port 可來自任何地方 — 大廳、config.json、PlayerPrefs …
         _bridge = new EdgeLinkBridge(
             serverUrl: PlayerPrefs.GetString("edgelink.url"),
             tcpHost:   PlayerPrefs.GetString("edgelink.host"),
             tcpPort:   PlayerPrefs.GetInt   ("edgelink.port", 9001));
 
-        // Or with full Config (TCPListener / UDP / device timeout / custom mask …):
+        // 或使用完整 Config（TCPListener / UDP / 裝置逾時 / 自訂 mask …）：
         // _bridge = new EdgeLinkBridge(new EdgeLinkBridge.Config {
         //     ServerUrl = "...", Protocol = EdgeLinkBridge.Protocol.TCPListener,
         //     TcpListenPort = 9001, DeviceTimeoutSeconds = 15,
@@ -267,9 +267,9 @@ public class RuntimeConfigured : MonoBehaviour
 }
 ```
 
-Both `EdgeLinkManager` and `EdgeLinkBridge` expose the same event surface and `Raw` / `Get(key)` accessors.
+`EdgeLinkManager` 與 `EdgeLinkBridge` 提供相同的事件介面與 `Raw` / `Get(key)` 存取子。
 
-### Reading Data
+### 讀取資料
 
 ```csharp
 using UnityEngine;
@@ -296,65 +296,65 @@ public class Example : MonoBehaviour
 }
 ```
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `Raw` | `string` | Latest raw message string (unparsed) |
-| `Get(key)` | `string` | Latest parsed value by field name, `null` if not found |
+| 成員 | 型別 | 說明 |
+|--------|------|------|
+| `Raw` | `string` | 最新的原始訊息字串（未解析） |
+| `Get(key)` | `string` | 依欄位名取得最新解析值，找不到則為 `null` |
 
-### Device Connect / Disconnect Detection
+### 裝置連線 / 斷線偵測
 
-`EdgeLinkManager` provides two complementary disconnect mechanisms:
+`EdgeLinkManager` 提供兩種互補的斷線偵測機制：
 
 ```csharp
 void Start()
 {
     edgeLink = GetComponent<EdgeLinkManager>();
 
-    // Fired when EdgeLink Server detects a TCP connection open/close (~15 s for power-cut)
+    // 當 EdgeLink Server 偵測到 TCP 連線開啟/關閉時觸發（斷電約需 15 秒）
     edgeLink.OnDeviceStatus += (connected, endpoint) =>
         Debug.Log(connected ? $"Online: {endpoint}" : $"Offline: {endpoint}");
 
-    // Fired when a specific device ID stops sending data for Device Timeout seconds
+    // 當某個裝置 ID 超過 Device Timeout 秒未送資料時觸發
     edgeLink.OnDeviceTimeout     += id => Debug.LogWarning($"{id} timed out");
     edgeLink.OnDeviceReconnected += id => Debug.Log($"{id} reconnected");
 }
 ```
 
-| Event | Trigger | Identifies by |
-|-------|---------|---------------|
-| `OnDeviceStatus` | EdgeLink Server detects TCP open/close | IP address |
-| `OnDeviceTimeout` | No message received for `Device Timeout (s)` | Device ID field |
-| `OnDeviceReconnected` | Message received again after timeout | Device ID field |
+| 事件 | 觸發時機 | 識別依據 |
+|-------|---------|---------|
+| `OnDeviceStatus` | EdgeLink Server 偵測到 TCP 開啟/關閉 | IP 位址 |
+| `OnDeviceTimeout` | 超過 `Device Timeout (s)` 未收到訊息 | 裝置 ID 欄位 |
+| `OnDeviceReconnected` | 逾時後再次收到訊息 | 裝置 ID 欄位 |
 
-> **Power-cut scenario:** EdgeLink detects 3 missed PINGs (≈15 s) then fires `OnDeviceStatus(false, ...)`. After your configured timeout with no new messages, `OnDeviceTimeout` also fires.
+> **斷電情境：** EdgeLink 偵測到連續 3 次 PING 未回應（約 15 秒）後觸發 `OnDeviceStatus(false, ...)`。在你設定的逾時時間內仍無新訊息時，`OnDeviceTimeout` 也會觸發。
 
-#### When to use which event
+#### 何時該用哪個事件
 
-| Scenario | OnDeviceStatus | OnDeviceTimeout |
+| 情境 | OnDeviceStatus | OnDeviceTimeout |
 |----------|:-:|:-:|
-| Device power-cut (TCP) | ✓ ~15 s | ✓ after timeout setting |
-| Device disappears over UDP | ✗ no connection to detect | ✓ |
-| TCP alive but firmware hangs (no data) | ✗ connection is normal | ✓ |
-| Multiple devices sharing one TCP connection | ✗ can only detect connection drop | ✓ identifies each device |
+| 裝置斷電（TCP） | ✓ 約 15 秒 | ✓ 依逾時設定 |
+| 裝置在 UDP 上消失 | ✗ 無連線可偵測 | ✓ |
+| TCP 存活但韌體當掉（無資料） | ✗ 連線正常 | ✓ |
+| 多裝置共用一條 TCP 連線 | ✗ 只能偵測連線中斷 | ✓ 可識別每個裝置 |
 
-Use **both** for full coverage: `OnDeviceStatus` catches TCP-level drops; `OnDeviceTimeout` catches silent failures and works across all protocols.
+建議**兩者並用**以完整涵蓋：`OnDeviceStatus` 捕捉 TCP 層的中斷；`OnDeviceTimeout` 捕捉無聲失效，且適用於所有協定。
 
 ---
 
 ## Arduino SDK
 
-The EdgeLink Arduino Library lets ESP32 / ESP8266 / Arduino devices connect to EdgeLink Server. PING/PONG keepalive is handled automatically — no extra code needed.
+EdgeLink Arduino Library 讓 ESP32 / ESP8266 / Arduino 裝置連上 EdgeLink Server。PING/PONG keepalive 會自動處理 — 無需額外程式碼。
 
-### Installation
+### 安裝
 
-**Option A — ZIP import:**
-1. Download `SDK/Arduino/EdgeLink.zip`
+**方式 A — ZIP 匯入：**
+1. 下載 `SDK/Arduino/EdgeLink.zip`
 2. Arduino IDE → **Sketch → Include Library → Add .ZIP Library…**
 
-**Option B — manual:**  
-Copy the `SDK/Arduino/EdgeLink/` folder into your Arduino `libraries/` directory.
+**方式 B — 手動：**  
+將 `SDK/Arduino/EdgeLink/` 資料夾複製到你的 Arduino `libraries/` 目錄。
 
-### TCP Example (ESP32 / ESP8266)
+### TCP 範例（ESP32 / ESP8266）
 
 ```cpp
 #include <WiFi.h>
@@ -364,7 +364,7 @@ WiFiClient  wifiClient;
 EdgeLinkTCP edgelink(wifiClient);
 
 void onMessage(const String& msg) {
-    Serial.println(msg);  // response from backend
+    Serial.println(msg);  // 來自後端的回應
 }
 
 void setup() {
@@ -373,11 +373,11 @@ void setup() {
 
     edgelink.onMessage(onMessage);
     edgelink.setAutoReconnect(true, 5000);
-    edgelink.begin("192.168.1.100", 9001);  // EdgeLink TCP Server port
+    edgelink.begin("192.168.1.100", 9001);  // EdgeLink TCP Server 埠
 }
 
 void loop() {
-    edgelink.loop();  // must be called — handles PING/PONG and receive
+    edgelink.loop();  // 必須呼叫 — 處理 PING/PONG 與接收
 
     static uint32_t t = 0;
     if (millis() - t >= 3000 && edgelink.isConnected()) {
@@ -387,7 +387,7 @@ void loop() {
 }
 ```
 
-### UDP Example (ESP32 / ESP8266)
+### UDP 範例（ESP32 / ESP8266）
 
 ```cpp
 #include <WiFi.h>
@@ -405,7 +405,7 @@ void setup() {
     WiFi.begin("your-ssid", "your-password");
     while (WiFi.status() != WL_CONNECTED) delay(500);
 
-    edgelink.begin(4210);           // local receive port
+    edgelink.begin(4210);           // 本機接收埠
     edgelink.onMessage(onMessage);
 }
 
@@ -422,30 +422,30 @@ void loop() {
 
 ### API
 
-| Class | Method | Description |
-|-------|--------|-------------|
-| `EdgeLinkTCP` | `begin(host, port)` | Connect to EdgeLink TCP Server port |
-| | `loop()` | Must call in `loop()` — handles PING/PONG and receive |
-| | `send(msg)` | Send a message (newline appended automatically) |
-| | `onMessage(cb)` | Callback for incoming messages (EDGELINK_* filtered out) |
-| | `isConnected()` | Returns connection state |
-| | `setAutoReconnect(enable, ms)` | Auto-reconnect on disconnect (default: enabled, 5000 ms) |
-| `EdgeLinkUDP` | `begin(localPort = 0)` | Start listening on local UDP port (`0` = send-only) |
-| | `loop()` | Must call in `loop()` — receives incoming packets |
-| | `send(host, port, msg)` | Send UDP packet to EdgeLink |
-| | `onMessage(cb)` | Callback with `(msg, remoteIP, remotePort)` |
+| 類別 | 方法 | 說明 |
+|-------|--------|------|
+| `EdgeLinkTCP` | `begin(host, port)` | 連上 EdgeLink TCP Server 埠 |
+| | `loop()` | 必須在 `loop()` 中呼叫 — 處理 PING/PONG 與接收 |
+| | `send(msg)` | 送出訊息（自動附加換行） |
+| | `onMessage(cb)` | 收到訊息的回呼（已濾除 EDGELINK_*） |
+| | `isConnected()` | 回傳連線狀態 |
+| | `setAutoReconnect(enable, ms)` | 斷線時自動重連（預設：啟用，5000 ms） |
+| `EdgeLinkUDP` | `begin(localPort = 0)` | 開始監聽本機 UDP 埠（`0` = 僅送出） |
+| | `loop()` | 必須在 `loop()` 中呼叫 — 接收封包 |
+| | `send(host, port, msg)` | 送出 UDP 封包到 EdgeLink |
+| | `onMessage(cb)` | 回呼帶 `(msg, remoteIP, remotePort)` |
 
 ---
 
 ## C# SDK
 
-The EdgeLink C# SDK targets **.NET 6+** and works in any non-Unity .NET application (console, WPF, ASP.NET Core, etc.). No third-party dependencies.
+EdgeLink C# SDK 以 **.NET 6+** 為目標，可用於任何非 Unity 的 .NET 應用程式（console、WPF、ASP.NET Core 等）。無第三方相依。
 
-### Installation
+### 安裝
 
-Copy the [SDK/CSharp/](SDK/CSharp/) folder into your solution and add a project reference, or build it as a class library and reference the DLL.
+將 [SDK/CSharp/](SDK/CSharp/) 資料夾複製進你的方案並加入專案參考，或編譯為類別庫後參考該 DLL。
 
-### TCP Example
+### TCP 範例
 
 ```csharp
 using EdgeLink;
@@ -464,35 +464,35 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 
 ### API
 
-| Class | Member | Description |
-|-------|--------|-------------|
-| `EdgeLinkClient` | `ConnectAsync()` | Connect and start read loop in background |
-| | `SendAsync(msg)` | Send a message |
-| | `IsConnected` | Connection state |
-| | `SetAutoReconnect(enable, delayMs)` | Auto-reconnect on disconnect (default: enabled, 5000 ms) |
-| | `OnMessage / OnConnected / OnDisconnected / OnError` | Events |
-| | `TryDequeue(out msg)` | Poll-based alternative to the event |
-| `EdgeLinkTcpListener` | `Start()` | Accept incoming TCP connections |
-| | `Stop()` | Stop the listener |
-| | `OnMessage / OnConnected / OnDisconnected / OnError` | Events |
-| `EdgeLinkUdpClient` | `Start()` | Bind to local port and receive packets |
-| | `OnMessage / OnError` | Events |
-| `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | Send UDP packet |
+| 類別 | 成員 | 說明 |
+|-------|--------|------|
+| `EdgeLinkClient` | `ConnectAsync()` | 連線並在背景啟動讀取迴圈 |
+| | `SendAsync(msg)` | 送出訊息 |
+| | `IsConnected` | 連線狀態 |
+| | `SetAutoReconnect(enable, delayMs)` | 斷線時自動重連（預設：啟用，5000 ms） |
+| | `OnMessage / OnConnected / OnDisconnected / OnError` | 事件 |
+| | `TryDequeue(out msg)` | 以輪詢取代事件的替代方式 |
+| `EdgeLinkTcpListener` | `Start()` | 接受進來的 TCP 連線 |
+| | `Stop()` | 停止監聽器 |
+| | `OnMessage / OnConnected / OnDisconnected / OnError` | 事件 |
+| `EdgeLinkUdpClient` | `Start()` | 綁定本機埠並接收封包 |
+| | `OnMessage / OnError` | 事件 |
+| `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | 送出 UDP 封包 |
 
 ---
 
 ## Python SDK
 
-The EdgeLink Python SDK requires **Python 3.10+** and uses only the standard library (`asyncio`, `socket`).
+EdgeLink Python SDK 需要 **Python 3.10+**，僅使用標準函式庫（`asyncio`、`socket`）。
 
-### Installation
+### 安裝
 
 ```bash
-pip install SDK/Python   # local install
-# or simply copy the edgelink/ package into your project
+pip install SDK/Python   # 本機安裝
+# 或直接把 edgelink/ 套件複製進你的專案
 ```
 
-### TCP Example
+### TCP 範例
 
 ```python
 import asyncio
@@ -517,37 +517,37 @@ asyncio.run(main())
 
 ### API
 
-| Class | Member | Description |
-|-------|--------|-------------|
-| `EdgeLinkClient` | `connect()` | Connect and start read loop (coroutine) |
-| | `send(msg)` | Send a message (coroutine) |
-| | `is_connected` | Connection state |
-| | `set_auto_reconnect(enable, delay)` | Auto-reconnect on disconnect (default: enabled, 5 s) |
-| | `on_message / on_connected / on_disconnected / on_error` | Register callbacks |
-| | `try_dequeue()` | Poll-based alternative to callbacks |
-| | `disconnect()` | Close connection (coroutine) |
-| `EdgeLinkTcpListener` | `start()` | Start listening (coroutine) |
-| | `stop()` | Stop listener (coroutine) |
-| | `on_message / on_connected / on_disconnected / on_error` | Register callbacks |
-| `EdgeLinkUdpClient` | `start()` | Bind and start receiving (coroutine) |
-| | `on_message / on_error` | Register callbacks |
-| `EdgeLinkUdpSender` | `send(host, port, msg)` | Send UDP packet |
-| | `send_async(host, port, msg)` | Send UDP packet (coroutine) |
+| 類別 | 成員 | 說明 |
+|-------|--------|------|
+| `EdgeLinkClient` | `connect()` | 連線並啟動讀取迴圈（coroutine） |
+| | `send(msg)` | 送出訊息（coroutine） |
+| | `is_connected` | 連線狀態 |
+| | `set_auto_reconnect(enable, delay)` | 斷線時自動重連（預設：啟用，5 秒） |
+| | `on_message / on_connected / on_disconnected / on_error` | 註冊回呼 |
+| | `try_dequeue()` | 以輪詢取代回呼的替代方式 |
+| | `disconnect()` | 關閉連線（coroutine） |
+| `EdgeLinkTcpListener` | `start()` | 開始監聽（coroutine） |
+| | `stop()` | 停止監聽器（coroutine） |
+| | `on_message / on_connected / on_disconnected / on_error` | 註冊回呼 |
+| `EdgeLinkUdpClient` | `start()` | 綁定並開始接收（coroutine） |
+| | `on_message / on_error` | 註冊回呼 |
+| `EdgeLinkUdpSender` | `send(host, port, msg)` | 送出 UDP 封包 |
+| | `send_async(host, port, msg)` | 送出 UDP 封包（coroutine） |
 
 ---
 
 ## JavaScript SDK
 
-The EdgeLink JavaScript SDK targets **Node.js 18+** and uses only built-in modules (`net`, `dgram`, `events`).
+EdgeLink JavaScript SDK 以 **Node.js 18+** 為目標，僅使用內建模組（`net`、`dgram`、`events`）。
 
-### Installation
+### 安裝
 
 ```bash
-# copy SDK/JavaScript/ into your project, then:
+# 將 SDK/JavaScript/ 複製進你的專案，然後：
 const { EdgeLinkClient } = require("./edgelink/src");
 ```
 
-### TCP Example
+### TCP 範例
 
 ```js
 const { EdgeLinkClient } = require("./edgelink/src");
@@ -569,78 +569,78 @@ setInterval(() => {
 
 ### API
 
-| Class | Member | Description |
-|-------|--------|-------------|
-| `EdgeLinkClient` | `connect()` | Connect and start reading |
-| | `send(msg)` | Send a message |
-| | `isConnected` | Connection state |
-| | `setAutoReconnect(enable, delayMs)` | Auto-reconnect on disconnect (default: enabled, 5000 ms) |
-| | `disconnect()` | Destroy the socket |
-| | Events: `"connected" / "disconnected" / "message" / "error"` | `EventEmitter` events |
-| `EdgeLinkTcpListener` | `start()` | Start TCP server |
-| | `stop()` | Stop TCP server |
-| | Events: `"connected" / "disconnected" / "message" / "error"` | `EventEmitter` events |
-| `EdgeLinkUdpClient` | `start()` | Bind and receive UDP packets |
-| | `stop()` | Stop receiving |
-| | Events: `"message" / "error"` | `EventEmitter` events |
-| `EdgeLinkUdpSender` | `send(host, port, msg)` | Send UDP packet (returns `Promise`) |
-| | `close()` | Close socket |
+| 類別 | 成員 | 說明 |
+|-------|--------|------|
+| `EdgeLinkClient` | `connect()` | 連線並開始讀取 |
+| | `send(msg)` | 送出訊息 |
+| | `isConnected` | 連線狀態 |
+| | `setAutoReconnect(enable, delayMs)` | 斷線時自動重連（預設：啟用，5000 ms） |
+| | `disconnect()` | 銷毀 socket |
+| | 事件：`"connected" / "disconnected" / "message" / "error"` | `EventEmitter` 事件 |
+| `EdgeLinkTcpListener` | `start()` | 啟動 TCP 伺服器 |
+| | `stop()` | 停止 TCP 伺服器 |
+| | 事件：`"connected" / "disconnected" / "message" / "error"` | `EventEmitter` 事件 |
+| `EdgeLinkUdpClient` | `start()` | 綁定並接收 UDP 封包 |
+| | `stop()` | 停止接收 |
+| | 事件：`"message" / "error"` | `EventEmitter` 事件 |
+| `EdgeLinkUdpSender` | `send(host, port, msg)` | 送出 UDP 封包（回傳 `Promise`） |
+| | `close()` | 關閉 socket |
 
 ---
 
-## Project Structure
+## 專案結構
 
 ```
 EdgeLink-Server/
 ├── Server/
-│   ├── Infrastructure/      # AppConfig, AppLogger, AppPaths, CertificateHelper
+│   ├── Infrastructure/      # AppConfig、AppLogger、AppPaths、CertificateHelper
 │   ├── NetworkServer/
-│   │   ├── Base/            # Connector base, models (PortData, ...)
-│   │   ├── TCP/             # TCPServerConnector, TCPClientConnector
+│   │   ├── Base/            # Connector 基底、models（PortData…）
+│   │   ├── TCP/             # TCPServerConnector、TCPClientConnector
 │   │   ├── Udp/             # UdpConnector
 │   │   ├── Router/          # NetworkMessageRouter
-│   │   └── Services/        # PortManager, PortDataStorageService
-│   ├── WebApi/              # HttpApiServer, Auth/Port/Mask/Monitor handlers
-│   ├── WebUI/               # Frontend HTML/CSS/JS (index, manual, docs)
-│   └── Program.cs           # Entry point
+│   │   └── Services/        # PortManager、PortDataStorageService
+│   ├── WebApi/              # HttpApiServer、Auth/Port/Mask/Monitor handlers
+│   ├── WebUI/               # 前端 HTML/CSS/JS（index、manual、docs）
+│   └── Program.cs           # 進入點
 └── SDK/
     ├── Unity/
-    │   └── Package/         # UPM package (Runtime + Editor + Samples~)
+    │   └── Package/         # UPM 套件（Runtime + Editor + Samples~）
     ├── Arduino/
-    │   └── EdgeLink/        # Arduino library (TCP + UDP, PING/PONG auto-handling)
-    ├── CSharp/              # .NET 6 class library (TCP client/listener + UDP)
-    ├── Python/              # Python 3.10+ package using asyncio (TCP + UDP)
-    └── JavaScript/          # Node.js 18+ package using net/dgram (TCP + UDP)
+    │   └── EdgeLink/        # Arduino 函式庫（TCP + UDP，自動處理 PING/PONG）
+    ├── CSharp/              # .NET 6 類別庫（TCP client/listener + UDP）
+    ├── Python/              # Python 3.10+ 套件，使用 asyncio（TCP + UDP）
+    └── JavaScript/          # Node.js 18+ 套件，使用 net/dgram（TCP + UDP）
 ```
 
 ---
 
-## Changelog
+## 更新紀錄
 
-| Version | Changes |
+| 版本 | 變更內容 |
 |---------|---------|
-| v2.2.0 | **Generic binary-parsing Mask** (`BinarySpec`: offsets / types u8–f64 / bit / bitrange / const, little-big-endian, discriminator dispatch, length validation) — decode fixed-layout binary UDP into KV; WebUI binary-layout editor + hex decode preview; `POST /api/masks/preview-binary`. Monitor SSE front-end throttling (high-rate ports no longer choke the browser) |
-| v2.1.3 | Unity SDK: connection resource cleanup — prevent socket / CTS leak |
-| v2.1.2 | Unity SDK: add `EdgeLinkBridge.cs.meta`; package version bump |
-| v2.1.1 | Unity SDK: extracted `EdgeLinkBridge` POCO with constructor-injected URL/Host/Port (MonoBehaviour `EdgeLinkManager` still works as a thin wrapper); README updated with Modbus + POCO docs |
-| v2.1.0 | **Modbus TCP Master** port type (FluentModbus, FC 01/02/03/04, scale/offset); WebUI card-grid overhaul; 4× fire-and-forget tasks suppressed; UDP port-list polling preserves user selection |
-| v2.0.1 | Unity SDK: `OnDeviceStatus` adds device-ID parameter; Arduino AsyncUDP example; HttpClientHandler cert fallback to `ServicePointManager` on Mono |
-| v2.0.0 | Per-connection device-identification on TCP Server / UDP; PING/PONG TCP keepalive; `EDGELINK_STATUS:CONNECTED/DISCONNECTED` events forwarded with device IDs; WebUI shows identified devices per port |
-| v1.1.0 | Unity SDK — device connect/disconnect detection (`OnDeviceStatus`, `OnDeviceTimeout`, `OnDeviceReconnected`); fix STATUS endpoint to use stable IP; C#, Python, JavaScript SDKs added |
-| v1.0.0 | Initial release — .NET 8, HTTPS by default, PBKDF2, session persistence, rolling logger, CORS, Unity SDK |
+| v2.2.0 | **通用二進位解析 Mask**（`BinarySpec`：offset / 型別 u8–f64 / bit / bitrange / const、little/big-endian、discriminator 分派、長度驗證）— 將固定版面的二進位 UDP 解碼為 KV；WebUI 二進位版面編輯器 + hex 解碼預覽；`POST /api/masks/preview-binary`。Monitor SSE 前端節流（高頻率 port 不再卡住瀏覽器） |
+| v2.1.3 | Unity SDK：連線資源清理 — 避免 socket / CTS 洩漏 |
+| v2.1.2 | Unity SDK：新增 `EdgeLinkBridge.cs.meta`；套件版本更新 |
+| v2.1.1 | Unity SDK：抽出 `EdgeLinkBridge` POCO，以建構子注入 URL/Host/Port（MonoBehaviour `EdgeLinkManager` 仍作為輕薄包裝）；README 補上 Modbus + POCO 文件 |
+| v2.1.0 | **Modbus TCP Master** port 類型（FluentModbus，FC 01/02/03/04，scale/offset）；WebUI 卡片式版面翻新；4× fire-and-forget 任務抑制；UDP port 清單輪詢保留使用者選取 |
+| v2.0.1 | Unity SDK：`OnDeviceStatus` 新增裝置 ID 參數；Arduino AsyncUDP 範例；Mono 上 HttpClientHandler 憑證回退至 `ServicePointManager` |
+| v2.0.0 | TCP Server / UDP 上逐連線的裝置識別；PING/PONG TCP keepalive；`EDGELINK_STATUS:CONNECTED/DISCONNECTED` 事件隨裝置 ID 轉發；WebUI 顯示每個 port 已識別的裝置 |
+| v1.1.0 | Unity SDK — 裝置連線/斷線偵測（`OnDeviceStatus`、`OnDeviceTimeout`、`OnDeviceReconnected`）；修正 STATUS 端點改用穩定 IP；新增 C#、Python、JavaScript SDK |
+| v1.0.0 | 首次發行 — .NET 8、預設 HTTPS、PBKDF2、工作階段持久化、輪替日誌、CORS、Unity SDK |
 
 ---
 
-## License
+## 授權
 
-EdgeLink Server is released under the **[MIT License](LICENSE)** — free for personal, commercial, and closed-source use, including proprietary integration and OEM embedding, with no copyleft obligation. Just keep the copyright notice.
+EdgeLink Server 採用 **[MIT 授權](LICENSE)** 發行 — 可自由用於個人、商業與閉源用途，包含專有整合與 OEM 內嵌，無 copyleft 義務。只需保留版權聲明即可。
 
-See [NOTICE](NOTICE) for sole-authorship declaration and third-party attribution.
+單一作者宣告與第三方致謝請見 [NOTICE](NOTICE)。
 
 ---
 
 <div align="center">
 
-**Extrakyo** · MIT License
+**Extrakyo** · MIT 授權
 
 </div>
