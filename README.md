@@ -6,7 +6,7 @@
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
-[![License](https://img.shields.io/badge/License-GPL_3.0_%2F_Commercial-blue)](COMMERCIAL-LICENSE.md)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-2.2.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.2.0)
 
 A lightweight .NET 8 server that bridges IoT devices over TCP/UDP, transforms protocol data via custom Mask definitions, and provides a browser-based management interface.
@@ -633,13 +633,7 @@ EdgeLink-Server/
 
 ## License
 
-EdgeLink Server is **dual-licensed**:
-
-- **[GPL-3.0-or-later](LICENSE)** — free for personal, educational, and Open Source use. Any distributed work that incorporates this software must also be released under GPL-3.0.
-- **[Commercial License](COMMERCIAL-LICENSE.md)** — for closed-source integration, OEM embedding, or any use case incompatible with GPL-3.0.
-
-**Need to integrate EdgeLink into a proprietary product?**
-Email `cy96241@gmail.com` with subject `[EdgeLink Commercial License]` — initial chat is free, no obligation.
+EdgeLink Server is released under the **[MIT License](LICENSE)** — free for personal, commercial, and closed-source use, including proprietary integration and OEM embedding, with no copyleft obligation. Just keep the copyright notice.
 
 See [NOTICE](NOTICE) for sole-authorship declaration and third-party attribution.
 
@@ -647,6 +641,6 @@ See [NOTICE](NOTICE) for sole-authorship declaration and third-party attribution
 
 <div align="center">
 
-**Extrakyo** · GPL-3.0 / Commercial Dual License
+**Extrakyo** · MIT License
 
 </div>
