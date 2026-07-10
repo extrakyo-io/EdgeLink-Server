@@ -37,11 +37,7 @@
 
 EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub）**：數值處理程式透過 **Modbus TCP** 輪詢現場硬體、計算出應用數值，再經由 SDK 用戶端推送進 EdgeLink。EdgeLink 對每筆訊息套用 **Mask**，並依 `SourceProtocolId` **路由**，透過 **UDP / TCP** 一次送達所有下游消費端。
 
-下方的參考部署是一套雲梯消防車水炮訓練平台。**AX-5 運動控制器**（霍爾搖桿按鈕 / 踏板 / 緊急停止、伺服驅動器）與**三軸平台訊號擷取模組**（16× DI 絕對編碼器、4× AI 雙軸搖桿）由數值處理程式讀取 —— 進行 Gray code→角度轉換、低通濾波、搖桿 0.25–4.75 V / 雙軸 5 V 檢查、姿態 + 奇異點偵測 + 逆向運動學 —— 再餵給 EdgeLink。EdgeLink 將處理後的數值扇出到 Unity 3D 與另外兩台電腦。
-
-![EdgeLink 系統架構](docs/architecture.png)
-
-> **可編輯原始檔（FigJam）：** <https://www.figma.com/board/scwJNojVE3A1ouhtjYIwLU>
+此參考部署是一套雲梯消防車水炮訓練平台。**AX-5 運動控制器**（霍爾搖桿按鈕 / 踏板 / 緊急停止、伺服驅動器）與**三軸平台訊號擷取模組**（16× DI 絕對編碼器、4× AI 雙軸搖桿）由數值處理程式讀取 —— 進行 Gray code→角度轉換、低通濾波、搖桿 0.25–4.75 V / 雙軸 5 V 檢查、姿態 + 奇異點偵測 + 逆向運動學 —— 再餵給 EdgeLink。EdgeLink 將處理後的數值扇出到 Unity 3D 與另外兩台電腦。
 
 ---
 
