@@ -58,9 +58,8 @@ public class SettingsApiHandler
 
     public async Task ImportAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         SettingsExportDto? dto;
         try { dto = Json.FromJson<SettingsExportDto>(body); }

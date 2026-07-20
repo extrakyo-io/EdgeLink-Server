@@ -6,19 +6,34 @@ namespace EdgeLink.WebApi;
 
 public class AuthApiHandler
 {
-    public Task LoginAsync(HttpListenerContext ctx)
+    public async Task LoginAsync(HttpListenerContext ctx)
     {
+        string client = LoginThrottle.ClientKey(ctx.Request);
+
+        // 鎖定中就直接回 429 —— 連 PBKDF2 都不執行,避免被當成 CPU 放大器
+        if (LoginThrottle.Instance.IsLockedOut(client, out int retryAfter))
+        {
+            ctx.Response.AddHeader("Retry-After", retryAfter.ToString());
+            HttpApiServer.WriteJson(ctx, 429,
+                $"{{\"success\":false,\"error\":\"Too many failed attempts, retry in {retryAfter}s\"}}");
+            return;
+        }
+
         try
         {
-            string body = new StreamReader(ctx.Request.InputStream, Encoding.UTF8).ReadToEnd();
+            string? body = await HttpApiServer.ReadBodyAsync(ctx);
+            if (body == null) return;   // 已回 413
+
             using var doc = JsonDocument.Parse(body);
             string password = doc.RootElement.TryGetProperty("password", out var p) ? p.GetString() ?? "" : "";
 
             if (!AuthManager.Instance.ValidatePassword(password))
             {
+                LoginThrottle.Instance.RecordFailure(client);
                 HttpApiServer.WriteJson(ctx, 401, "{\"success\":false,\"error\":\"Invalid password\"}");
-                return Task.CompletedTask;
+                return;
             }
+            LoginThrottle.Instance.RecordSuccess(client);
             string sid = AuthManager.Instance.CreateSession();
             ctx.Response.SetCookie(new Cookie("edgelink_sid", sid)
             {
@@ -28,7 +43,6 @@ public class AuthApiHandler
             HttpApiServer.WriteJson(ctx, 200, "{\"success\":true}");
         }
         catch { HttpApiServer.WriteJson(ctx, 400, "{\"success\":false,\"error\":\"Bad request\"}"); }
-        return Task.CompletedTask;
     }
 
     public Task LogoutAsync(HttpListenerContext ctx)
@@ -51,11 +65,12 @@ public class AuthApiHandler
         return Task.CompletedTask;
     }
 
-    public Task ChangePasswordAsync(HttpListenerContext ctx)
+    public async Task ChangePasswordAsync(HttpListenerContext ctx)
     {
         try
         {
-            string body = new StreamReader(ctx.Request.InputStream, Encoding.UTF8).ReadToEnd();
+            string? body = await HttpApiServer.ReadBodyAsync(ctx);
+            if (body == null) return;   // 已回 413
             using var doc = JsonDocument.Parse(body);
             string current = doc.RootElement.TryGetProperty("currentPassword", out var c) ? c.GetString() ?? "" : "";
             string next    = doc.RootElement.TryGetProperty("newPassword",     out var n) ? n.GetString() ?? "" : "";
@@ -63,17 +78,16 @@ public class AuthApiHandler
             if (string.IsNullOrEmpty(current) || string.IsNullOrEmpty(next))
             {
                 HttpApiServer.WriteJson(ctx, 400, "{\"success\":false,\"error\":\"Bad request\"}");
-                return Task.CompletedTask;
+                return;
             }
             if (!AuthManager.Instance.ValidatePassword(current))
             {
                 HttpApiServer.WriteJson(ctx, 401, "{\"success\":false,\"error\":\"Invalid current password\"}");
-                return Task.CompletedTask;
+                return;
             }
             AuthManager.Instance.ChangePassword(next);
             HttpApiServer.WriteJson(ctx, 200, "{\"success\":true}");
         }
         catch { HttpApiServer.WriteJson(ctx, 400, "{\"success\":false,\"error\":\"Bad request\"}"); }
-        return Task.CompletedTask;
     }
 }

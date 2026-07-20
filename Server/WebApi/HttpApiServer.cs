@@ -134,6 +134,39 @@ public class HttpApiServer
     public static void WriteError(HttpListenerContext ctx, int statusCode, string message)
         => WriteJson(ctx, statusCode, Json.ToJson(new ApiResult { success = false, error = message }));
 
+    /// <summary>請求 body 的大小上限。HttpListener 本身不限制 entity body,
+    /// 先前每個 handler 都直接 ReadToEnd 到字串 —— 未認證的 /api/auth/login
+    /// 送一個 2 GB 的 body 就能配置約 4 GB(UTF-16)記憶體把程序打掛,
+    /// 連帶讓這台閘道橋接的所有 TCP/UDP 連線全斷。</summary>
+    public const int MaxBodyBytes = 1024 * 1024;   // 1 MB
+
+    /// <summary>讀取請求 body 並強制大小上限。超過上限會直接回 413 並回傳 null
+    /// (呼叫端只要 `if (body == null) return;` 即可)。</summary>
+    public static async Task<string?> ReadBodyAsync(HttpListenerContext ctx, int maxBytes = MaxBodyBytes)
+    {
+        // 有 Content-Length 就先擋,連讀都不用讀
+        if (ctx.Request.ContentLength64 > maxBytes)
+        {
+            WriteError(ctx, 413, $"Request body too large (limit {maxBytes} bytes)");
+            return null;
+        }
+
+        var buffer = new byte[8192];
+        using var ms = new MemoryStream();
+        int read;
+        // 邊讀邊累計:chunked 編碼或謊報 Content-Length 都擋得住
+        while ((read = await ctx.Request.InputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            if (ms.Length + read > maxBytes)
+            {
+                WriteError(ctx, 413, $"Request body too large (limit {maxBytes} bytes)");
+                return null;
+            }
+            ms.Write(buffer, 0, read);
+        }
+        return Encoding.UTF8.GetString(ms.ToArray());
+    }
+
     public static void WriteJson(HttpListenerContext ctx, int statusCode, string json)
     {
         try

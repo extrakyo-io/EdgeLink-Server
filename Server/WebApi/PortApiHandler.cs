@@ -38,9 +38,8 @@ public class PortApiHandler
 
     public async Task AddAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         AddPortReq? req;
         try { req = Json.FromJson<AddPortReq>(body); }
@@ -91,9 +90,8 @@ public class PortApiHandler
 
     public async Task DeleteAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         DeletePortReq? req;
         try { req = Json.FromJson<DeletePortReq>(body); }
@@ -112,9 +110,8 @@ public class PortApiHandler
 
     public async Task UpdateAsync(HttpListenerContext ctx, string id)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         UpdatePortReq? req;
         try { req = Json.FromJson<UpdatePortReq>(body); }
@@ -163,9 +160,8 @@ public class PortApiHandler
 
     public async Task ChangeMaskAsync(HttpListenerContext ctx, string id)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         ChangeMaskReq? req;
         try { req = Json.FromJson<ChangeMaskReq>(body); }
@@ -225,9 +221,8 @@ public class PortApiHandler
 
     public async Task ToggleEnabledAsync(HttpListenerContext ctx, string id)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         ToggleEnabledReq? req;
         try { req = Json.FromJson<ToggleEnabledReq>(body); }

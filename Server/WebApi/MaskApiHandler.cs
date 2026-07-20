@@ -25,9 +25,8 @@ public class MaskApiHandler
 
     public async Task SaveDefinitionAsync(HttpListenerContext ctx, string maskId)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         MaskDefinitionDto? dto;
         try { dto = Json.FromJson<MaskDefinitionDto>(body); }
@@ -55,9 +54,8 @@ public class MaskApiHandler
 
     public async Task RenameAsync(HttpListenerContext ctx, string maskId)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         RenameReq? req;
         try { req = Json.FromJson<RenameReq>(body); }
@@ -82,9 +80,8 @@ public class MaskApiHandler
 
     public async Task AddAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         AddMaskReq? req;
         try { req = Json.FromJson<AddMaskReq>(body); }
@@ -105,9 +102,8 @@ public class MaskApiHandler
     // 二進位解碼預覽:{ binary: BinarySpec, hex: "4f4b..." } → { output, dropped }
     public async Task PreviewBinaryAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         BinaryPreviewReq? req;
         try { req = Json.FromJson<BinaryPreviewReq>(body); }

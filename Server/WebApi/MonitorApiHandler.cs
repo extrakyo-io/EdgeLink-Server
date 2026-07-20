@@ -9,9 +9,8 @@ public class MonitorApiHandler
 {
     public async Task SetMonitorPortAsync(HttpListenerContext ctx)
     {
-        string body;
-        using (var sr = new StreamReader(ctx.Request.InputStream, System.Text.Encoding.UTF8))
-            body = await sr.ReadToEndAsync();
+        string? body = await HttpApiServer.ReadBodyAsync(ctx);
+        if (body == null) return;   // 已回 413
 
         MonitorPortReq? req;
         try { req = Json.FromJson<MonitorPortReq>(body); }
