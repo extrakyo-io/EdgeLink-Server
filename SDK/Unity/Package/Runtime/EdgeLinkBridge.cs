@@ -11,7 +11,7 @@ namespace EdgeLink
     /// <summary>
     /// EdgeLink 連線控制器（純 C# 類別，不繼承 MonoBehaviour）。
     /// 透過建構子帶入設定，由呼叫端控制生命週期：
-    ///   var bridge = new EdgeLinkBridge(new EdgeLinkBridge.Config { ServerUrl = "https://...", ... });
+    ///   var bridge = new EdgeLinkBridge(new EdgeLinkBridge.Config { ServerUrl = "http://...", ... });
     ///   bridge.OnMessage += msg => Debug.Log(msg);
     ///   StartCoroutine(bridge.InitializeCoroutine());   // 每幀:  bridge.Tick();
     ///   OnDestroy:  bridge.Dispose();
@@ -24,7 +24,7 @@ namespace EdgeLink
         [Serializable]
         public class Config
         {
-            public string   ServerUrl            = "https://192.168.1.100:8443";
+            public string   ServerUrl            = "http://192.168.1.100:8081";
             public string   Password             = "";
             public string   MaskId               = "OriginalData";
             public Protocol Protocol             = Protocol.TCP;
