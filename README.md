@@ -26,7 +26,6 @@
 | **即時監控** | 每個 port 的 SSE 串流日誌，支援關鍵字搜尋 |
 | **Web 管理介面** | 瀏覽器端管理 — 卡片式 port 檢視，免前端建置 |
 | **裝置識別** | TCP Server 與 UDP 上逐連線的裝置 ID 追蹤，於 WebUI 與 SDK 中呈現 |
-| **HTTPS** | 自動產生含所有本機 IP SAN 的自簽憑證 |
 | **安全性** | PBKDF2 密碼雜湊、工作階段持久化、HttpOnly cookie |
 | **檔案日誌** | 每日輪替日誌檔，保留 7 天 |
 | **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js） |
@@ -53,8 +52,10 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.4.0-win-x64.zip`
 2. 解壓縮 zip
 3. 執行 `EdgeLinkServer.exe`
-4. 開啟瀏覽器前往 `https://localhost:8443`
-   - 接受自簽憑證警告（點 進階 → 繼續前往）
+4. 開啟瀏覽器前往 `http://localhost:8081`
+
+> **沒有內建 HTTPS。** 管理介面走純 HTTP，登入密碼會以明文經過網路。請只在受信任的內部網段開放，或在前面架反向代理（IIS / nginx / Caddy）承接 TLS。
+> v2.4.0 以前曾自帶自簽憑證，但其私鑰密碼是寫死在公開原始碼裡的常數、憑證又會被裝進機器的 Trusted Root —— 比沒有 HTTPS 更危險，已整個移除。
    - 預設密碼：`admin` — **登入後請立即修改**
 
 ---
@@ -77,8 +78,6 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 EdgeLinkServer.exe [options]
 
   --port <n>          HTTP 埠（預設：8081）
-  --no-https          停用 HTTPS（預設啟用 HTTPS）
-  --https-port <n>    HTTPS 埠（預設：8443）
 
 環境變數：
   EDGELINK_PORT, EDGELINK_HTTPS, EDGELINK_HTTPS_PORT
@@ -204,7 +203,7 @@ python modbus_slave_sim.py
 
 ## API 參考
 
-Base URL：`https://<host>:8443`
+Base URL：`http://<host>:8081`
 
 除認證外，所有 `/api/*` 端點都需要工作階段 cookie。互動式文件位於 `/docs`。
 

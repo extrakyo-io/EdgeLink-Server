@@ -13,8 +13,6 @@ public class AppConfigTests
         var cfg = AppConfig.FromArgs([]);
 
         Assert.Equal(8081, cfg.HttpPort);
-        Assert.True(cfg.HttpsEnabled);       // default is true after our change
-        Assert.Equal(8443, cfg.HttpsPort);
     }
 
     // ── CLI args ─────────────────────────────────────────────────────────────
@@ -27,27 +25,51 @@ public class AppConfigTests
     }
 
     [Fact]
-    public void HttpsPort_ParsedFromCli()
-    {
-        var cfg = AppConfig.FromArgs(["--https-port", "9443"]);
-        Assert.Equal(9443, cfg.HttpsPort);
-    }
-
-    [Fact]
-    public void NoHttps_Flag_DisablesHttps()
-    {
-        var cfg = AppConfig.FromArgs(["--no-https"]);
-        Assert.False(cfg.HttpsEnabled);
-    }
-
-    [Fact]
     public void MultipleArgs_AllParsed()
     {
-        var cfg = AppConfig.FromArgs(["--port", "7070", "--https-port", "7443", "--no-https"]);
+        var cfg = AppConfig.FromArgs(["--port", "7070", "--install"]);
 
-        Assert.Equal(7070,  cfg.HttpPort);
-        Assert.Equal(7443,  cfg.HttpsPort);
-        Assert.False(cfg.HttpsEnabled);
+        Assert.Equal(7070, cfg.HttpPort);
+        Assert.True(cfg.InstallService);
+    }
+
+    // ── 已移除的 HTTPS 旗標 ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// 舊的服務註冊(binPath)與啟動腳本裡還帶著 --https / --no-https / --https-port。
+    /// 這些必須被安靜地忽略而不是讓程式失敗 —— 否則升級的既有部署會直接起不來。
+    /// </summary>
+    [Theory]
+    [InlineData("--no-https")]
+    [InlineData("--https")]
+    public void RemovedHttpsFlags_AreIgnored_NotFatal(string flag)
+    {
+        var cfg = AppConfig.FromArgs(["--port", "7070", flag]);
+        Assert.Equal(7070, cfg.HttpPort);
+    }
+
+    [Fact]
+    public void RemovedHttpsPortFlag_DoesNotAffectHttpPort()
+    {
+        var cfg = AppConfig.FromArgs(["--https-port", "9443", "--port", "7070"]);
+        Assert.Equal(7070, cfg.HttpPort);
+    }
+
+    [Fact]
+    public void RemovedHttpsEnvVars_AreIgnored()
+    {
+        Environment.SetEnvironmentVariable("EDGELINK_HTTPS", "0");
+        Environment.SetEnvironmentVariable("EDGELINK_HTTPS_PORT", "9999");
+        try
+        {
+            var cfg = AppConfig.FromArgs([]);
+            Assert.Equal(8081, cfg.HttpPort);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("EDGELINK_HTTPS", null);
+            Environment.SetEnvironmentVariable("EDGELINK_HTTPS_PORT", null);
+        }
     }
 
     // ── Environment variables ────────────────────────────────────────────────
@@ -62,30 +84,6 @@ public class AppConfigTests
             Assert.Equal(8181, cfg.HttpPort);
         }
         finally { Environment.SetEnvironmentVariable("EDGELINK_PORT", null); }
-    }
-
-    [Fact]
-    public void HttpsPort_FallsBackToEnvVar()
-    {
-        Environment.SetEnvironmentVariable("EDGELINK_HTTPS_PORT", "9999");
-        try
-        {
-            var cfg = AppConfig.FromArgs([]);
-            Assert.Equal(9999, cfg.HttpsPort);
-        }
-        finally { Environment.SetEnvironmentVariable("EDGELINK_HTTPS_PORT", null); }
-    }
-
-    [Fact]
-    public void HttpsDisabled_ByEnvVar()
-    {
-        Environment.SetEnvironmentVariable("EDGELINK_HTTPS", "0");
-        try
-        {
-            var cfg = AppConfig.FromArgs([]);
-            Assert.False(cfg.HttpsEnabled);
-        }
-        finally { Environment.SetEnvironmentVariable("EDGELINK_HTTPS", null); }
     }
 
     // ── Priority: CLI > env > default ────────────────────────────────────────

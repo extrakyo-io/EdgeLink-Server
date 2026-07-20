@@ -26,7 +26,7 @@ public sealed class ServerFixture : IAsyncLifetime
     {
         CleanTestData();
 
-        string[] args = ["--port", HttpPort.ToString(), "--no-https"];
+        string[] args = ["--port", HttpPort.ToString()];
 
         _host = Host.CreateDefaultBuilder(args)
             .ConfigureLogging(b => b.ClearProviders())

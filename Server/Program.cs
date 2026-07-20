@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 var config = AppConfig.FromArgs(args);
+AppConfig.WarnAboutRemovedHttpsFlags(args);
 
 // ── Service install / uninstall ──────────────────────────────────────────────
 if (config.InstallService)   { ServiceManager.Install(config); return; }

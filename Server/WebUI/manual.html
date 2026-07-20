@@ -736,15 +736,16 @@ td code { font-size: .8rem; }
 <ol class="steps">
   <li><div>從 Releases 下載 <code>EdgeLink-Server-win-x64.zip</code> 並解壓縮到任意目錄</div></li>
   <li><div>執行 <code>EdgeLinkServer.exe</code>（雙擊或在命令提示字元中執行）</div></li>
-  <li><div>開啟瀏覽器前往 <code>https://localhost:8443</code></div></li>
+  <li><div>開啟瀏覽器前往 <code>http://localhost:8081</code></div></li>
   <li><div>輸入預設密碼 <code>admin</code> 登入，登入後<strong>立即修改密碼</strong></div></li>
 </ol>
 
 <div class="callout warn">
 
   <div class="callout-body">
-    <strong>憑證警告</strong>
-    首次使用 HTTPS 時瀏覽器會顯示憑證警告（自簽憑證）。點「進階 → 繼續前往」即可正常使用。憑證已包含本機所有 IP（SAN），區域網路內的其他電腦同樣只需接受一次警告。
+    <strong>沒有內建 HTTPS</strong>
+    管理介面走純 HTTP，<strong>登入密碼會以明文經過網路</strong>。請只在受信任的內部網段開放，或在前面架反向代理（IIS / nginx / Caddy）承接 TLS。
+    v2.4.0 以前曾自帶自簽憑證，但其私鑰密碼是寫死在公開原始碼裡的常數、憑證又會被裝進機器的 Trusted Root —— 任何本機使用者都能取出私鑰並冒充任意網站，比沒有 HTTPS 更危險，因此已整個移除。升級時 <code>--install</code> / <code>--uninstall</code> 會自動清除舊憑證。
   </div>
 </div>
 
@@ -754,14 +755,13 @@ td code { font-size: .8rem; }
     <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
     <span class="lang-tag">CMD</span>
   </div>
-<pre><code><span class="cmt"># 預設（HTTPS，port 8443）</span>
+<pre><code><span class="cmt"># 預設（port 8081）</span>
 EdgeLinkServer.exe
 
 <span class="cmt"># 僅 HTTP</span>
-EdgeLinkServer.exe --no-https
 
 <span class="cmt"># 自訂 port</span>
-EdgeLinkServer.exe --port 9090 --https-port 9443</code></pre>
+EdgeLinkServer.exe --port 9090</code></pre>
 </div>
 
 <h3>自動建立的目錄結構</h3>
@@ -777,8 +777,6 @@ EdgeLinkServer.exe --port 9090 --https-port 9443</code></pre>
 └── <span class="prop">Data/</span>
     ├── auth.json                <span class="cmt">← 密碼 hash（PBKDF2-SHA256）</span>
     ├── sessions.json            <span class="cmt">← 登入 session</span>
-    ├── server.pfx               <span class="cmt">← HTTPS 自簽憑證（10 年有效）</span>
-    ├── cert.pass                <span class="cmt">← 憑證密碼</span>
     └── <span class="prop">Logs/</span>                    <span class="cmt">← 每日日誌（保留 7 天）</span>
         └── 2024-01-15.log</code></pre>
 </div>
@@ -1452,8 +1450,6 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
   <thead><tr><th>CLI 參數</th><th>環境變數</th><th>說明</th><th>預設值</th></tr></thead>
   <tbody>
     <tr><td><code>--port &lt;n&gt;</code></td><td><code>EDGELINK_PORT</code></td><td>HTTP 監聽 port</td><td><code>8081</code></td></tr>
-    <tr><td><code>--no-https</code></td><td><code>EDGELINK_HTTPS=0</code></td><td>停用 HTTPS</td><td>啟用</td></tr>
-    <tr><td><code>--https-port &lt;n&gt;</code></td><td><code>EDGELINK_HTTPS_PORT</code></td><td>HTTPS 監聽 port</td><td><code>8443</code></td></tr>
   </tbody>
 </table></div>
 
@@ -1462,7 +1458,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 <!-- ─────────────────────────────────────────── -->
 <h2 id="api"><span class="section-num">15</span>API 參考</h2>
 
-<p>Base URL：<code>https://&lt;host&gt;:8443</code>（或 HTTP）。所有 <code>/api/*</code> 端點（除認證外）皆需 Session Cookie。詳細互動式文件請見 <a href="/docs">/docs</a>。</p>
+<p>Base URL：<code>http://&lt;host&gt;:8081</code>。所有 <code>/api/*</code> 端點（除認證外）皆需 Session Cookie。詳細互動式文件請見 <a href="/docs">/docs</a>。</p>
 
 <h3>認證</h3>
 <div class="table-wrap"><table>
@@ -1543,7 +1539,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 <div class="table-wrap"><table>
   <thead><tr><th>欄位</th><th>說明</th><th>預設值</th></tr></thead>
   <tbody>
-    <tr><td>Server URL</td><td>EdgeLink Server 位址，用於執行期拉取 Mask 定義</td><td><code>https://192.168.1.100:8443</code></td></tr>
+    <tr><td>Server URL</td><td>EdgeLink Server 位址，用於執行期拉取 Mask 定義</td><td><code>http://192.168.1.100:8081</code></td></tr>
     <tr><td>Password</td><td>登入密碼</td><td>（空）</td></tr>
     <tr><td>Mask ID</td><td>要套用的 Mask 名稱（留空則不解析）</td><td><code>OriginalData</code></td></tr>
     <tr><td>Protocol</td><td>連線模式：<code>TCP</code> / <code>TCPListener</code> / <code>UDP</code></td><td><code>TCP</code></td></tr>
