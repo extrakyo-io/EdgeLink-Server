@@ -32,6 +32,7 @@ public class MaskDefinition
 public class BinarySpec
 {
     public string byteOrder = "little";        // "little" | "big"(多位元組欄位)
+    public string sync = "";                   // 選填:TCP 串流分包用的對齊 magic(hex,如 "4f4b"='OK');UDP 免填
     public BinaryFieldRef? discriminator;      // 選填:讀某位址的值來挑 variant(如 msgType@3)
     public List<BinaryVariant> variants = new();
 }

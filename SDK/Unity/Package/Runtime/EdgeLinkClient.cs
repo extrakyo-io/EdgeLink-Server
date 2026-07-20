@@ -159,6 +159,16 @@ namespace EdgeLink
             await stream.WriteAsync(bytes, 0, bytes.Length);
         }
 
+        /// <summary>送原始位元組(如二進位協定封包)。不附加換行、不做任何轉換。
+        /// 用於「該埠 Mask 為 binary」的 TCP Server 埠(EdgeLink 會做 framing + 解碼)。</summary>
+        public async Task SendAsync(byte[] data)
+        {
+            if (stream == null || !IsConnected)
+                throw new InvalidOperationException("Not connected to EdgeLink.");
+            if (data == null || data.Length == 0) return;
+            await stream.WriteAsync(data, 0, data.Length);
+        }
+
         private async Task SendRawAsync(string raw)
         {
             try

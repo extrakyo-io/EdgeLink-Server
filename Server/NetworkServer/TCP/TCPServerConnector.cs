@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using EdgeLink.Mask;
 using EdgeLink.NetworkServer.Base;
 using EdgeLink.NetworkServer.Base.Models;
 using EdgeLink.NetworkServer.Logging;
@@ -258,60 +259,28 @@ public class TCPServerConnector : NetworkConnectorBase
         serverData.ConnectedClients[clientKey]   = metrics;
         serverData.ClientStreams[clientKey]       = stream;
         serverData.ClientWriteLocks[clientKey]   = new SemaphoreSlim(1, 1);
-        byte[] buffer    = new byte[2048];
-        var lineBuffer   = new StringBuilder();
 
         ConfigureKeepAlive(client.Client);
-        _ = SendPingsAsync(stream, metrics, token, serverData, clientKey).ContinueWith(t =>
+
+        // 依此埠 Mask 決定收包模式:binary mask → 二進位分包解碼;否則 → 文字(換行分隔 + PING/PONG)。
+        var  maskDef  = MaskDefinitionManager.Instance.GetDefinition(serverData.portData.MaskType?.Trim() ?? "OriginalData");
+        bool isBinary = maskDef?.binary != null;
+
+        // 只有文字埠送 app 層心跳。二進位埠不送(避免文字 PING 混進二進位串流),改靠 TCP keepalive 偵測斷線。
+        if (!isBinary)
         {
-            if (t.IsFaulted) LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} [Ping] {t.Exception?.Message}", isError: true);
-        });
+            _ = SendPingsAsync(stream, metrics, token, serverData, clientKey).ContinueWith(t =>
+            {
+                if (t.IsFaulted) LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} [Ping] {t.Exception?.Message}", isError: true);
+            });
+        }
 
         try
         {
-            while (!token.IsCancellationRequested)
-            {
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                if (bytesRead <= 0) break;
-
-                metrics.RecordBytes(bytesRead);
-                serverData.AddReceivedBytes(bytesRead);
-                serverData.portData.TotalReceivedBytes = serverData.TotalReceivedBytes;
-
-                string chunk;
-                try { chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead); }
-                catch
-                {
-                    chunk = Encoding.GetEncoding("UTF-8", EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback).GetString(buffer, 0, bytesRead);
-                    LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} Invalid UTF-8 sequence in data", isError: true);
-                }
-
-                if (lineBuffer.Length + chunk.Length > MaxBufferSize)
-                {
-                    LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} Buffer overflow ({MaxBufferSize} bytes)", isError: true);
-                    lineBuffer.Clear();
-                    if (chunk.Length > MaxBufferSize) continue;
-                }
-
-                lineBuffer.Append(chunk);
-                string current    = lineBuffer.ToString();
-                int lastNewline   = current.LastIndexOf('\n');
-                if (lastNewline < 0) continue;
-
-                string processable = current[..lastNewline];
-                string remaining   = current[(lastNewline + 1)..];
-                lineBuffer.Clear();
-                lineBuffer.Append(remaining);
-
-                foreach (var rawLine in processable.Split('\n'))
-                {
-                    string line = rawLine.Trim();
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    if (metrics.TryHandlePong(line)) continue;
-                    metrics.RecordMessage();
-                    serverData.asyncMessageQueue.Enqueue((Encoding.UTF8.GetBytes(line), line, sourceEndpoint!, clientKey));
-                }
-            }
+            if (isBinary)
+                await ReceiveBinaryLoopAsync(stream, serverData, sourceEndpoint, clientKey, metrics, maskDef!.binary!, token);
+            else
+                await ReceiveTextLoopAsync(stream, serverData, sourceEndpoint, clientKey, metrics, token);
         }
         catch (OperationCanceledException) { }
         catch (ObjectDisposedException)    { }
@@ -334,6 +303,87 @@ public class TCPServerConnector : NetworkConnectorBase
             LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} Disconnected: {sourceEndpoint}");
             NotifyForwardTargetStatusChange("DISCONNECT", serverData.portData, sourceEndpoint, disconnectedDeviceId ?? "");
             _dispatcher.Enqueue(() => SafeExecution.Safe(() => serverData.portData.OnUpdate?.Invoke(serverData.portData)));
+        }
+    }
+
+    // 文字收包:UTF-8 + 換行分行;消化 PONG,其餘進 routing 佇列。(原 ReceiveClientAsync 內邏輯)
+    private async Task ReceiveTextLoopAsync(NetworkStream stream, TCPServerData serverData,
+        IPEndPoint? sourceEndpoint, string clientKey, TcpClientMetrics metrics, CancellationToken token)
+    {
+        byte[] buffer  = new byte[2048];
+        var lineBuffer = new StringBuilder();
+
+        while (!token.IsCancellationRequested)
+        {
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+            if (bytesRead <= 0) break;
+
+            metrics.RecordBytes(bytesRead);
+            serverData.AddReceivedBytes(bytesRead);
+            serverData.portData.TotalReceivedBytes = serverData.TotalReceivedBytes;
+
+            string chunk;
+            try { chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead); }
+            catch
+            {
+                chunk = Encoding.GetEncoding("UTF-8", EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback).GetString(buffer, 0, bytesRead);
+                LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} Invalid UTF-8 sequence in data", isError: true);
+            }
+
+            if (lineBuffer.Length + chunk.Length > MaxBufferSize)
+            {
+                LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} Buffer overflow ({MaxBufferSize} bytes)", isError: true);
+                lineBuffer.Clear();
+                if (chunk.Length > MaxBufferSize) continue;
+            }
+
+            lineBuffer.Append(chunk);
+            string current  = lineBuffer.ToString();
+            int lastNewline = current.LastIndexOf('\n');
+            if (lastNewline < 0) continue;
+
+            string processable = current[..lastNewline];
+            string remaining   = current[(lastNewline + 1)..];
+            lineBuffer.Clear();
+            lineBuffer.Append(remaining);
+
+            foreach (var rawLine in processable.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (metrics.TryHandlePong(line)) continue;
+                metrics.RecordMessage();
+                serverData.asyncMessageQueue.Enqueue((Encoding.UTF8.GetBytes(line), line, sourceEndpoint!, clientKey));
+            }
+        }
+    }
+
+    // 二進位收包:BinaryStreamFramer 依 spec 分包,每包交 BinaryMaskDecoder 解成 KV 文字再進 routing 佇列。
+    // 解碼後的 KV 交由下游輸出埠(建議 Mask=OriginalData 原樣轉發)送出;裝置 id 由 KV 的 id 欄位辨識。
+    private async Task ReceiveBinaryLoopAsync(NetworkStream stream, TCPServerData serverData,
+        IPEndPoint? sourceEndpoint, string clientKey, TcpClientMetrics metrics, BinarySpec spec, CancellationToken token)
+    {
+        var framer = new BinaryStreamFramer(spec);
+        byte[] buffer = new byte[4096];
+
+        while (!token.IsCancellationRequested)
+        {
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+            if (bytesRead <= 0) break;
+
+            metrics.RecordBytes(bytesRead);
+            serverData.AddReceivedBytes(bytesRead);
+            serverData.portData.TotalReceivedBytes = serverData.TotalReceivedBytes;
+
+            framer.Append(buffer.AsSpan(0, bytesRead));
+            byte[]? packet;
+            while ((packet = framer.Next()) != null)
+            {
+                string? kv = BinaryMaskDecoder.Decode(packet, spec);
+                if (string.IsNullOrEmpty(kv)) continue;   // 未知 variant / 長度不符 / template 缺欄位 → 丟棄
+                metrics.RecordMessage();
+                serverData.asyncMessageQueue.Enqueue((Encoding.UTF8.GetBytes(kv), kv, sourceEndpoint!, clientKey));
+            }
         }
     }
 
