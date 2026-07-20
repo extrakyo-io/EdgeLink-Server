@@ -85,7 +85,9 @@ namespace EdgeLink
                         if (!autoReconnect) return;
                         await Task.Delay(reconnectDelayMs, ct);
                         await ConnectCoreAsync(ct);
-                        lineBuf.Clear();
+                        // 連線可能斷在多位元組字元中間,decoder 內會留著孤兒續位元組。
+                        // 不重置的話,新連線第一個 chunk 會被接在它後面 → 第一行開頭多一個 U+FFFD。
+                        lineBuf.Clear(); utf8Decoder.Reset();
                         continue;
                     }
 
@@ -132,7 +134,7 @@ namespace EdgeLink
                     if (!autoReconnect) return;
                     OnDisconnected?.Invoke();
                     try { await Task.Delay(reconnectDelayMs, ct); } catch { return; }
-                    try { await ConnectCoreAsync(ct); lineBuf.Clear(); } catch { }
+                    try { await ConnectCoreAsync(ct); lineBuf.Clear(); utf8Decoder.Reset(); } catch { }
                 }
             }
         }

@@ -25,9 +25,6 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
-        /// <summary>有狀態的 UTF-8 解碼器:保留跨 TCP 讀取邊界的不完整位元組序列。
-        /// 每個 chunk 各自 GetString 會把被切開的多位元組字元變成 U+FFFD。</summary>
-        private readonly Decoder utf8Decoder = Encoding.UTF8.GetDecoder();
         /// <summary>行緩衝上限。對端若一直不送換行,緩衝會無限成長。</summary>
         private const int MaxLineBufferChars = 64 * 1024;
         private bool disposed;
@@ -68,6 +65,11 @@ namespace EdgeLink
             var networkStream = client.GetStream();
             var buf           = new byte[4096];
             var lineBuf       = new StringBuilder();
+            // 有狀態的 UTF-8 解碼器,**每條連線各一份**。
+            // Decoder 會保留跨 chunk 的不完整位元組序列,所以它帶狀態、且非 thread-safe。
+            // 這裡每個 client 各跑一個 ReadLoopAsync,若共用同一個 Decoder,A 連線殘留的
+            // 半個字元會被接到 B 連線的位元組前面解碼 —— 兩邊的訊息互相污染。
+            var utf8Decoder   = Encoding.UTF8.GetDecoder();
 
             try
             {
