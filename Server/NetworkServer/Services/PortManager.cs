@@ -136,11 +136,23 @@ public class PortManager
 
     public NetworkConnectorCore ConnectorCore => _core;
 
+    /// <summary>序列化存檔。快照與寫檔必須在同一個鎖內完成 —— 先前是
+    /// 「鎖內快照、鎖外寫檔」,兩個併發的儲存會出現:
+    ///   • 丟失更新:A 快照(2 筆)→ B 快照(3 筆)並寫入 → A 寫入自己那份過期的 2 筆。
+    ///     第 3 筆仍在記憶體(UI 看得到),重啟後才發現不見了。
+    ///   • 靜默丟棄:兩者同時開檔 → 其中一個拋 sharing violation,被 catch 成一行 log,
+    ///     但 API 仍回 200。
+    /// 每個 HTTP 請求都跑在自己的 Task 上,所以這是真的會發生的。</summary>
+    private readonly object _saveLock = new();
+
     public void SaveData()
     {
-        List<PortData> snapshot;
-        lock (_lock) snapshot = new List<PortData>(_ports);
-        _storage.SavePortData(snapshot);
+        lock (_saveLock)
+        {
+            List<PortData> snapshot;
+            lock (_lock) snapshot = new List<PortData>(_ports);
+            _storage.SavePortData(snapshot);
+        }
     }
 
     public async Task ShutdownAsync(TimeSpan? timeout = null)

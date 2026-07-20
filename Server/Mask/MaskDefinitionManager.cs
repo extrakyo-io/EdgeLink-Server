@@ -50,22 +50,29 @@ public class MaskDefinitionManager
         finally { _lock.ExitWriteLock(); }
     }
 
+    /// <summary>序列化存檔用。快照與寫檔要在同一個鎖內,否則併發儲存會丟失更新
+    /// (後寫的人用較舊的快照覆蓋)或因同時開檔而靜默失敗。</summary>
+    private readonly object _saveLock = new();
+
     private void Save()
     {
-        MaskDefinitions data;
-        _lock.EnterReadLock();
-        try
+        lock (_saveLock)
         {
-            data = new MaskDefinitions
+            MaskDefinitions data;
+            _lock.EnterReadLock();
+            try
             {
-                definitions = _order
-                    .Where(id => _definitions.ContainsKey(id))
-                    .Select(id => _definitions[id])
-                    .ToList()
-            };
+                data = new MaskDefinitions
+                {
+                    definitions = _order
+                        .Where(id => _definitions.ContainsKey(id))
+                        .Select(id => _definitions[id])
+                        .ToList()
+                };
+            }
+            finally { _lock.ExitReadLock(); }
+            _storage.Save(data);
         }
-        finally { _lock.ExitReadLock(); }
-        _storage.Save(data);
     }
 
     private void AddDefinitionInternal(MaskDefinition def)

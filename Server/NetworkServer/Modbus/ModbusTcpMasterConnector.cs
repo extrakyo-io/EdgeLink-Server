@@ -21,6 +21,10 @@ public class ModbusTcpMasterData
     public Task? pollLoop;
     public DateTime LastSuccessUtc;
     public int ConsecutiveFailures;
+
+    /// <summary>每個 register 上次記錄讀取錯誤的時間,用來限流。
+    /// 只由該 port 專屬的 poll loop 存取,不需要額外同步。</summary>
+    public readonly Dictionary<string, DateTime> RegisterErrorLoggedUtc = new();
 }
 
 // Modbus TCP Master：定時 polling 遠端 slave，把 register 結果組成
@@ -212,8 +216,12 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                // 個別 register 失敗不重連 — 可能只是這個地址不存在
-                if (data.ConsecutiveFailures < 3)
+                // 個別 register 失敗不重連 — 可能只是這個地址不存在。
+                // 先前用 `data.ConsecutiveFailures < 3` 當節流,但該計數器只在「連線層級」
+                // 例外時才遞增,ModbusException(例如位址不存在)不屬於那幾種型別,
+                // 所以條件恆真 → 100ms 輪詢下每天約 86 萬行,而每行都是一次
+                // File.AppendAllText(開檔/寫/關,還在全域鎖內)。改為逐 register 限流。
+                if (ShouldLogRegisterError(data, reg.Name))
                     LogHelper.LogToConsole($"{Tag(pd)} reg '{reg.Name}' read fail: {ex.Message}", isError: true);
 
                 // 但連線層級的 exception 視為斷線
@@ -297,6 +305,20 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
             if ((rawBits[byteIdx] & (1 << bitIdx)) != 0) v |= (1 << i);
         }
         return v.ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>同一個 register 的讀取錯誤最多每 60 秒記一次,避免設定寫錯就把磁碟灌爆。</summary>
+    internal const int RegisterErrorLogIntervalSec = 60;
+
+    internal static bool ShouldLogRegisterError(ModbusTcpMasterData data, string regName, DateTime? nowUtc = null)
+    {
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (data.RegisterErrorLoggedUtc.TryGetValue(regName, out var last) &&
+            (now - last).TotalSeconds < RegisterErrorLogIntervalSec)
+            return false;
+
+        data.RegisterErrorLoggedUtc[regName] = now;
+        return true;
     }
 
     /// <summary>該 DataType 至少需要幾個 16-bit 暫存器才能組出值。</summary>
