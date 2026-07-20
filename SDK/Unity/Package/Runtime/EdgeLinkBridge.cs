@@ -65,7 +65,22 @@ namespace EdgeLink
 
         // ── 狀態 ────────────────────────────────────────────
         public string Raw { get; private set; }
+
+        /// <summary>取得最新欄位值(所有裝置混在同一份字典)。
+        /// <para>⚠ 多裝置情境請改用 <see cref="Get(string,string)"/>。這個版本以欄位名為唯一的鍵,
+        /// 而且不會清掉「本次訊息沒帶到」的欄位 —— 裝置 A 送 <c>id:A;temp:25;humidity:60</c>、
+        /// 接著裝置 B 送 <c>id:B;humidity:55</c>(這輪沒回報溫度)之後,讀到的會是
+        /// 「B 的溫度 25」,也就是 A 的值被當成 B 的,且沒有任何警示。</para></summary>
         public string Get(string key) => _latest.TryGetValue(key, out var v) ? v : null;
+
+        /// <summary>取得「指定裝置」的最新欄位值 —— 多裝置時請用這個。
+        /// deviceId 取自訊息中 <see cref="Config.DeviceIdKey"/> 所指的欄位。</summary>
+        public string Get(string deviceId, string key) =>
+            deviceId != null && _latestByDevice.TryGetValue(deviceId, out var d) &&
+            d.TryGetValue(key, out var v) ? v : null;
+
+        /// <summary>目前看過的裝置 id。</summary>
+        public IEnumerable<string> KnownDeviceIds => _latestByDevice.Keys;
 
         // ── 事件 ────────────────────────────────────────────
         /// <summary>每筆新訊息到達時觸發（已於主執行緒）。</summary>
@@ -83,6 +98,9 @@ namespace EdgeLink
         private EdgeLinkUdpClient   _udp;
 
         private readonly Dictionary<string, string> _latest       = new Dictionary<string, string>();
+        /// <summary>逐裝置的最新欄位值,供 Get(deviceId, key) 使用。</summary>
+        private readonly Dictionary<string, Dictionary<string, string>> _latestByDevice
+            = new Dictionary<string, Dictionary<string, string>>();
         private readonly Dictionary<string, float>  _lastSeenTime = new Dictionary<string, float>();
         private readonly HashSet<string>            _timedOut     = new HashSet<string>();
         private readonly ConcurrentQueue<(bool, string, string)> _deviceStatusQ
@@ -213,6 +231,16 @@ namespace EdgeLink
             Raw = msg;
             var parsed = Parse(msg);
             foreach (var kv in parsed) _latest[kv.Key] = kv.Value;
+
+            // 同時依裝置分開存一份,讓 Get(deviceId, key) 不會拿到別台裝置的殘值
+            if (!string.IsNullOrEmpty(_config.DeviceIdKey) &&
+                parsed.TryGetValue(_config.DeviceIdKey, out var devId) && !string.IsNullOrEmpty(devId))
+            {
+                if (!_latestByDevice.TryGetValue(devId, out var perDevice))
+                    _latestByDevice[devId] = perDevice = new Dictionary<string, string>();
+                foreach (var kv in parsed) perDevice[kv.Key] = kv.Value;
+            }
+
             OnMessage?.Invoke(msg);
 
             if (!string.IsNullOrEmpty(_config.DeviceIdKey) &&

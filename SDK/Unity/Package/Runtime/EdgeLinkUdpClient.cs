@@ -68,6 +68,7 @@ namespace EdgeLink
                     if (msg.StartsWith("EDGELINK_", StringComparison.Ordinal)) continue;
 
                     queue.Enqueue(msg);
+                    OnMessage?.Invoke(msg);   // 先前宣告了事件卻從不觸發,C# 版則有
                 }
                 catch (OperationCanceledException) { return; }
                 catch (ObjectDisposedException)    { return; }

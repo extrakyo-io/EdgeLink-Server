@@ -1,6 +1,7 @@
 "use strict";
 
 const net          = require("net");
+const { StringDecoder } = require("string_decoder");
 const EventEmitter = require("events");
 
 /**
@@ -27,9 +28,11 @@ class EdgeLinkTcpListener extends EventEmitter {
         this._server = net.createServer((socket) => {
             this.emit("connected");
             let lineBuf = "";
+            const decoder = new StringDecoder("utf8");
 
             socket.on("data", (chunk) => {
-                lineBuf += chunk.toString("utf8");
+                // 見 EdgeLinkClient:必須用有狀態的 decoder,否則被切開的多位元組字元會壞掉
+                lineBuf += decoder.write(chunk);
                 let idx;
                 while ((idx = lineBuf.indexOf("\n")) !== -1) {
                     const line = lineBuf.slice(0, idx).trim();
