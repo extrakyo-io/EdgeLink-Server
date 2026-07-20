@@ -40,6 +40,11 @@ public class MaskApiHandler
         }
         if (dto.maskId != maskId) { HttpApiServer.WriteError(ctx, 400, "maskId in body must match URL"); return; }
 
+        // 在存檔當下擋下錯誤的 binary spec。否則要等到收包才拋例外,使用者只會看到
+        // 每包一行解碼失敗,卻不知道是自己的設定寫錯。
+        string? specError = BinarySpecValidator.Validate(dto.binary);
+        if (specError != null) { HttpApiServer.WriteError(ctx, 400, $"binary spec 無效:{specError}"); return; }
+
         try
         {
             MaskDefinitionManager.Instance.SaveDefinition(FromDto(dto));

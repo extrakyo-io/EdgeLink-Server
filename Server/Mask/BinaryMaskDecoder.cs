@@ -122,10 +122,42 @@ public static class BinaryMaskDecoder
         }
     }
 
-    private static long? ReadInt(ReadOnlySpan<byte> d, int off, string type, bool big)
+    /// <summary>某型別佔幾個位元組(未知型別回 0)。BinaryStreamFramer 也用這個決定
+    /// 要等多少位元組才讀得到 discriminator。</summary>
+    internal static int SizeOfType(string type) => type.ToLowerInvariant() switch
     {
-        double? n = ReadNumber(d, off, type.ToLowerInvariant(), big);
-        return n == null ? null : (long)n.Value;
+        "u8" or "i8"            => 1,
+        "u16" or "i16"          => 2,
+        "u32" or "i32" or "f32" => 4,
+        "u64" or "i64" or "f64" => 8,
+        _                       => 0
+    };
+
+    /// <summary>讀整數(直接讀位元組,不經 double,避免大數精度流失)。
+    /// 非整數型別或越界回 null。
+    /// <para>BinaryStreamFramer 與 SelectVariant 共用這一份 —— 先前 framer 自己有一份
+    /// 實作,把 i8 當成無號、把 u64/i64/f32 當成 1 個位元組,導致同一個封包
+    /// framer 算出的 discriminator 與 decoder 不一致(例如 i8 的 0xF0:framer 得 240、
+    /// decoder 得 -16),framer 因此找不到 variant 而把整包丟掉。</para></summary>
+    internal static long? ReadInt(ReadOnlySpan<byte> d, int off, string type, bool big)
+    {
+        string t = type.ToLowerInvariant();
+        int size = SizeOfType(t);
+        if (size == 0 || off < 0 || off > d.Length - size) return null;
+        var s = d.Slice(off, size);
+
+        return t switch
+        {
+            "u8"  => (long)s[0],
+            "i8"  => (long)(sbyte)s[0],
+            "u16" => (long)(big ? BinaryPrimitives.ReadUInt16BigEndian(s) : BinaryPrimitives.ReadUInt16LittleEndian(s)),
+            "i16" => (long)(big ? BinaryPrimitives.ReadInt16BigEndian(s)  : BinaryPrimitives.ReadInt16LittleEndian(s)),
+            "u32" => (long)(big ? BinaryPrimitives.ReadUInt32BigEndian(s) : BinaryPrimitives.ReadUInt32LittleEndian(s)),
+            "i32" => (long)(big ? BinaryPrimitives.ReadInt32BigEndian(s)  : BinaryPrimitives.ReadInt32LittleEndian(s)),
+            "i64" => big ? BinaryPrimitives.ReadInt64BigEndian(s)  : BinaryPrimitives.ReadInt64LittleEndian(s),
+            "u64" => unchecked((long)(big ? BinaryPrimitives.ReadUInt64BigEndian(s) : BinaryPrimitives.ReadUInt64LittleEndian(s))),
+            _     => (long?)null,   // f32 / f64 不適合當 discriminator
+        };
     }
 
     private static double? ReadNumber(ReadOnlySpan<byte> d, int off, string t, bool big)

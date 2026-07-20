@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Globalization;
 
 namespace EdgeLink.Mask;
@@ -11,7 +10,8 @@ namespace EdgeLink.Mask;
 ///   • 對齊:若 spec.sync 有值(如 "4f4b"=magic 'OK'),以它為錨點對齊/重新同步;
 ///           空字串則假設串流已對齊(TCP 無遺失,來源逐包送即恆對齊),但無法從雜訊中復原。
 ///   • 長度:讀 discriminator(如 msgType@3)的值 → 對應 variant 的 length。
-///   • 殘缺:湊不滿一包就等下一段;對不到 variant 時,有 sync 就跳 1 byte 重掃、否則清空。
+///   • 殘缺:湊不滿一包就等下一段;對不到 variant 時跳 1 個位元組重新對齊
+///           (不會丟棄整個緩衝,以免連後面已完整的封包一起賠掉)。
 /// 非執行緒安全:每條連線各自 new 一個。
 /// </summary>
 public sealed class BinaryStreamFramer
@@ -68,14 +68,18 @@ public sealed class BinaryStreamFramer
 
             // 2) 讀 discriminator 決定這一包的長度
             var disc = _spec.discriminator;
-            int need = disc != null ? disc.offset + SizeOf(disc.type) : 1;
+            int need = disc != null ? disc.offset + BinaryMaskDecoder.SizeOfType(disc.type) : 1;
+            if (need <= 0) return null;         // discriminator 型別不合法 → 無法分包
             if (_len < need) return null;       // 連 discriminator 都還沒收齊
 
             int length = ResolveLength(disc);
             if (length <= 0)
             {
-                if (_sync.Length > 0) { Shift(1); continue; }   // 對不到 variant:跳 1 byte 重新同步
-                _len = 0; return null;                          // 無 sync 可救:清空
+                // 對不到 variant(或 variant 沒設 length)→ 跳 1 個位元組重新對齊。
+                // 先前在沒有 sync 時是 `_len = 0`,會把整個緩衝丟掉 —— 連排在後面
+                // 「已經完整」的封包也一起賠進去,而且之後很可能從封包中段開始解讀。
+                Shift(1);
+                continue;
             }
 
             if (_len < length) return null;     // 等整包到齊
@@ -93,8 +97,11 @@ public sealed class BinaryStreamFramer
             var def = _spec.variants.FirstOrDefault(v => v.isDefault) ?? _spec.variants.FirstOrDefault();
             return def?.length ?? 0;
         }
-        long val = ReadInt(_buf, disc.offset, disc.type, _big);
-        var variant = _spec.variants.FirstOrDefault(v => !v.isDefault && v.match == val)
+        // 與 decoder 共用同一份讀值實作,避免兩邊對型別的解讀不一致
+        long? val = BinaryMaskDecoder.ReadInt(_buf.AsSpan(0, _len), disc.offset, disc.type, _big);
+        if (val == null) return 0;
+
+        var variant = _spec.variants.FirstOrDefault(v => !v.isDefault && v.match == val.Value)
                    ?? _spec.variants.FirstOrDefault(v => v.isDefault);
         return variant?.length ?? 0;
     }
@@ -119,27 +126,7 @@ public sealed class BinaryStreamFramer
         return -1;
     }
 
-    private static long ReadInt(byte[] d, int off, string type, bool big)
-    {
-        var s = d.AsSpan(off);
-        switch (type.ToLowerInvariant())
-        {
-            case "u8":  case "i8":  return d[off];
-            case "u16": return big ? BinaryPrimitives.ReadUInt16BigEndian(s) : BinaryPrimitives.ReadUInt16LittleEndian(s);
-            case "i16": return big ? BinaryPrimitives.ReadInt16BigEndian(s)  : BinaryPrimitives.ReadInt16LittleEndian(s);
-            case "u32": return big ? BinaryPrimitives.ReadUInt32BigEndian(s) : BinaryPrimitives.ReadUInt32LittleEndian(s);
-            case "i32": return big ? BinaryPrimitives.ReadInt32BigEndian(s)  : BinaryPrimitives.ReadInt32LittleEndian(s);
-            default:    return d[off];
-        }
-    }
 
-    private static int SizeOf(string type) => type.ToLowerInvariant() switch
-    {
-        "u8" or "i8"   => 1,
-        "u16" or "i16" => 2,
-        "u32" or "i32" => 4,
-        _              => 1
-    };
 
     private static byte[] ParseHex(string hex)
     {

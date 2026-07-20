@@ -72,6 +72,15 @@ public class SettingsApiHandler
             foreach (var mask in dto.masks ?? new List<MaskDefinitionDto>())
             {
                 if (string.IsNullOrEmpty(mask.maskId)) continue;
+
+                // 匯入的 binary spec 同樣要驗證,否則壞設定會直接進到執行中的埠
+                string? specError = BinarySpecValidator.Validate(mask.binary);
+                if (specError != null)
+                {
+                    HttpApiServer.WriteError(ctx, 400, $"mask '{mask.maskId}' 的 binary spec 無效:{specError}");
+                    return;
+                }
+
                 if (!MaskDefinitionManager.Instance.HasMaskType(mask.maskId))
                     MaskDefinitionManager.Instance.AddMaskType(mask.maskId, mask.localizationKey);
                 MaskDefinitionManager.Instance.SaveDefinition(new MaskDefinition
