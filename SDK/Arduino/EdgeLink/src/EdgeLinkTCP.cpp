@@ -6,6 +6,7 @@ bool EdgeLinkTCP::begin(const char* host, uint16_t port) {
     _host = host;
     _port = port;
     _rxBuf = "";
+    _rxOverflow = false;
     _lastAttempt = millis();
     return _client.connect(host, port);
 }
@@ -24,8 +25,20 @@ void EdgeLinkTCP::loop() {
                 _processLine(_rxBuf);
             }
             _rxBuf = "";
+            _rxOverflow = false;
         } else if (c != '\r') {
-            _rxBuf += c;
+            // 對端若一直不送換行,_rxBuf 會無限成長。在 MCU 上這比桌面端嚴重得多:
+            // Uno 只有 2 KB SRAM,String 每次擴充都重新配置,heap 很快碎裂/耗盡而重開機。
+            // 超過上限就進入丟棄模式,直到下一個 '\n' 才恢復 —— 丟掉的是壞掉的那一行,
+            // 而不是整個連線。
+            if (_rxOverflow) {
+                // 已在丟棄模式,直接吃掉這個字元(等 '\n' 才復原)
+            } else if (_rxBuf.length() >= kMaxLineLen) {
+                _rxOverflow = true;
+                _rxBuf = "";          // 立刻放掉記憶體,不要抱著壞掉的半行
+            } else {
+                _rxBuf += c;
+            }
         }
     }
 }
@@ -74,5 +87,6 @@ void EdgeLinkTCP::_reconnectIfNeeded() {
     if (now - _lastAttempt < _reconnectMs) return;
     _lastAttempt = now;
     _rxBuf = "";
+    _rxOverflow = false;
     _client.connect(_host, _port);
 }
