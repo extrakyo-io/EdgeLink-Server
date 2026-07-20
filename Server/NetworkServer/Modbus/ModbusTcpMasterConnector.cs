@@ -164,9 +164,10 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
         if (!string.IsNullOrWhiteSpace(pd.RemotePortDetails?.Port))
             int.TryParse(pd.RemotePortDetails.Port, out port);
 
+        ModbusTcpClient? c = null;
         try
         {
-            var c = new ModbusTcpClient
+            c = new ModbusTcpClient
             {
                 ReadTimeout = cfg.ReadTimeoutMs,
                 WriteTimeout = cfg.ReadTimeoutMs,
@@ -181,6 +182,11 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
         }
         catch (Exception ex)
         {
+            // 連線失敗時 data.client 仍是 null(指派在 Connect 之後),ResetConnection
+            // 清不到這個區域變數 —— 先前每次失敗都洩漏一個 socket,而 slave 不可達時
+            // 重試迴圈每 0.5~5 秒就跑一次,累積速度可觀。
+            try { c?.Dispose(); } catch { }
+
             data.ConsecutiveFailures++;
             if (data.ConsecutiveFailures == 1 || data.ConsecutiveFailures % 10 == 0)
                 LogHelper.LogToConsole($"{Tag(pd)} 連線失敗 ({data.ConsecutiveFailures}): {ex.Message}", isError: true);

@@ -107,6 +107,7 @@ public class TCPServerConnector : NetworkConnectorBase
         {
             serverData.CancellationTokenSource?.Cancel();
             serverData.tcpListener?.Stop();
+            serverData.CloseAllClients();   // 讓卡在 ReadAsync 的接收迴圈能在下面的等待期間結束
             portData.IsConnected = false;
 
             await Task.Delay(300);
@@ -178,6 +179,11 @@ public class TCPServerConnector : NetworkConnectorBase
         {
             serverData.CancellationTokenSource?.Cancel();
             serverData.tcpListener?.Stop();
+
+            // 取消 CTS 叫不醒卡在 ReadAsync 的接收迴圈(token 只在操作開始前被檢查),
+            // 必須主動關閉已接受的 socket,否則裝置端會留下半開連線、也收不到 FIN。
+            serverData.CloseAllClients();
+
             serverData.CancellationTokenSource?.Dispose();
             serverData.tcpListener = null!;
             serverData.CancellationTokenSource = null!;
@@ -522,7 +528,12 @@ public class TCPServerConnector : NetworkConnectorBase
         LogHelper.LogToConsole($"[TCPServer] Shutting down {_tcpServers.Count} TCP servers");
         foreach (var server in _tcpServers.Values)
         {
-            try { server.CancellationTokenSource?.Cancel(); server.tcpListener?.Stop(); }
+            try
+            {
+                server.CancellationTokenSource?.Cancel();
+                server.tcpListener?.Stop();
+                server.CloseAllClients();   // 在下面的 300ms 等待「之前」關,接收迴圈才來得及收尾
+            }
             catch (Exception ex) { LogHelper.LogToConsole($"[TCPServer] Error stopping listener: {ex.Message}"); }
         }
         await Task.Delay(300);
