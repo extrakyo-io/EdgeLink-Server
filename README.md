@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.2.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.2.0)
+[![Version](https://img.shields.io/badge/Version-2.3.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.3.0)
 
 輕量級 .NET 8 伺服器：透過 TCP/UDP 橋接 IoT 裝置，以自訂 Mask 定義轉換協定資料，並提供瀏覽器端管理介面。
 
@@ -22,7 +22,7 @@
 | **多協定** | TCP Server、TCP Client、UDP、**Modbus TCP Master** — 每個 port 獨立設定 |
 | **Modbus 輪詢** | 內建 FluentModbus master — 以可設定的間隔輪詢 ICP DAS / 一般 Modbus slave，結果以原生 EdgeLink 訊息進入路由管線 |
 | **訊息路由** | 透過 `SourceProtocolId` 自動橋接各 port |
-| **Mask 系統** | 針對 IoT 韌體輸出的自訂協定解析與轉換規則 |
+| **Mask 系統** | 自訂協定解析與轉換規則；並支援**二進位版面解碼**（UDP 逐包／TCP 串流分包）轉成 KV |
 | **即時監控** | 每個 port 的 SSE 串流日誌，支援關鍵字搜尋 |
 | **Web 管理介面** | 瀏覽器端管理 — 卡片式 port 檢視，免前端建置 |
 | **裝置識別** | TCP Server 與 UDP 上逐連線的裝置 ID 追蹤，於 WebUI 與 SDK 中呈現 |
@@ -50,7 +50,7 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 
 ## 安裝
 
-1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.1.1-win-x64.zip`
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.3.0-win-x64.zip`
 2. 解壓縮 zip
 3. 執行 `EdgeLinkServer.exe`
 4. 開啟瀏覽器前往 `https://localhost:8443`
@@ -485,7 +485,8 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 | 類別 | 成員 | 說明 |
 |-------|--------|------|
 | `EdgeLinkClient` | `ConnectAsync()` | 連線並在背景啟動讀取迴圈 |
-| | `SendAsync(msg)` | 送出訊息 |
+| | `SendAsync(msg)` | 送出訊息（文字，自動補換行） |
+| | `SendAsync(byte[] data)` | 送出**原始位元組**（給 binary mask 埠；不補換行、不做轉換） |
 | | `IsConnected` | 連線狀態 |
 | | `SetAutoReconnect(enable, delayMs)` | 斷線時自動重連（預設：啟用，5000 ms） |
 | | `OnMessage / OnConnected / OnDisconnected / OnError` | 事件 |
@@ -496,6 +497,9 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 | `EdgeLinkUdpClient` | `Start()` | 綁定本機埠並接收封包 |
 | | `OnMessage / OnError` | 事件 |
 | `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | 送出 UDP 封包 |
+| `EdgeLinkSourceClient` | `Start()` | **來源端**：連上 EdgeLink，背景自動回應 `EDGELINK_PONG` 心跳並斷線自動重連 |
+| | `SendLineAsync(kv)` | 送一行 KV 文字（自動補換行） |
+| | `SendRawAsync(bytes)` | 送原始位元組（給 binary mask 埠） |
 
 ---
 
@@ -640,7 +644,7 @@ EdgeLink-Server/
 | v2.2.0 | **通用二進位解析 Mask**（`BinarySpec`：offset / 型別 u8–f64 / bit / bitrange / const、little/big-endian、discriminator 分派、長度驗證）— 將固定版面的二進位 UDP 解碼為 KV；WebUI 二進位版面編輯器 + hex 解碼預覽；`POST /api/masks/preview-binary`。Monitor SSE 前端節流（高頻率 port 不再卡住瀏覽器） |
 | v2.1.3 | Unity SDK：連線資源清理 — 避免 socket / CTS 洩漏 |
 | v2.1.2 | Unity SDK：新增 `EdgeLinkBridge.cs.meta`；套件版本更新 |
-| v2.3.0 | **Binary Mask** — 把原始二進位協定解成 KV（`BinarySpec`：discriminator + variants + 具型別欄位）；**TCP 二進位分包** 用 `binary.sync`（二進位埠不走 PING/PONG，改用 TCP keep-alive）；設定匯出/匯入現在會帶 `binary`；Unity/CSharp `EdgeLinkClient` 新增 `SendAsync(byte[])` 可送原始位元組；新增 `EdgeLinkSourceClient`（非 Unity .NET 來源端，自動 PONG）；`docs/RigBinary.mask.json` 參考 spec |
+| v2.3.0 | **二進位 Mask 延伸到 TCP**（v2.2.0 僅支援 UDP）— 新增 `BinaryStreamFramer` 串流分包（`binary.sync` magic 對齊 + discriminator 查長度 + 殘缺等待 + 雜訊重新同步）；TCP Server 埠依該埠 Mask 自動分流二進位／文字，二進位埠不送 app 層 PING、改用 TCP keep-alive。修正設定匯出/匯入遺漏 `binary` 欄位的 bug（備份還原後二進位 mask 會失效）。Unity/CSharp `EdgeLinkClient` 新增 `SendAsync(byte[])`；新增 `EdgeLinkSourceClient`（非 Unity .NET 來源端 SDK，自動回 PONG、自動重連）；`docs/RigBinary.mask.json` 參考 spec |
 | v2.1.1 | Unity SDK：抽出 `EdgeLinkBridge` POCO，以建構子注入 URL/Host/Port（MonoBehaviour `EdgeLinkManager` 仍作為輕薄包裝）；README 補上 Modbus + POCO 文件 |
 | v2.1.0 | **Modbus TCP Master** port 類型（FluentModbus，FC 01/02/03/04，scale/offset）；WebUI 卡片式版面翻新；4× fire-and-forget 任務抑制；UDP port 清單輪詢保留使用者選取 |
 | v2.0.1 | Unity SDK：`OnDeviceStatus` 新增裝置 ID 參數；Arduino AsyncUDP 範例；Mono 上 HttpClientHandler 憑證回退至 `ServicePointManager` |
