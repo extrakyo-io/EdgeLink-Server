@@ -52,6 +52,36 @@ public class TCPServerData : DisposableBase
     public void IncrementRecvCount()          => Interlocked.Increment(ref recvCount);
     public void IncrementSendCount()          => Interlocked.Increment(ref sendCount);
 
+    /// <summary>
+    /// 主動關閉所有「已接受」的 client 連線。
+    ///
+    /// 先前 Disconnect / RemovePort / ShutdownAsync / Dispose 都只取消 CTS 並停掉
+    /// listener,完全沒碰 ClientStreams。問題是 CancellationToken **無法中止已經在進行中**
+    /// 的 socket 讀取(.NET 只在操作開始前檢查 token),所以舊的接收迴圈會一直卡在
+    /// ReadAsync,對端也收不到 FIN。
+    ///
+    /// 實際後果:改一次 mask 就會讓裝置的舊連線變成半開 —— 它下次送出的資料會被寫進
+    /// 已無消費者的舊佇列(靜默遺失),而它自己完全不知道該重連。
+    /// </summary>
+    public void CloseAllClients()
+    {
+        foreach (var kv in ClientStreams)
+        {
+            try { kv.Value.Close(); }   catch { }
+            try { kv.Value.Dispose(); } catch { }
+        }
+        ClientStreams.Clear();
+
+        foreach (var kv in ClientWriteLocks)
+        {
+            try { kv.Value.Dispose(); } catch { }
+        }
+        ClientWriteLocks.Clear();
+
+        ConnectedClients.Clear();
+        ClientDeviceIds.Clear();
+    }
+
     protected override void DisposeManagedResources()
     {
         if (CancellationTokenSource != null)
@@ -64,5 +94,8 @@ public class TCPServerData : DisposableBase
 
         tcpListener?.Stop();
         tcpListener = null!;
+
+        // 取消 CTS 叫不醒卡在 ReadAsync 的接收迴圈,必須主動關閉 socket
+        CloseAllClients();
     }
 }
