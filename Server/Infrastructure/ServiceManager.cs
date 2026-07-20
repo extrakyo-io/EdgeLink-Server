@@ -20,8 +20,10 @@ public static class ServiceManager
         var exePath = Environment.ProcessPath
             ?? Process.GetCurrentProcess().MainModule!.FileName;
 
-        string binPath = $"\"{exePath}\" --port {config.HttpPort}" +
-            (config.HttpsEnabled ? $" --https --https-port {config.HttpsPort}" : "");
+        // 先前這裡串的是 --https,但 AppConfig 根本沒有這個旗標(它認的是 --no-https),
+        // 所以 --install --no-https 安裝出來的服務反而會把 HTTPS 打開、且沒有繫結憑證。
+        // HTTPS 已整個移除,binPath 只留 --port。
+        string binPath = $"\"{exePath}\" --port {config.HttpPort}";
 
         // Stop + delete existing service first (idempotent install)
         Sc($"stop {Name}");
@@ -36,16 +38,10 @@ public static class ServiceManager
         // Delete then re-register URL ACLs (avoid conflicts from previous installs)
         RunNetsh($"http delete urlacl url=http://+:{config.HttpPort}/");
         RunNetsh($"http add urlacl url=http://+:{config.HttpPort}/ user=Everyone");
-        if (config.HttpsEnabled)
-        {
-            RunNetsh($"http delete urlacl url=https://+:{config.HttpsPort}/");
-            RunNetsh($"http add urlacl url=https://+:{config.HttpsPort}/ user=Everyone");
 
-            // Cert setup MUST happen here (interactive admin session) — not from the service
-            Console.WriteLine("[Install] Setting up HTTPS certificate...");
-            var cert = CertificateHelper.GetOrCreate();
-            CertificateHelper.EnsureHttpsBound(cert, config.HttpsPort);
-        }
+        // 從舊版升級上來的機器,Trusted Root 裡還留著那張私鑰密碼公開的憑證。
+        // 光是不再產生新憑證並不會讓既有的風險消失,所以安裝時一併清掉。
+        LegacyHttpsCleanup.Run();
 
         Console.WriteLine($"[Install] Service '{Name}' installed. Run: sc start {Name}");
     }
@@ -59,6 +55,7 @@ public static class ServiceManager
         }
         Sc($"stop {Name}");
         Sc($"delete {Name}");
+        LegacyHttpsCleanup.Run();
         Console.WriteLine($"[Uninstall] Service '{Name}' removed.");
     }
 

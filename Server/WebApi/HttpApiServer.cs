@@ -30,12 +30,6 @@ public class HttpApiServer
 
         var prefixes = new List<string> { $"http://+:{config.HttpPort}/" };
 
-        if (config.HttpsEnabled)
-        {
-            // sslcert binding must already be registered via --install --https
-            prefixes.Add($"https://+:{config.HttpsPort}/");
-        }
-
         var listener = TryCreate(prefixes);
         if (listener != null) return listener;
 
