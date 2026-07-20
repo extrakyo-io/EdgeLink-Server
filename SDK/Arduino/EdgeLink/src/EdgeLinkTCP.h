@@ -30,7 +30,10 @@ private:
     Client&         _client;
     const char*     _host           = nullptr;
     uint16_t        _port           = 0;
+    /// 單行最大長度。EdgeLink 的 KV 訊息遠小於此;超過代表對端沒送換行或協定對不上。
+    static const uint16_t kMaxLineLen = 512;
     String          _rxBuf;
+    bool            _rxOverflow     = false;
     MessageCallback _onMsg          = nullptr;
     bool            _autoReconnect  = true;
     uint32_t        _reconnectMs    = 5000;
