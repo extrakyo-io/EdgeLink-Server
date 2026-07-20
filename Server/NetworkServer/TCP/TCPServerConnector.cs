@@ -379,7 +379,21 @@ public class TCPServerConnector : NetworkConnectorBase
             byte[]? packet;
             while ((packet = framer.Next()) != null)
             {
-                string? kv = BinaryMaskDecoder.Decode(packet, spec);
+                string? kv;
+                try
+                {
+                    kv = BinaryMaskDecoder.Decode(packet, spec);
+                }
+                catch (Exception ex)
+                {
+                    // 設定錯誤(離譜的 offset、整數型別用了 "X2" 之類的格式字串)不該讓整個
+                    // 接收迴圈結束 —— 否則該埠會從此不再收資料且不會自我恢復。只丟這一包。
+                    LogHelper.LogToConsole(
+                        $"{LogHelper.Tag("TCP Server", serverData.portData)} 二進位解碼失敗(已丟棄該封包,請檢查 Mask 設定): {ex.Message}",
+                        isError: true);
+                    continue;
+                }
+
                 if (string.IsNullOrEmpty(kv)) continue;   // 未知 variant / 長度不符 / template 缺欄位 → 丟棄
                 metrics.RecordMessage();
                 serverData.asyncMessageQueue.Enqueue((Encoding.UTF8.GetBytes(kv), kv, sourceEndpoint!, clientKey));

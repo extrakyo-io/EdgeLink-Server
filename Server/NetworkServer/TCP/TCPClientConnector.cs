@@ -102,7 +102,18 @@ public class TCPClientConnector : NetworkConnectorBase
         {
             LogHelper.LogToConsole($"{LogHelper.Tag("TCP Client", portData)} Restarting");
             await Disconnect(portData);
-            await ConnectWithRetryAsync(clientData, isFirstConnect: true);
+
+            // 不能 await:isFirstConnect 會採用 MaxRetryFirst(預設 -1),而 ShouldStopRetry 在
+            // maxRetry < 0 時永遠回 false;ResetClientConnection 又會裝上全新未取消的 CTS,
+            // 所以對離線裝置而言這是個無限迴圈 —— await 它會讓呼叫端(POST /api/ports/{id}/mask
+            // 的 HTTP 請求)永遠不返回。改為 fire-and-forget,與 AddPort 的既有寫法一致。
+            _ = ConnectWithRetryAsync(clientData, isFirstConnect: true).ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    LogHelper.LogToConsole(
+                        $"{LogHelper.Tag("TCP Client", portData)} Reconnect after restart failed: {t.Exception?.GetBaseException().Message}",
+                        isError: true);
+            }, TaskContinuationOptions.ExecuteSynchronously);
         }
     }
 

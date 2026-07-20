@@ -45,20 +45,47 @@ public static class BinaryMaskDecoder
         string t = f.type.ToLowerInvariant();
         if (t == "const") return f.value;
 
+        // bit:bit 索引可以 >= 8,會自動往後推位元組(offset+bit/8 的第 bit%8 位)。
+        // 先前直接 d[offset] >> f.bit,而 C# 對 int 的位移量取模 32,導致
+        // bit=12(16 位元狀態字的自然寫法)永遠回 0、bit=32 竟回報 bit 0 的值。
         if (t == "bit")
         {
-            if (f.offset < 0 || f.offset >= d.Length) return null;
-            return ((d[f.offset] >> f.bit) & 1) != 0 ? "1" : "0";
+            if (f.offset < 0 || f.bit < 0) return null;
+            long byteIdx = (long)f.offset + f.bit / 8;          // long:避免超大 offset 溢位
+            if (byteIdx >= d.Length) return null;
+            return ((d[(int)byteIdx] >> (f.bit % 8)) & 1) != 0 ? "1" : "0";
         }
+
+        // bitrange:支援跨位元組。先前 count 被 clamp 到 1..8 且只讀單一位元組,
+        // 任何 bit+count > 8 的欄位(例如 12 位元 ADC)都會被靜默截斷成錯誤的值。
         if (t == "bitrange")
         {
-            if (f.offset < 0 || f.offset >= d.Length) return null;
-            int mask = (1 << Math.Clamp(f.count, 1, 8)) - 1;
-            int val = (d[f.offset] >> f.bit) & mask;
+            int count = f.count;
+            if (f.offset < 0 || f.bit < 0 || count < 1 || count > 32) return null;
+            int need = (f.bit + count + 7) / 8;
+            if ((long)f.offset + need > d.Length) return null;  // long:避免超大 offset 溢位
+
+            uint val = 0;
+            for (int i = 0; i < count; i++)
+            {
+                int abs = f.bit + i;
+                int one = (d[f.offset + abs / 8] >> (abs % 8)) & 1;
+                val |= (uint)one << i;
+            }
             return val.ToString(CultureInfo.InvariantCulture);
         }
 
-        // 數值型
+        // 整數型別在沒有 scale/add/自訂格式時走「精確整數」路徑,不經 double。
+        // 先前所有數值都轉成 double:u64/i64 超過 2^53 無法精確表示,而自訂數值格式
+        // 在 double 上又只保留 15 位有效數字 —— 裝置序號、計數器、ns 時間戳會被靜默算錯
+        // (例如 1000000000000001 輸出成 1000000000000000)。
+        if (f.scale == 1.0 && f.add == 0.0 && string.IsNullOrEmpty(f.format))
+        {
+            string? exact = ReadIntegerExact(d, f.offset, t, big);
+            if (exact != null) return exact;
+        }
+
+        // 浮點 / 有 scale/offset / 有自訂格式 → 走 double
         double? raw = ReadNumber(d, f.offset, t, big);
         if (raw == null) return null;
         double outv = raw.Value * f.scale + f.add;
@@ -66,6 +93,33 @@ public static class BinaryMaskDecoder
         bool isFloat = t is "f32" or "f64" || f.scale != 1.0 || f.add != 0.0;
         string fmt = string.IsNullOrEmpty(f.format) ? (isFloat ? "0.######" : "0") : f.format;
         return outv.ToString(fmt, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>整數型別的精確讀取(不經 double)。非整數型別或越界時回 null,
+    /// 呼叫端會落回 double 路徑,行為與先前相容。</summary>
+    private static string? ReadIntegerExact(ReadOnlySpan<byte> d, int off, string t, bool big)
+    {
+        if (off < 0) return null;
+        var ci = CultureInfo.InvariantCulture;
+
+        switch (t)
+        {
+            case "u8":  return off <= d.Length - 1 ? d[off].ToString(ci) : null;
+            case "i8":  return off <= d.Length - 1 ? ((sbyte)d[off]).ToString(ci) : null;
+            case "u16": return off <= d.Length - 2
+                ? (big ? BinaryPrimitives.ReadUInt16BigEndian(d.Slice(off, 2)) : BinaryPrimitives.ReadUInt16LittleEndian(d.Slice(off, 2))).ToString(ci) : null;
+            case "i16": return off <= d.Length - 2
+                ? (big ? BinaryPrimitives.ReadInt16BigEndian(d.Slice(off, 2)) : BinaryPrimitives.ReadInt16LittleEndian(d.Slice(off, 2))).ToString(ci) : null;
+            case "u32": return off <= d.Length - 4
+                ? (big ? BinaryPrimitives.ReadUInt32BigEndian(d.Slice(off, 4)) : BinaryPrimitives.ReadUInt32LittleEndian(d.Slice(off, 4))).ToString(ci) : null;
+            case "i32": return off <= d.Length - 4
+                ? (big ? BinaryPrimitives.ReadInt32BigEndian(d.Slice(off, 4)) : BinaryPrimitives.ReadInt32LittleEndian(d.Slice(off, 4))).ToString(ci) : null;
+            case "u64": return off <= d.Length - 8
+                ? (big ? BinaryPrimitives.ReadUInt64BigEndian(d.Slice(off, 8)) : BinaryPrimitives.ReadUInt64LittleEndian(d.Slice(off, 8))).ToString(ci) : null;
+            case "i64": return off <= d.Length - 8
+                ? (big ? BinaryPrimitives.ReadInt64BigEndian(d.Slice(off, 8)) : BinaryPrimitives.ReadInt64LittleEndian(d.Slice(off, 8))).ToString(ci) : null;
+            default:    return null;   // f32 / f64 / 未知型別
+        }
     }
 
     private static long? ReadInt(ReadOnlySpan<byte> d, int off, string type, bool big)
@@ -84,7 +138,7 @@ public static class BinaryMaskDecoder
             "u64" or "i64" or "f64" => 8,
             _ => 0
         };
-        if (size == 0 || off < 0 || off + size > d.Length) return null;
+        if (size == 0 || off < 0 || off > d.Length - size) return null;
         var s = d.Slice(off, size);
 
         switch (t)
