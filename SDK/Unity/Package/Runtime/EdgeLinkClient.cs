@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -29,6 +30,11 @@ namespace EdgeLink
         /// 同時呼叫端可能正在送資料;NetworkStream 不允許併發寫入,一旦交錯會同時毀掉
         /// PONG 的 token(伺服器連續 3 次收不到就主動斷線)與使用者的訊息。</summary>
         private readonly SemaphoreSlim writeLock = new SemaphoreSlim(1, 1);
+        /// <summary>有狀態的 UTF-8 解碼器:保留跨 TCP 讀取邊界的不完整位元組序列。
+        /// 每個 chunk 各自 GetString 會把被切開的多位元組字元變成 U+FFFD。</summary>
+        private readonly Decoder utf8Decoder = Encoding.UTF8.GetDecoder();
+        /// <summary>行緩衝上限。對端若一直不送換行,緩衝會無限成長。</summary>
+        private const int MaxLineBufferChars = 64 * 1024;
         private bool disposed;
         private bool autoReconnect    = true;
         private int  reconnectDelayMs = 5000;
@@ -96,7 +102,23 @@ namespace EdgeLink
                         continue;
                     }
 
-                    lineBuf.Append(Encoding.UTF8.GetString(buf, 0, read));
+                    // 有狀態的 Decoder 會保留跨 chunk 的不完整位元組序列。
+                    // 先前是每個 chunk 各自 GetString,多位元組字元一旦被 TCP 切開,
+                    // 前半會變成 U+FFFD、後半的接續位元組又變成更多 U+FFFD。
+                    int charCount = utf8Decoder.GetCharCount(buf, 0, read);
+                    if (charCount > 0)
+                    {
+                        var chars = new char[charCount];
+                        utf8Decoder.GetChars(buf, 0, read, chars, 0);
+                        lineBuf.Append(chars, 0, charCount);
+                    }
+
+                    if (lineBuf.Length > MaxLineBufferChars)
+                    {
+                        OnError?.Invoke(new InvalidDataException(
+                            $"Line buffer exceeded {MaxLineBufferChars} chars without a newline — discarding."));
+                        lineBuf.Clear();
+                    }
 
                     int idx;
                     while ((idx = FindNewline(lineBuf)) >= 0)
@@ -151,6 +173,7 @@ namespace EdgeLink
             if (line.StartsWith("EDGELINK_", StringComparison.Ordinal)) return;
 
             queue.Enqueue(line);
+            OnMessage?.Invoke(line);   // 先前宣告了事件卻從不觸發,C# 版則有
         }
 
         public async Task SendAsync(string message)

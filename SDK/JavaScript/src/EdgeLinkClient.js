@@ -1,6 +1,7 @@
 "use strict";
 
 const net      = require("net");
+const { StringDecoder } = require("string_decoder");
 const EventEmitter = require("events");
 
 /**
@@ -25,6 +26,7 @@ class EdgeLinkClient extends EventEmitter {
         this._reconnectDelay   = 5000;
         this._socket           = null;
         this._lineBuf          = "";
+        this._decoder          = new StringDecoder("utf8");
         this._reconnectTimer   = null;
         this._destroyed        = false;
     }
@@ -65,6 +67,7 @@ class EdgeLinkClient extends EventEmitter {
 
     _connectCore() {
         this._lineBuf = "";
+        this._decoder = new StringDecoder("utf8");   // 重連:丟棄殘留的半個字元
         const socket  = new net.Socket();
         this._socket  = socket;
 
@@ -74,7 +77,9 @@ class EdgeLinkClient extends EventEmitter {
         });
 
         socket.on("data", (chunk) => {
-            this._lineBuf += chunk.toString("utf8");
+            // StringDecoder 會保留跨 chunk 的不完整 UTF-8 序列;
+            // chunk.toString("utf8") 是每段各自解碼,多位元組字元被切開就變成 U+FFFD
+            this._lineBuf += this._decoder.write(chunk);
             let idx;
             while ((idx = this._lineBuf.indexOf("\n")) !== -1) {
                 const line = this._lineBuf.slice(0, idx).trim();

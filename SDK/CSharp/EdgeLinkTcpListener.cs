@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -24,6 +25,11 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
+        /// <summary>有狀態的 UTF-8 解碼器:保留跨 TCP 讀取邊界的不完整位元組序列。
+        /// 每個 chunk 各自 GetString 會把被切開的多位元組字元變成 U+FFFD。</summary>
+        private readonly Decoder utf8Decoder = Encoding.UTF8.GetDecoder();
+        /// <summary>行緩衝上限。對端若一直不送換行,緩衝會無限成長。</summary>
+        private const int MaxLineBufferChars = 64 * 1024;
         private bool disposed;
 
         public EdgeLinkTcpListener(int localPort)
@@ -70,7 +76,23 @@ namespace EdgeLink
                     int read = await networkStream.ReadAsync(buf, 0, buf.Length, ct);
                     if (read == 0) break;
 
-                    lineBuf.Append(Encoding.UTF8.GetString(buf, 0, read));
+                    // 有狀態的 Decoder 會保留跨 chunk 的不完整位元組序列。
+                    // 先前是每個 chunk 各自 GetString,多位元組字元一旦被 TCP 切開,
+                    // 前半會變成 U+FFFD、後半的接續位元組又變成更多 U+FFFD。
+                    int charCount = utf8Decoder.GetCharCount(buf, 0, read);
+                    if (charCount > 0)
+                    {
+                        var chars = new char[charCount];
+                        utf8Decoder.GetChars(buf, 0, read, chars, 0);
+                        lineBuf.Append(chars, 0, charCount);
+                    }
+
+                    if (lineBuf.Length > MaxLineBufferChars)
+                    {
+                        OnError?.Invoke(new InvalidDataException(
+                            $"Line buffer exceeded {MaxLineBufferChars} chars without a newline — discarding."));
+                        lineBuf.Clear();
+                    }
 
                     int idx;
                     while ((idx = FindNewline(lineBuf)) >= 0)
