@@ -119,4 +119,111 @@ public class AuditFixTests
         var outp = BinaryMaskDecoder.Decode(new byte[8], spec);
         Assert.True(string.IsNullOrEmpty(outp));   // 欄位缺失 → template 丟棄整筆
     }
+
+    // ── #15 framer 與 decoder 的 discriminator 解讀必須一致 ──────────────────
+
+    /// <summary>framer 先前自己有一份 ReadInt,把 i8 當成無號:0xF0 得 240 而非 -16,
+    /// 於是 match=-16 的 variant 永遠對不上,整包被丟掉(decoder 本來解得出來)。</summary>
+    [Fact]
+    public void Framer_SignedDiscriminator_MatchesDecoder()
+    {
+        var spec = new BinarySpec
+        {
+            byteOrder = "little",
+            discriminator = new BinaryFieldRef { offset = 0, type = "i8" },
+            variants = new List<BinaryVariant> { new BinaryVariant { match = -16, length = 4 } }
+        };
+
+        var f = new BinaryStreamFramer(spec);
+        f.Append(new byte[] { 0xF0, 0x11, 0x22, 0x33 });
+
+        var pkt = f.Next();
+        Assert.NotNull(pkt);
+        Assert.Equal(4, pkt!.Length);
+        Assert.Equal(0xF0, pkt[0]);
+    }
+
+    /// <summary>沒有 sync 時遇到未知 discriminator,先前是 `_len = 0` 把整個緩衝丟掉,
+    /// 連排在後面「已經完整」的封包也一起賠掉。現在應只跳 1 個位元組重新對齊。</summary>
+    [Fact]
+    public void Framer_UnknownDiscriminatorWithoutSync_KeepsLaterCompletePacket()
+    {
+        var spec = new BinarySpec
+        {
+            byteOrder = "little",
+            discriminator = new BinaryFieldRef { offset = 0, type = "u8" },
+            variants = new List<BinaryVariant> { new BinaryVariant { match = 1, length = 4 } }
+        };
+
+        var f = new BinaryStreamFramer(spec);
+        // 前 4 個位元組是無法辨識的雜訊,後 4 個是完整的 match=1 封包
+        f.Append(new byte[] { 0x02, 0xAA, 0xBB, 0xCC, 0x01, 0x11, 0x22, 0x33 });
+
+        var pkt = f.Next();
+        Assert.NotNull(pkt);
+        Assert.Equal(new byte[] { 0x01, 0x11, 0x22, 0x33 }, pkt);
+    }
+
+    // ── #16 BinarySpec 在存檔當下就要驗證 ────────────────────────────────────
+
+    private static BinarySpec SpecWith(BinaryField field, int length = 8) => new BinarySpec
+    {
+        byteOrder = "little",
+        variants = new List<BinaryVariant>
+        {
+            new BinaryVariant { isDefault = true, length = length, template = "v:{v}",
+                                fields = new List<BinaryField> { field } }
+        }
+    };
+
+    [Fact]
+    public void Validate_GoodSpec_ReturnsNull()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 0, type = "u32", format = "0.###" });
+        Assert.Null(BinarySpecValidator.Validate(spec));
+    }
+
+    [Fact]
+    public void Validate_NullSpec_IsAllowed()   // 純文字 mask
+        => Assert.Null(BinarySpecValidator.Validate(null));
+
+    [Fact]
+    public void Validate_FieldPastPacketLength_IsRejected()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 6, type = "u32" }, length: 8);
+        Assert.Contains("超出封包長度", BinarySpecValidator.Validate(spec));
+    }
+
+    /// <summary>整數專用的格式字串在 double 上會拋 FormatException —— 想 dump 十六進位
+    /// 的人很自然會填 "X2",先前會存進去然後每包解碼都炸。</summary>
+    [Fact]
+    public void Validate_IntegerOnlyFormatString_IsRejected()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 0, type = "u32", format = "X2" });
+        Assert.Contains("format", BinarySpecValidator.Validate(spec));
+    }
+
+    [Fact]
+    public void Validate_UnknownType_IsRejected()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 0, type = "u24" });
+        Assert.Contains("不認得", BinarySpecValidator.Validate(spec));
+    }
+
+    [Fact]
+    public void Validate_BadByteOrder_IsRejected()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 0, type = "u8" });
+        spec.byteOrder = "middle";
+        Assert.Contains("byteOrder", BinarySpecValidator.Validate(spec));
+    }
+
+    /// <summary>有 sync(代表要走 TCP 分包)時,length=0 的 variant 永遠框不出封包。</summary>
+    [Fact]
+    public void Validate_ZeroLengthVariantWithSync_IsRejected()
+    {
+        var spec = SpecWith(new BinaryField { name = "v", offset = 0, type = "u8" }, length: 0);
+        spec.sync = "4f4b";
+        Assert.Contains("length", BinarySpecValidator.Validate(spec));
+    }
 }
