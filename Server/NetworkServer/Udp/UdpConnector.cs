@@ -245,12 +245,13 @@ public class UdpConnector : NetworkConnectorBase
             {
                 if (udpData.udpClient == null) break;
 
-                var receiveTask  = udpData.udpClient.ReceiveAsync();
-                var cancelTask   = Task.Delay(Timeout.Infinite, token);
-                var completed    = await Task.WhenAny(receiveTask, cancelTask);
-                if (completed == cancelTask) break;
-
-                var result        = receiveTask.Result;
+                // 先前是 ReceiveAsync() + Task.Delay(Timeout.Infinite, token) 再 WhenAny。
+                // Timeout.Infinite 不會建立 timer,該 delay promise 與它的
+                // CancellationTokenRegistration 只有在 token 被取消時才釋放 —— 也就是
+                // **每收一個封包就在 CTS 的註冊串列上永久留下一筆**。100 Hz 的裝置跑一
+                // 小時就是 36 萬個 gen2 可達物件,埠不重啟就一直長。
+                // 帶 token 的多載直接把取消交給 socket 層,不留任何註冊。
+                var result = await udpData.udpClient.ReceiveAsync(token);
                 int messageLength = result.Buffer.Length;
                 udpData.portData.COMReceived += messageLength;
 

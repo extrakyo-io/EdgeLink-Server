@@ -198,6 +198,15 @@ public class TCPServerConnector : NetworkConnectorBase
         }
     }
 
+    /// <summary>
+    /// 只有這幾種代表 listener socket 本身已經不能用了,其餘都是單一連線層級的問題。
+    /// </summary>
+    private static bool IsFatalAcceptError(SocketError e) => e is
+        SocketError.NotSocket or
+        SocketError.InvalidArgument or
+        SocketError.OperationAborted or
+        SocketError.Shutdown;
+
     private async Task AcceptClientsAsync(TCPServerData serverData)
     {
         var token = serverData.CancellationTokenSource.Token;
@@ -205,22 +214,34 @@ public class TCPServerConnector : NetworkConnectorBase
         {
             while (!token.IsCancellationRequested)
             {
-                var acceptTask = serverData.tcpListener.AcceptTcpClientAsync();
                 TcpClient client;
                 try
                 {
-                    var cancelTask = Task.Delay(Timeout.Infinite, token);
-                    var completed  = await Task.WhenAny(acceptTask, cancelTask);
-                    if (completed == cancelTask)
-                    {
-                        _ = acceptTask.ContinueWith(t => { _ = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-                        break;
-                    }
-                    client = acceptTask.Result;
+                    // 帶 token 的多載:取消交給 socket 層處理。先前是
+                    // Task.Delay(Timeout.Infinite, token) + WhenAny,每個 accept 都會在
+                    // CTS 註冊串列上留下一筆永不釋放的項目。
+                    client = await serverData.tcpListener.AcceptTcpClientAsync(token);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (ObjectDisposedException)    { break; }
-                catch (SocketException)            { break; }
+                catch (SocketException ex)
+                {
+                    // 先前這裡直接 break,而且因為是正常結束(不是 faulted),連一行 log
+                    // 都不會留 —— 該埠從此不再接受任何連線,listener 卻還 bound 著:
+                    // 裝置看到「連上了」,實際上永遠不會被處理。
+                    // ConnectionReset(對端在 accept 完成前送 RST)、Interrupted、
+                    // NoBufferSpaceAvailable 都是可回復的,單一連線的錯誤不該終結整個迴圈。
+                    if (IsFatalAcceptError(ex.SocketErrorCode))
+                    {
+                        LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} " +
+                            $"Accept 迴圈因無法回復的錯誤結束:{ex.SocketErrorCode}", isError: true);
+                        break;
+                    }
+                    LogHelper.LogToConsole($"{LogHelper.Tag("TCP Server", serverData.portData)} " +
+                        $"Accept 失敗(可回復,繼續接受連線):{ex.SocketErrorCode}", isError: true);
+                    try { await Task.Delay(50, token); } catch (OperationCanceledException) { break; }
+                    continue;
+                }
 
                 if (client != null)
                 {
