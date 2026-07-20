@@ -13,7 +13,7 @@ public class EdgeLinkManager : MonoBehaviour
     public enum Protocol { TCP, TCPListener, UDP }
 
     [Header("Server")]
-    public string   serverUrl = "https://192.168.1.100:8443";
+    public string   serverUrl = "http://192.168.1.100:8081";
     public string   password  = "";
     public string   maskId    = "OriginalData";
 
