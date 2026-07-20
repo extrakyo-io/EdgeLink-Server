@@ -170,10 +170,35 @@ python modbus_slave_sim.py
 
 同一個 TCP Server 埠可以收 **KV 文字或二進位**，依該埠的 mask 決定（binary mask → 二進位分包；其他 mask → 換行分隔 KV 文字 + PING/PONG）。
 
-### 範例 + C# 來源端 SDK
+### 設定範例
 
-- [`docs/RigBinary.mask.json`](docs/RigBinary.mask.json) — 完整、可匯入的 spec，把 3 種訊息型別（`OK` magic）的遙測協定解成 KV。經 **WebUI → Settings → Import** 匯入。
-- [`SDK/CSharp/EdgeLinkSourceClient.cs`](SDK/CSharp/EdgeLinkSourceClient.cs) — 給「裝置／來源端」把遙測**送進** EdgeLink（TCP）的 C# client。自動回應文字模式心跳（`SendLineAsync` 送 KV）；`SendRawAsync` 送原始位元組到二進位埠。
+走 TCP 時，`binary` 區塊的重點是多了 `sync`（其餘與 UDP 相同）：
+
+```json
+{
+  "byteOrder": "little",
+  "sync": "4f4b",
+  "discriminator": { "offset": 3, "type": "u8" },
+  "variants": [
+    {
+      "match": 1,
+      "length": 37,
+      "template": "id:{id};seq:{seq};x:{x}",
+      "fields": [
+        { "name": "id",  "offset": 0,  "type": "const", "value": "dev1" },
+        { "name": "seq", "offset": 5,  "type": "u32" },
+        { "name": "x",   "offset": 19, "type": "f32", "format": "0.###" }
+      ]
+    }
+  ]
+}
+```
+
+可在 **WebUI → Mask 編輯器**建立（附 hex 解碼預覽），或用 **Settings → Import** 匯入。
+
+### C# 來源端 SDK
+
+[`SDK/CSharp/EdgeLinkSourceClient.cs`](SDK/CSharp/EdgeLinkSourceClient.cs) — 給「裝置／來源端」把遙測**送進** EdgeLink（TCP）的 C# client。自動回應文字模式心跳（`SendLineAsync` 送 KV）；`SendRawAsync` 送原始位元組到二進位埠。
 
 ---
 
