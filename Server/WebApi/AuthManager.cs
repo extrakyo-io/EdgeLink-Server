@@ -39,20 +39,49 @@ public class AuthManager
                     _passwordHash = s.passwordHash;
                     return;
                 }
+                EnterDegradedMode("auth.json 內容無效(缺少 passwordHash)");
+                return;
             }
-            catch (Exception ex) { AppLogger.Warning($"[Auth] Failed to load settings: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                // 先前這裡會掉到下面的「首次執行」分支:密碼被重設為 admin 並**立刻覆寫
+                // 原檔**。改密碼當下斷電留下截斷的 JSON,或檔案被防毒暫時鎖住,都會讓
+                // Web UI 悄悄退回預設密碼可登入 —— 既是資料遺失也是安全降級。
+                // 檔案存在就代表使用者設過密碼,絕不能自動退回預設值。
+                EnterDegradedMode($"auth.json 載入失敗:{ex.Message}");
+                return;
+            }
         }
+
+        // 只有「檔案真的不存在」才是首次執行
         _passwordHash = HashPassword("admin");
         SaveSettings();
         AppLogger.Log("[Auth] First run — default password: admin");
     }
 
+    /// <summary>
+    /// auth.json 存在但讀不出來時進入的狀態:不覆寫該檔、也不接受任何登入。
+    ///
+    /// 退回預設密碼會讓任何人用 admin 登入(安全降級);沿用空雜湊則會讓
+    /// VerifyPassword 的行為取決於實作細節。兩者都比「明確拒絕並要求人工處理」差。
+    /// 排除問題(還原檔案或修正權限)後重啟服務即可恢復。
+    /// </summary>
+    private void EnterDegradedMode(string reason)
+    {
+        IsDegraded    = true;
+        _passwordHash = "";
+        AppLogger.Error($"[Auth] {reason} —— 已停用登入且不覆寫 auth.json。" +
+                        "請還原該檔或修正檔案權限後重啟服務。");
+    }
+
+    /// <summary>auth.json 無法載入,登入一律拒絕(見 <see cref="EnterDegradedMode"/>)。</summary>
+    public bool IsDegraded { get; private set; }
+
     private void SaveSettings()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_settingsPath)!);
-            File.WriteAllText(_settingsPath, Json.ToJson(new AuthSettings { passwordHash = _passwordHash }));
+            AtomicFile.WriteAllText(_settingsPath, Json.ToJson(new AuthSettings { passwordHash = _passwordHash }));
         }
         catch (Exception ex) { AppLogger.Warning($"[Auth] Failed to save settings: {ex.Message}"); }
     }
@@ -68,6 +97,7 @@ public class AuthManager
 
     public bool ValidatePassword(string password)
     {
+        if (IsDegraded) return false;
         if (string.IsNullOrEmpty(password)) return false;
         if (!VerifyPassword(password, _passwordHash)) return false;
 
@@ -126,8 +156,14 @@ public class AuthManager
         catch (Exception ex) { AppLogger.Warning($"[Auth] Failed to load sessions: {ex.Message}"); }
     }
 
+    /// <summary>序列化 sessions.json 的寫入。併發登入會同時觸發 SaveSessions,
+    /// 同一路徑的並行寫入會互相撞成 sharing violation 並被吞掉 —— session 只留在
+    /// 記憶體,重啟後全部掉線。</summary>
+    private readonly object _sessionsFileLock = new();
+
     private void SaveSessions()
     {
+        lock (_sessionsFileLock)
         try
         {
             var now  = DateTime.UtcNow;
@@ -139,7 +175,7 @@ public class AuthManager
                     exp = new DateTimeOffset(kv.Value).ToUnixTimeSeconds()
                 })
                 .ToList();
-            File.WriteAllText(_sessionsPath, Json.ToJson(list));
+            AtomicFile.WriteAllText(_sessionsPath, Json.ToJson(list));
         }
         catch (Exception ex) { AppLogger.Warning($"[Auth] Failed to save sessions: {ex.Message}"); }
     }

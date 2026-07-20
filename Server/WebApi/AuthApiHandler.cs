@@ -19,6 +19,15 @@ public class AuthApiHandler
             return;
         }
 
+        // auth.json 讀不出來時不接受任何登入。回 401「密碼錯誤」會讓管理者一直重試
+        // 一個其實正確的密碼,完全查不到真正原因。
+        if (AuthManager.Instance.IsDegraded)
+        {
+            HttpApiServer.WriteJson(ctx, 503,
+                "{\"success\":false,\"error\":\"Auth store unavailable — see server log; restore Data/auth.json and restart\"}");
+            return;
+        }
+
         try
         {
             string? body = await HttpApiServer.ReadBodyAsync(ctx);
