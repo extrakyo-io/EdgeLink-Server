@@ -633,7 +633,7 @@ td code { font-size: .8rem; }
         <span>使用說明書</span>
       </div>
     </div>
-    <span class="sidebar-version">v1.0 · .NET 8</span>
+    <span class="sidebar-version">v2.3.0 · .NET 8</span>
   </div>
   <nav>
     <div class="nav-group-title">入門</div>
@@ -645,22 +645,24 @@ td code { font-size: .8rem; }
     <a href="#ports"><span class="nav-num">05</span>Port 管理</a>
     <a href="#keepalive"><span class="nav-num">06</span>PING/PONG 心跳</a>
     <a href="#mask"><span class="nav-num">07</span>Mask 系統</a>
-    <a href="#routing"><span class="nav-num">08</span>訊息路由</a>
-    <a href="#reqmode"><span class="nav-num">09</span>請求模式</a>
+    <a href="#binary-mask"><span class="nav-num">08</span>Binary Mask</a>
+    <a href="#modbus"><span class="nav-num">09</span>Modbus TCP Master</a>
+    <a href="#routing"><span class="nav-num">10</span>訊息路由</a>
+    <a href="#reqmode"><span class="nav-num">11</span>請求模式</a>
     <div class="nav-group-title">進階</div>
-    <a href="#monitor"><span class="nav-num">10</span>即時監控</a>
-    <a href="#settings"><span class="nav-num">11</span>設定匯出／匯入</a>
-    <a href="#cli"><span class="nav-num">12</span>CLI 選項</a>
-    <a href="#api"><span class="nav-num">13</span>API 參考</a>
+    <a href="#monitor"><span class="nav-num">12</span>即時監控</a>
+    <a href="#settings"><span class="nav-num">13</span>設定匯出／匯入</a>
+    <a href="#cli"><span class="nav-num">14</span>CLI 選項</a>
+    <a href="#api"><span class="nav-num">15</span>API 參考</a>
     <div class="nav-group-title">SDK</div>
-    <a href="#unity-sdk"><span class="nav-num">14</span>Unity SDK</a>
-    <a href="#arduino-sdk"><span class="nav-num">15</span>Arduino SDK</a>
-    <a href="#csharp-sdk"><span class="nav-num">16</span>C# SDK</a>
-    <a href="#python-sdk"><span class="nav-num">17</span>Python SDK</a>
-    <a href="#js-sdk"><span class="nav-num">18</span>JavaScript SDK</a>
+    <a href="#unity-sdk"><span class="nav-num">16</span>Unity SDK</a>
+    <a href="#arduino-sdk"><span class="nav-num">17</span>Arduino SDK</a>
+    <a href="#csharp-sdk"><span class="nav-num">18</span>C# SDK</a>
+    <a href="#python-sdk"><span class="nav-num">19</span>Python SDK</a>
+    <a href="#js-sdk"><span class="nav-num">20</span>JavaScript SDK</a>
     <div class="nav-group-title">參考</div>
-    <a href="#examples"><span class="nav-num">19</span>常見情境</a>
-    <a href="#troubleshoot"><span class="nav-num">20</span>疑難排解</a>
+    <a href="#examples"><span class="nav-num">21</span>常見情境</a>
+    <a href="#troubleshoot"><span class="nav-num">22</span>疑難排解</a>
   </nav>
 </aside>
 
@@ -674,7 +676,7 @@ td code { font-size: .8rem; }
   <div class="badges">
     <span class="badge badge-blue">.NET 8 自含式</span>
     <span class="badge badge-gray">Windows 10/11 x64</span>
-    <span class="badge badge-green">v1.0</span>
+    <span class="badge badge-green">v2.3.0</span>
     <span class="badge badge-gray">MIT</span>
   </div>
 </div>
@@ -886,6 +888,13 @@ EdgeLinkServer.exe --port 9090 --https-port 9443</code></pre>
   </div>
 </div>
 
+<div class="callout info">
+  <div class="callout-body">
+    <strong>例外：二進位埠不走心跳</strong>
+    若該埠套用的是 <a href="#binary-mask">Binary Mask</a>，EdgeLink <strong>不會</strong>發送 <code>EDGELINK_PING</code>（避免文字混進二進位串流），來源端也<strong>不需要</strong>回 PONG。斷線改由 TCP keep-alive（閒置 10 秒、每秒探測）偵測。使用官方 SDK 則兩種情況都已自動處理。
+  </div>
+</div>
+
 <div class="info-row">
   <div class="info-card">
     <div class="ic-label">首次心跳</div>
@@ -938,6 +947,13 @@ sock = socket.socket()
 sock.connect((<span class="str">"127.0.0.1"</span>, <span class="num">9001</span>))
 threading.Thread(target=receive_loop, args=(sock,), daemon=<span class="kw">True</span>).start()
 sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
+</div>
+
+<div class="callout warn">
+  <div class="callout-body">
+    <strong>常見陷阱：socket 逾時會造成「假斷線」</strong>
+    上例刻意用 <code>socket.socket()</code> 讓 <code>recv</code> 保持阻塞。若改用 <code>socket.create_connection(addr, timeout=5)</code>，那個逾時<strong>連線後仍會留在 socket 上</strong>；由於心跳每 5 秒才來一次，<code>recv</code> 會在兩次 PING 之間丟出 <code>socket.timeout</code>，若被誤當成斷線就會每 5～15 秒重連一次。連線後請補上 <code>sock.settimeout(None)</code>。
+  </div>
 </div>
 
 <!-- ─────────────────────────────────────────── -->
@@ -1035,7 +1051,172 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 </table></div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="routing"><span class="section-num">08</span>訊息路由</h2>
+<h2 id="binary-mask"><span class="section-num">08</span>Binary Mask（二進位解碼）</h2>
+
+<p>一般 Mask 處理的是文字（<code>key:value</code>）。若設備送的是<strong>原始二進位協定</strong>，可改用 <strong>Binary Mask</strong>：EdgeLink 直接依位元組版面解碼，轉成 KV 文字再轉發 —— 下游（Unity／儀表板）收到的是純文字，完全看不到二進位。</p>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>解碼發生在「來源埠」</strong>
+    把 Binary Mask 設在<strong>接收資料的那個埠</strong>（TCP Server 或 UDP）。轉發／輸出埠請設 <code>OriginalData</code>，原樣把已解碼的 KV 送出去，不要再套一次。
+  </div>
+</div>
+
+<h3>BinarySpec 結構</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th><th>預設值</th></tr></thead>
+  <tbody>
+    <tr><td><code>byteOrder</code></td><td>多位元組欄位的位元組序：<code>little</code> / <code>big</code></td><td><code>little</code></td></tr>
+    <tr><td><code>sync</code></td><td><strong>TCP 專用</strong>：封包起始的 magic（hex，如 <code>4f4b</code> = <code>OK</code>），用來對齊分包與雜訊後重新同步。UDP 免填</td><td>（空）</td></tr>
+    <tr><td><code>discriminator</code></td><td>讀哪個位址的值來挑 variant，例如訊息型別在 offset 3：<code>{ "offset": 3, "type": "u8" }</code></td><td>—</td></tr>
+    <tr><td><code>variants</code></td><td>各種封包型別的版面定義（見下）</td><td>—</td></tr>
+  </tbody>
+</table></div>
+
+<h3>variant 欄位</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>match</code></td><td>discriminator 的值等於此數才套用這個 variant</td></tr>
+    <tr><td><code>isDefault</code></td><td><code>true</code> = 不比對、永遠符合（沒有 discriminator 時用）</td></tr>
+    <tr><td><code>length</code></td><td>此型別封包的固定長度；長度不符即<strong>丟棄</strong>。TCP 分包也靠它決定要收多少位元組</td></tr>
+    <tr><td><code>template</code></td><td>輸出的 KV 模板，用 <code>{欄位名}</code> 佔位；缺任一欄位則整筆丟棄</td></tr>
+    <tr><td><code>fields</code></td><td>欄位清單（見下）</td></tr>
+  </tbody>
+</table></div>
+
+<h3>field 型別</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>type</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>u8</code> <code>u16</code> <code>u32</code> <code>u64</code></td><td>無號整數（1／2／4／8 bytes）</td></tr>
+    <tr><td><code>i8</code> <code>i16</code> <code>i32</code> <code>i64</code></td><td>有號整數</td></tr>
+    <tr><td><code>f32</code> <code>f64</code></td><td>IEEE 754 浮點</td></tr>
+    <tr><td><code>bit</code></td><td>取 <code>offset</code> 該位元組的第 <code>bit</code> 位（0 = LSB），輸出 <code>0</code>／<code>1</code></td></tr>
+    <tr><td><code>bitrange</code></td><td>從第 <code>bit</code> 位取 <code>count</code> 個位元，組成一個整數</td></tr>
+    <tr><td><code>const</code></td><td>不讀封包，直接輸出 <code>value</code> 字串（常用來塞裝置 id）</td></tr>
+  </tbody>
+</table></div>
+<p>數值型另可加 <code>scale</code> / <code>add</code>（輸出 = 原值 × scale + add）與 <code>format</code>（如 <code>0.###</code>）。</p>
+
+<h3>UDP 與 TCP 的差別</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>傳輸</th><th>分包方式</th><th>心跳</th></tr></thead>
+  <tbody>
+    <tr><td><strong>UDP</strong></td><td>每個 datagram <strong>就是</strong>一個完整封包，不需要 <code>sync</code></td><td>無（以逾時判斷 stale）</td></tr>
+    <tr><td><strong>TCP</strong></td><td>串流沒有封包邊界 → 必須設 <code>sync</code>，EdgeLink 依「magic 對齊 → discriminator 查長度 → 湊滿才解碼」切包，殘缺會等下一段、雜訊會自動重新同步</td><td><strong>不送 PING/PONG</strong>，改用 TCP keep-alive</td></tr>
+  </tbody>
+</table></div>
+
+<div class="callout warn">
+  <div class="callout-body">
+    <strong>走 TCP 一定要設 <code>sync</code></strong>
+    沒有 magic 就無法從雜訊或半截封包中重新對齊，一旦錯位就會持續解碼失敗。UDP 則不受影響。
+  </div>
+</div>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>二進位埠不需要回心跳</strong>
+    為了避免文字 PING 混進二進位串流，EdgeLink <strong>不會</strong>對二進位埠送 <code>EDGELINK_PING</code>，來源端自然也不必回 PONG。斷線偵測改由 TCP keep-alive（閒置 10 秒、每秒探測）負責。
+  </div>
+</div>
+
+<h3>設定範例</h3>
+<p>同一個埠可依 <code>msgType</code>（offset 3）分派到不同版面：</p>
+<div class="code-block">
+  <div class="code-header">
+    <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+    <span class="lang-tag">JSON</span>
+  </div>
+<pre><code>{
+  "byteOrder": "little",
+  "sync": "4f4b",
+  "discriminator": { "offset": 3, "type": "u8" },
+  "variants": [
+    {
+      "match": 1,
+      "length": 37,
+      "template": "id:{id};seq:{seq};x:{x};fault:{fault}",
+      "fields": [
+        { "name": "id",    "offset": 0,  "type": "const", "value": "dev1" },
+        { "name": "seq",   "offset": 5,  "type": "u32" },
+        { "name": "x",     "offset": 19, "type": "f32", "format": "0.###" },
+        { "name": "fault", "offset": 27, "type": "bitrange", "bit": 0, "count": 2 }
+      ]
+    }
+  ]
+}</code></pre>
+</div>
+<p>解碼後轉發出去的就是：<code>id:dev1;seq:1234;x:0.512;fault:0</code></p>
+<p>可在 <strong>Mask 分頁</strong>用二進位版面編輯器建立（附 hex 解碼即時預覽），或用 <strong>設定匯入</strong>整包帶進來。</p>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="modbus"><span class="section-num">09</span>Modbus TCP Master</h2>
+
+<p>EdgeLink 內建 Modbus TCP master，可定時輪詢 Modbus slave（ICP DAS ET-7x00、一般 PLC、模擬器等），把讀到的暫存器組成 KV 訊息送進路由管線。下游消費端不會知道資料來源是 Modbus 還是一般 TCP。</p>
+
+<h3>連線與輪詢設定</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>欄位</th><th>說明</th><th>範例</th></tr></thead>
+  <tbody>
+    <tr><td>Slave IP</td><td>Modbus slave 位址</td><td><code>192.168.1.10</code></td></tr>
+    <tr><td>Modbus Port</td><td>通訊埠</td><td><code>502</code></td></tr>
+    <tr><td>Slave ID</td><td>從站編號（Unit ID）</td><td><code>1</code></td></tr>
+    <tr><td>Polling Interval</td><td>輪詢間隔（毫秒）</td><td><code>100</code>（10 Hz）</td></tr>
+    <tr><td>Device ID</td><td>會變成輸出訊息裡的 <code>id:</code> 欄位</td><td><code>rig1</code></td></tr>
+    <tr><td>Registers</td><td>暫存器對應表（JSON 陣列，見下）</td><td>—</td></tr>
+  </tbody>
+</table></div>
+
+<h3>Function Code</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>FC</th><th>Modbus 操作</th><th>典型用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>1</code></td><td>Read Coils</td><td>輸出位元（繼電器、LED 狀態）</td></tr>
+    <tr><td><code>2</code></td><td>Read Discrete Inputs</td><td>開關、按鈕、編碼器位元</td></tr>
+    <tr><td><code>3</code></td><td>Read Holding Registers</td><td>一般 16-bit 可讀寫暫存器</td></tr>
+    <tr><td><code>4</code></td><td>Read Input Registers</td><td>類比輸入（搖桿、感測器電壓）</td></tr>
+  </tbody>
+</table></div>
+
+<h3>資料型別</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>dataType</th><th>長度</th><th>說明</th></tr></thead>
+  <tbody>
+    <tr><td><code>bit</code></td><td>1 bit</td><td>單一 Coil／DI（<code>quantity</code> 必須為 1）</td></tr>
+    <tr><td><code>bits</code></td><td>N bits</td><td>把 <code>quantity</code> 個位元打包成一個無號整數（LSB first）</td></tr>
+    <tr><td><code>uint16</code> / <code>int16</code></td><td>2 bytes</td><td>單一暫存器</td></tr>
+    <tr><td><code>uint32</code> / <code>int32</code></td><td>4 bytes</td><td>兩個暫存器，big-endian</td></tr>
+    <tr><td><code>float32</code></td><td>4 bytes</td><td>兩個暫存器，IEEE 754 big-endian</td></tr>
+  </tbody>
+</table></div>
+<p>另可加 <code>scale</code> 與 <code>offset</code>：<code>輸出 = 原值 × scale + offset</code>。</p>
+
+<h3>暫存器對應範例</h3>
+<div class="code-block">
+  <div class="code-header">
+    <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+    <span class="lang-tag">JSON</span>
+  </div>
+<pre><code>[
+  { "name": "yaw",   "functionCode": 2, "startAddress": 0, "quantity": 8, "dataType": "bits" },
+  { "name": "pitch", "functionCode": 2, "startAddress": 8, "quantity": 8, "dataType": "bits" },
+  { "name": "joyx",  "functionCode": 4, "startAddress": 0, "quantity": 1, "dataType": "uint16", "scale": 0.001 },
+  { "name": "joyy",  "functionCode": 4, "startAddress": 1, "quantity": 1, "dataType": "uint16", "scale": 0.001 }
+]</code></pre>
+</div>
+<p>每個輪詢週期會產生一筆合成訊息：<code>id:rig1;yaw:128;pitch:64;joyx:2.5;joyy:1.802</code></p>
+
+<div class="callout info">
+  <div class="callout-body">
+    <strong>輪詢頻率要配合模組掃描率</strong>
+    設得比模組實際掃描率快並不會拿到更新的值，只會增加負載。類比輸入模組（單 ADC 輪掃）常見上限只有數 Hz，數位輸入則快得多。
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="routing"><span class="section-num">10</span>訊息路由</h2>
 
 <h3>基本路由設定</h3>
 <p>在 <strong>TCP Client Port</strong> 的 <strong>Source Protocol</strong> 欄位，選擇對應的 <strong>TCP Server Port</strong>，即建立路由關係。</p>
@@ -1106,7 +1287,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 </div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="reqmode"><span class="section-num">09</span>請求模式</h2>
+<h2 id="reqmode"><span class="section-num">11</span>請求模式</h2>
 
 <p>Request Mode 設定在 <strong>TCP Client Port</strong> 上，控制如何處理同時進來的多筆請求。</p>
 
@@ -1220,7 +1401,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 </div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="monitor"><span class="section-num">10</span>即時監控</h2>
+<h2 id="monitor"><span class="section-num">12</span>即時監控</h2>
 
 <h3>Port Monitor</h3>
 <p>在 Port 列表中點選「Monitor」按鈕，開啟該 Port 的即時訊息串流（Server-Sent Events）：</p>
@@ -1234,7 +1415,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 <p>伺服器自身的事件記錄，包含 Port 啟停、設備連線/斷線、錯誤訊息。支援關鍵字篩選，日誌保留 <strong>7 天</strong>，每日一個檔案儲存於 <code>Data/Logs/</code>。</p>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="settings"><span class="section-num">11</span>設定匯出／匯入</h2>
+<h2 id="settings"><span class="section-num">13</span>設定匯出／匯入</h2>
 
 <h3>匯出</h3>
 <p>點 <strong>System → Export Settings</strong> 下載 JSON 檔案，包含所有 Port 和 Mask 定義。</p>
@@ -1265,7 +1446,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 </div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="cli"><span class="section-num">12</span>CLI 選項</h2>
+<h2 id="cli"><span class="section-num">14</span>CLI 選項</h2>
 
 <div class="table-wrap"><table>
   <thead><tr><th>CLI 參數</th><th>環境變數</th><th>說明</th><th>預設值</th></tr></thead>
@@ -1279,7 +1460,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 <p><strong>優先順序：</strong> CLI 參數 &gt; 環境變數 &gt; 預設值</p>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="api"><span class="section-num">13</span>API 參考</h2>
+<h2 id="api"><span class="section-num">15</span>API 參考</h2>
 
 <p>Base URL：<code>https://&lt;host&gt;:8443</code>（或 HTTP）。所有 <code>/api/*</code> 端點（除認證外）皆需 Session Cookie。詳細互動式文件請見 <a href="/docs">/docs</a>。</p>
 
@@ -1344,7 +1525,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 
 <!-- ─────────────────────────────────────────── -->
 <!-- ─────────────────────────────────────────── -->
-<h2 id="unity-sdk"><span class="section-num">14</span>Unity SDK</h2>
+<h2 id="unity-sdk"><span class="section-num">16</span>Unity SDK</h2>
 
 <p>EdgeLink Unity SDK 讓 Unity 應用程式直接接收 EdgeLink Server 轉發的訊息，支援 TCP Client、TCP Listener、UDP 三種連線模式，並可在執行期自動從 Server 拉取 Mask 設定。</p>
 
@@ -1543,7 +1724,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 <p>EdgeLink Server 端需設定一個 <strong>TCP Client Port</strong>，Target IP 填 Unity 機器 IP，Remote Port 對應 <code>TCP Port</code> 欄位值，Source Protocol 指向接收設備的 TCP Server Port。</p>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="arduino-sdk"><span class="section-num">15</span>Arduino SDK</h2>
+<h2 id="arduino-sdk"><span class="section-num">17</span>Arduino SDK</h2>
 
 <p>EdgeLink Arduino Library 讓 ESP32 / ESP8266 / Arduino 設備連線到 EdgeLink Server。PING/PONG 心跳自動處理，開發者只需專注在資料傳送邏輯。</p>
 
@@ -1661,7 +1842,7 @@ sock.sendall(<span class="str">b"id:DEV01;value:36.5\n"</span>)</code></pre>
 </table></div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="csharp-sdk"><span class="section-num">16</span>C# SDK</h2>
+<h2 id="csharp-sdk"><span class="section-num">18</span>C# SDK</h2>
 
 <p>EdgeLink C# SDK 適用於任何 <strong>.NET 6+</strong> 應用程式（Console、WPF、ASP.NET Core 等），不依賴任何第三方套件。Unity 使用者請改用 Unity SDK。</p>
 
@@ -1713,7 +1894,7 @@ client.<span class="fn">SetAutoReconnect</span>(<span class="kw">true</span>, de
 </table></div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="python-sdk"><span class="section-num">17</span>Python SDK</h2>
+<h2 id="python-sdk"><span class="section-num">19</span>Python SDK</h2>
 
 <p>EdgeLink Python SDK 適用於 <strong>Python 3.10+</strong>，基於標準函式庫 <code>asyncio</code> 與 <code>socket</code>，不需安裝任何第三方套件。</p>
 
@@ -1769,7 +1950,7 @@ asyncio.<span class="fn">run</span>(<span class="fn">main</span>())</code></pre>
 </table></div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="js-sdk"><span class="section-num">18</span>JavaScript SDK</h2>
+<h2 id="js-sdk"><span class="section-num">20</span>JavaScript SDK</h2>
 
 <p>EdgeLink JavaScript SDK 適用於 <strong>Node.js 18+</strong>，基於內建模組 <code>net</code>、<code>dgram</code>、<code>events</code>，不需任何第三方套件。</p>
 
@@ -1820,7 +2001,7 @@ client.<span class="fn">connect</span>();
 </table></div>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="examples"><span class="section-num">19</span>常見情境範例</h2>
+<h2 id="examples"><span class="section-num">21</span>常見情境範例</h2>
 
 <h3>情境 A：感測器 → 後端 JSON API（單向轉發）</h3>
 <p><strong>設備傳送：</strong> <code>id:SENSOR01;temp:25.3;humidity:60</code><br>
@@ -1867,7 +2048,7 @@ Output Template : {"device":"{id}","temp":{temp},"humidity":{humidity}}</code></
 </ol>
 
 <!-- ─────────────────────────────────────────── -->
-<h2 id="troubleshoot"><span class="section-num">20</span>疑難排解</h2>
+<h2 id="troubleshoot"><span class="section-num">22</span>疑難排解</h2>
 
 <h3>設備連線後約 15 秒斷線</h3>
 <div class="callout danger">
