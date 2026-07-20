@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.3.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.3.0)
+[![Version](https://img.shields.io/badge/Version-2.4.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.4.0)
 
 輕量級 .NET 8 伺服器：透過 TCP/UDP 橋接 IoT 裝置，以自訂 Mask 定義轉換協定資料，並提供瀏覽器端管理介面。
 
@@ -50,7 +50,7 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 
 ## 安裝
 
-1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.3.0-win-x64.zip`
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.4.0-win-x64.zip`
 2. 解壓縮 zip
 3. 執行 `EdgeLinkServer.exe`
 4. 開啟瀏覽器前往 `https://localhost:8443`
@@ -391,7 +391,7 @@ EdgeLink Arduino Library 讓 ESP32 / ESP8266 / Arduino 裝置連上 EdgeLink Ser
 ### 安裝
 
 **方式 A — ZIP 匯入：**
-1. 下載 `SDK/Arduino/EdgeLink.zip`
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink.zip`
 2. Arduino IDE → **Sketch → Include Library → Add .ZIP Library…**
 
 **方式 B — 手動：**  
@@ -666,10 +666,11 @@ EdgeLink-Server/
 
 | 版本 | 變更內容 |
 |---------|---------|
+| v2.4.0 | **穩定性與正確性修正**（全面稽核 #11–#20）— TCP 二進位 framing 與 decoder 改為共用 discriminator 解讀（先前兩邊各自解讀，signed／跨位元組欄位會分包錯位）；BinarySpec 存檔時驗證，壞掉的定義不再癱瘓接收迴圈；停止／改 Mask 時主動關閉已接受的連線（先前舊連線變半開，資料靜默遺失）；Modbus 連線失敗不再洩漏 socket、32 位元型別的暫存器數修正；設定檔原子寫入 + 損毀自動備份，部分 PUT 不再清掉 Modbus 設定；登入加上每 IP 節流（PBKDF2 10 萬次迭代原本可被當成 CPU 放大器）；HTTP body 1 MB 上限。**SDK**：UTF-8 多位元組字元跨 TCP 讀取邊界不再毀損（C#／Unity／JS）；Unity 的 `OnMessage` 補上觸發（先前宣告了卻從不 Invoke）；新增 `EdgeLinkBridge.Get(deviceId, key)`／`KnownDeviceIds`（單參數版會跨裝置混值）；行緩衝上限（C#／Unity 64 KB、Arduino 512 B — MCU 上原本會 heap 耗盡重開機） |
+| v2.3.0 | **二進位 Mask 延伸到 TCP**（v2.2.0 僅支援 UDP）— 新增 `BinaryStreamFramer` 串流分包（`binary.sync` magic 對齊 + discriminator 查長度 + 殘缺等待 + 雜訊重新同步）；TCP Server 埠依該埠 Mask 自動分流二進位／文字，二進位埠不送 app 層 PING、改用 TCP keep-alive。修正設定匯出/匯入遺漏 `binary` 欄位的 bug（備份還原後二進位 mask 會失效）。Unity/CSharp `EdgeLinkClient` 新增 `SendAsync(byte[])`；新增 `EdgeLinkSourceClient`（非 Unity .NET 來源端 SDK，自動回 PONG、自動重連）；`docs/RigBinary.mask.json` 參考 spec |
 | v2.2.0 | **通用二進位解析 Mask**（`BinarySpec`：offset / 型別 u8–f64 / bit / bitrange / const、little/big-endian、discriminator 分派、長度驗證）— 將固定版面的二進位 UDP 解碼為 KV；WebUI 二進位版面編輯器 + hex 解碼預覽；`POST /api/masks/preview-binary`。Monitor SSE 前端節流（高頻率 port 不再卡住瀏覽器） |
 | v2.1.3 | Unity SDK：連線資源清理 — 避免 socket / CTS 洩漏 |
 | v2.1.2 | Unity SDK：新增 `EdgeLinkBridge.cs.meta`；套件版本更新 |
-| v2.3.0 | **二進位 Mask 延伸到 TCP**（v2.2.0 僅支援 UDP）— 新增 `BinaryStreamFramer` 串流分包（`binary.sync` magic 對齊 + discriminator 查長度 + 殘缺等待 + 雜訊重新同步）；TCP Server 埠依該埠 Mask 自動分流二進位／文字，二進位埠不送 app 層 PING、改用 TCP keep-alive。修正設定匯出/匯入遺漏 `binary` 欄位的 bug（備份還原後二進位 mask 會失效）。Unity/CSharp `EdgeLinkClient` 新增 `SendAsync(byte[])`；新增 `EdgeLinkSourceClient`（非 Unity .NET 來源端 SDK，自動回 PONG、自動重連）；`docs/RigBinary.mask.json` 參考 spec |
 | v2.1.1 | Unity SDK：抽出 `EdgeLinkBridge` POCO，以建構子注入 URL/Host/Port（MonoBehaviour `EdgeLinkManager` 仍作為輕薄包裝）；README 補上 Modbus + POCO 文件 |
 | v2.1.0 | **Modbus TCP Master** port 類型（FluentModbus，FC 01/02/03/04，scale/offset）；WebUI 卡片式版面翻新；4× fire-and-forget 任務抑制；UDP port 清單輪詢保留使用者選取 |
 | v2.0.1 | Unity SDK：`OnDeviceStatus` 新增裝置 ID 參數；Arduino AsyncUDP 範例；Mono 上 HttpClientHandler 憑證回退至 `ServicePointManager` |
