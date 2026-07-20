@@ -245,6 +245,13 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
     private static string ReadRegister(ModbusTcpClient client, byte slaveId, ModbusRegisterMap reg)
     {
         int qty = Math.Max(1, reg.Quantity);
+
+        // 32 位元型別需要 2 個暫存器。Quantity 預設為 1,使用者若沒特別填,
+        // 讀回來只有 1 個暫存器 → RegistersToString 回空字串 → 該欄位被靜默丟棄。
+        // 這裡依 DataType 自動補足,避免「設定看起來正確但值永遠不出現」。
+        if (reg.FunctionCode == 3 || reg.FunctionCode == 4)
+            qty = Math.Max(qty, RequiredRegisters(reg.DataType));
+
         switch (reg.FunctionCode)
         {
             case 1: // Read Coils
@@ -291,6 +298,14 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
         }
         return v.ToString(CultureInfo.InvariantCulture);
     }
+
+    /// <summary>該 DataType 至少需要幾個 16-bit 暫存器才能組出值。</summary>
+    public static int RequiredRegisters(string? dataType) =>
+        (dataType ?? "uint16").ToLowerInvariant() switch
+        {
+            "uint32" or "int32" or "float32" => 2,
+            _ => 1,
+        };
 
     private static string RegistersToString(ReadOnlySpan<ushort> regs, ModbusRegisterMap reg)
     {

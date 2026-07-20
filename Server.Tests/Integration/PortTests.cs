@@ -201,6 +201,76 @@ public class PortTests(ServerFixture fixture) : IAsyncLifetime
         Assert.True(updated);
     }
 
+    // 迴歸:UpdatePortData 先前完全沒複製 Modbus,編輯 Modbus 埠時
+    // registers/輪詢間隔/SlaveId 會被靜默丟棄(API 仍回 success)。
+    [Fact]
+    public async Task UpdatePort_AppliesNewModbusConfig()
+    {
+        var addResp = await _client.PostJsonAsync("/api/ports", new
+        {
+            protocolName = "Modbus19030",
+            netProtocol  = "MODBUS TCP MASTER",
+            localPort    = "19030",
+            modbus       = new { SlaveId = 1, PollIntervalMs = 100, DeviceId = "rig1" },
+        });
+        using var addDoc = await addResp.ReadDocAsync();
+        string id = addDoc.RootElement.GetProperty("id").GetString()!;
+        _createdIds.Add(id);
+
+        var putResp = await _client.PutJsonAsync($"/api/ports/{id}", new
+        {
+            protocolName = "Modbus19030",
+            netProtocol  = "MODBUS TCP MASTER",
+            localPort    = "19030",
+            modbus       = new { SlaveId = 7, PollIntervalMs = 250, DeviceId = "rig2" },
+        });
+        Assert.Equal(HttpStatusCode.OK, putResp.StatusCode);
+
+        var listResp = await _client.GetAsync("/api/ports");
+        using var listDoc = await listResp.ReadDocAsync();
+        var modbus = listDoc.RootElement.GetProperty("ports").EnumerateArray()
+            .First(p => p.GetProperty("id").GetString() == id)
+            .GetProperty("modbus");
+
+        Assert.Equal(7,      modbus.GetProperty("SlaveId").GetInt32());
+        Assert.Equal(250,    modbus.GetProperty("PollIntervalMs").GetInt32());
+        Assert.Equal("rig2", modbus.GetProperty("DeviceId").GetString());
+    }
+
+    // 部分更新(請求不帶 modbus)不應把既有 Modbus 設定清空
+    [Fact]
+    public async Task UpdatePort_WithoutModbusBlock_KeepsExistingConfig()
+    {
+        var addResp = await _client.PostJsonAsync("/api/ports", new
+        {
+            protocolName = "Modbus19031",
+            netProtocol  = "MODBUS TCP MASTER",
+            localPort    = "19031",
+            modbus       = new { SlaveId = 3, PollIntervalMs = 150, DeviceId = "keepme" },
+        });
+        using var addDoc = await addResp.ReadDocAsync();
+        string id = addDoc.RootElement.GetProperty("id").GetString()!;
+        _createdIds.Add(id);
+
+        var putResp = await _client.PutJsonAsync($"/api/ports/{id}", new
+        {
+            protocolName = "Modbus19031-renamed",
+            netProtocol  = "MODBUS TCP MASTER",
+            localPort    = "19031",
+        });
+        Assert.Equal(HttpStatusCode.OK, putResp.StatusCode);
+
+        var listResp = await _client.GetAsync("/api/ports");
+        using var listDoc = await listResp.ReadDocAsync();
+        var port = listDoc.RootElement.GetProperty("ports").EnumerateArray()
+            .First(p => p.GetProperty("id").GetString() == id);
+
+        Assert.Equal("Modbus19031-renamed", port.GetProperty("protocolName").GetString());
+        var modbus = port.GetProperty("modbus");
+        Assert.Equal(3,        modbus.GetProperty("SlaveId").GetInt32());
+        Assert.Equal("keepme", modbus.GetProperty("DeviceId").GetString());
+    }
+
     // ── Toggle enabled ────────────────────────────────────────────────────────
 
     [Fact]
