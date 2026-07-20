@@ -13,7 +13,20 @@ public static class SettingLoader
         string path = FilePath<T>();
         if (!File.Exists(path)) return new T();
 
-        string json = File.ReadAllText(path, Encoding.UTF8);
+        // 讀檔與解析必須分開判斷。先前 ReadAllText 在 try 之外,IO 失敗(防毒/備份軟體
+        // 開檔、暫時性權限錯誤)會直接往上拋、繞過下面整段備份邏輯,被呼叫端的
+        // catch-all 接住後退回空設定 —— 而檔案其實完好無損,使用者一存檔就永久覆蓋。
+        string json;
+        try
+        {
+            json = File.ReadAllText(path, Encoding.UTF8);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new SettingReadException(
+                $"{Path.GetFileName(path)} 讀取失敗(檔案內容未受影響,已停止對該檔的寫入):{ex.Message}", ex);
+        }
+
         try
         {
             return Json.FromJson<T>(json) ?? new T();
@@ -37,11 +50,6 @@ public static class SettingLoader
         Directory.CreateDirectory(AppPaths.SettingDir);
         string path = FilePath<T>();
 
-        // 原子寫入:先寫暫存檔再置換。直接 WriteAllText 是就地截斷,
-        // 寫到一半被中斷(服務停止/斷電)會留下截斷的 JSON,下次啟動就載入失敗。
-        string tmp = path + ".tmp";
-        File.WriteAllText(tmp, Json.ToJson(data), Encoding.UTF8);
-        if (File.Exists(path)) File.Replace(tmp, path, null);
-        else                   File.Move(tmp, path);
+        AtomicFile.WriteAllText(path, Json.ToJson(data));
     }
 }
