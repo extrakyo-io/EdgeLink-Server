@@ -48,6 +48,7 @@ public class SettingsApiHandler
                 sampleData         = def.sampleData,
                 routeMode          = def.routeMode ?? "",
                 correlationIdField = def.correlationIdField ?? "",
+                binary             = def.binary,
             });
         }
 
@@ -84,6 +85,7 @@ public class SettingsApiHandler
                     sampleData         = mask.sampleData,
                     routeMode          = mask.routeMode ?? "",
                     correlationIdField = mask.correlationIdField ?? "",
+                    binary             = mask.binary,
                 });
             }
 

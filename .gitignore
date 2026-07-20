@@ -142,3 +142,8 @@ Server.Tests/obj/
 *.pptx
 add_slide.py
 simulate_firmware.py
+
+# Python
+__pycache__/
+*.py[cod]
+docs/*.mask.json

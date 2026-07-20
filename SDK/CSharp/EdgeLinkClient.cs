@@ -155,6 +155,16 @@ namespace EdgeLink
             await stream.WriteAsync(bytes);
         }
 
+        /// <summary>Send raw bytes (e.g. a binary protocol packet) as-is — no newline, no transformation.
+        /// For a TCP Server port whose Mask is binary (EdgeLink does the framing + decode).</summary>
+        public async Task SendAsync(byte[] data)
+        {
+            if (stream == null || !IsConnected)
+                throw new InvalidOperationException("Not connected to EdgeLink.");
+            if (data == null || data.Length == 0) return;
+            await stream.WriteAsync(data);
+        }
+
         private async Task SendRawAsync(string raw)
         {
             try
