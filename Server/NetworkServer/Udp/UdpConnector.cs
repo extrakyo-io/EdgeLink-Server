@@ -261,7 +261,21 @@ public class UdpConnector : NetworkConnectorBase
                 // ── 二進位 mask:直接吃原始 datagram bytes,不做 UTF8 解碼/切行 ──
                 if (def?.binary != null)
                 {
-                    string outLine = MaskProcessor.Process(def, result.Buffer, "");
+                    string outLine;
+                    try
+                    {
+                        outLine = MaskProcessor.Process(def, result.Buffer, "");
+                    }
+                    catch (Exception ex)
+                    {
+                        // 這裡的 try 是包住整個 while 的,若讓例外逸出,一個設定錯誤
+                        // (離譜的 offset、整數型別用了 "X2" 之類格式)就會讓這個埠
+                        // 從此不再收任何 datagram 且不會自我恢復。只丟這一包。
+                        LogHelper.LogToConsole(
+                            $"{LogHelper.Tag("UDP", udpData.portData)} 二進位解碼失敗(已丟棄該封包,請檢查 Mask 設定): {ex.Message}",
+                            isError: true);
+                        continue;
+                    }
                     if (!string.IsNullOrEmpty(outLine))
                     {
                         RouterLogHelper.LogReceive(udpData.portData, MonitorTargetType.UDP, outLine);
