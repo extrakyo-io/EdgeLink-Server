@@ -86,6 +86,10 @@ public class PortManager
         old.RequestMode       = updated.RequestMode;
         old.SourceProtocolName = updated.SourceProtocolName;
         old.SourceProtocolId  = updated.SourceProtocolId;
+        // 先前完全沒複製 Modbus,導致編輯 Modbus 埠時 registers/輪詢間隔/SlaveId 被靜默丟棄
+        // (API 回 success,檔案卻寫回舊值)。用 ?? 而非直接指派:請求沒帶 modbus 區塊時
+        // 保留原設定,避免把「只改名稱」的部分更新變成把 Modbus 設定清空。
+        old.Modbus            = updated.Modbus ?? old.Modbus;
 
         SaveData();
         if (old.IsEnabled)

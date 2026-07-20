@@ -191,10 +191,10 @@ public class SettingsTests(ServerFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Import_InvalidJson_Returns200WithNothingAdded()
+    public async Task Import_InvalidJson_Returns400AndChangesNothing()
     {
-        // Json.FromJson silently returns new T() on parse failure,
-        // so the server imports 0 items and returns 200.
+        // 迴歸:Json.FromJson 先前吞掉解析失敗並回 new T(),使得這裡的 400 分支
+        // 形同死碼、伺服器對著壞掉的內容回 200。現在解析失敗會往外拋,400 才真的會發生。
         var before = await _client.GetAsync("/api/ports");
         using var beforeDoc = await before.ReadDocAsync();
         int countBefore = beforeDoc.RootElement.GetProperty("ports").GetArrayLength();
@@ -202,7 +202,7 @@ public class SettingsTests(ServerFixture fixture) : IAsyncLifetime
         var content = new System.Net.Http.StringContent(
             "not-json", System.Text.Encoding.UTF8, "application/json");
         var resp = await _client.PostAsync("/api/settings/import", content);
-        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
 
         var after = await _client.GetAsync("/api/ports");
         using var afterDoc = await after.ReadDocAsync();

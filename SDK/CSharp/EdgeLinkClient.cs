@@ -25,6 +25,11 @@ namespace EdgeLink
         private NetworkStream?          stream;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
+        /// <summary>Serialises every write to <see cref="stream"/>. The read loop answers PING with
+        /// PONG on its own thread while the caller may be sending — NetworkStream does not allow
+        /// concurrent writes, and an interleave corrupts both the PONG token (causing the server to
+        /// drop the connection after 3 missed pings) and the user's message.</summary>
+        private readonly SemaphoreSlim writeLock = new(1, 1);
         private bool disposed;
         private bool autoReconnect    = true;
         private int  reconnectDelayMs = 5000;
@@ -151,8 +156,7 @@ namespace EdgeLink
                 throw new InvalidOperationException("Not connected to EdgeLink.");
 
             if (!message.EndsWith('\n')) message += "\n";
-            byte[] bytes = Encoding.UTF8.GetBytes(message);
-            await stream.WriteAsync(bytes);
+            await WriteLockedAsync(Encoding.UTF8.GetBytes(message));
         }
 
         /// <summary>Send raw bytes (e.g. a binary protocol packet) as-is — no newline, no transformation.
@@ -162,7 +166,7 @@ namespace EdgeLink
             if (stream == null || !IsConnected)
                 throw new InvalidOperationException("Not connected to EdgeLink.");
             if (data == null || data.Length == 0) return;
-            await stream.WriteAsync(data);
+            await WriteLockedAsync(data);
         }
 
         private async Task SendRawAsync(string raw)
@@ -170,10 +174,23 @@ namespace EdgeLink
             try
             {
                 if (stream == null) return;
-                byte[] b = Encoding.UTF8.GetBytes(raw);
-                await stream.WriteAsync(b);
+                await WriteLockedAsync(Encoding.UTF8.GetBytes(raw));
             }
             catch { }
+        }
+
+        /// <summary>All writes funnel through here so a PONG from the read loop can never
+        /// interleave with a caller's send.</summary>
+        private async Task WriteLockedAsync(byte[] bytes)
+        {
+            await writeLock.WaitAsync();
+            try
+            {
+                var s = stream;
+                if (s == null) return;
+                await s.WriteAsync(bytes);
+            }
+            finally { writeLock.Release(); }
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -191,6 +208,7 @@ namespace EdgeLink
             disposed = true;
             Disconnect();
             cts.Dispose();
+            writeLock.Dispose();
         }
     }
 }

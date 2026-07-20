@@ -25,6 +25,10 @@ namespace EdgeLink
         private NetworkStream?          stream;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+        /// <summary>序列化所有對 stream 的寫入。接收迴圈會在自己的執行緒上回 PONG,
+        /// 同時呼叫端可能正在送資料;NetworkStream 不允許併發寫入,一旦交錯會同時毀掉
+        /// PONG 的 token(伺服器連續 3 次收不到就主動斷線)與使用者的訊息。</summary>
+        private readonly SemaphoreSlim writeLock = new SemaphoreSlim(1, 1);
         private bool disposed;
         private bool autoReconnect    = true;
         private int  reconnectDelayMs = 5000;
@@ -155,8 +159,7 @@ namespace EdgeLink
                 throw new InvalidOperationException("Not connected to EdgeLink.");
 
             if (!message.EndsWith("\n")) message += "\n";
-            byte[] bytes = Encoding.UTF8.GetBytes(message);
-            await stream.WriteAsync(bytes, 0, bytes.Length);
+            await WriteLockedAsync(Encoding.UTF8.GetBytes(message));
         }
 
         /// <summary>送原始位元組(如二進位協定封包)。不附加換行、不做任何轉換。
@@ -166,7 +169,7 @@ namespace EdgeLink
             if (stream == null || !IsConnected)
                 throw new InvalidOperationException("Not connected to EdgeLink.");
             if (data == null || data.Length == 0) return;
-            await stream.WriteAsync(data, 0, data.Length);
+            await WriteLockedAsync(data);
         }
 
         private async Task SendRawAsync(string raw)
@@ -174,10 +177,22 @@ namespace EdgeLink
             try
             {
                 if (stream == null) return;
-                byte[] b = Encoding.UTF8.GetBytes(raw);
-                await stream.WriteAsync(b, 0, b.Length);
+                await WriteLockedAsync(Encoding.UTF8.GetBytes(raw));
             }
             catch { }
+        }
+
+        /// <summary>所有寫入都走這裡,確保接收迴圈的 PONG 不會與呼叫端的送出交錯。</summary>
+        private async Task WriteLockedAsync(byte[] bytes)
+        {
+            await writeLock.WaitAsync();
+            try
+            {
+                var s = stream;
+                if (s == null) return;
+                await s.WriteAsync(bytes, 0, bytes.Length);
+            }
+            finally { writeLock.Release(); }
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -197,6 +212,7 @@ namespace EdgeLink
             disposed = true;
             Disconnect();
             try { cts.Dispose(); } catch { }
+            try { writeLock.Dispose(); } catch { }
         }
     }
 }
