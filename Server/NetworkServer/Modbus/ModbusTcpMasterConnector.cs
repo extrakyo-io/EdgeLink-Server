@@ -293,7 +293,7 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
         }
     }
 
-    private static string BoolsToString(ReadOnlySpan<byte> rawBits, int bitCount)
+    internal static string BoolsToString(ReadOnlySpan<byte> rawBits, int bitCount)
     {
         // FluentModbus 回傳的是 packed bytes，每個 byte 8 bits (LSB first)
         if (bitCount == 1)
@@ -301,14 +301,26 @@ public class ModbusTcpMasterConnector : NetworkConnectorBase
             bool b = (rawBits[0] & 0x01) != 0;
             return b ? "1" : "0";
         }
-        // 多 bit 組成 unsigned integer
-        int v = 0;
-        for (int i = 0; i < bitCount; i++)
+        // 多 bit 組成 unsigned integer。
+        // 先前用 int 累積且寫成 `v |= (1 << i)`:C# 對 int 的位移量會被遮罩成 5 bits,
+        // 所以 i=32 時 `1 << 32` 等於 1 —— 第 32 個之後的 bit 會靜默折回低位;i=31
+        // 則會設到符號位而輸出負數。Modbus 規格允許 Read Coils 一次讀到 2000 個,
+        // Quantity >= 32 是完全合法的設定。
+        // 改用 ulong 累積並明確限制在 64 bit 內,超出的部分捨棄並記一次警告,
+        // 而不是安靜地送出一個錯誤的數字。
+        const int maxBits = 64;
+        int usable = Math.Min(bitCount, maxBits);
+        if (bitCount > maxBits)
+            LogHelper.LogToConsole($"[Modbus] 一次讀取 {bitCount} 個 bit 超過單一數值可表示的 {maxBits} 位元," +
+                                   $"只採用前 {maxBits} 個。請改用多個 register 對應。", isError: true);
+
+        ulong v = 0;
+        for (int i = 0; i < usable; i++)
         {
             int byteIdx = i / 8;
-            int bitIdx = i % 8;
+            int bitIdx  = i % 8;
             if (byteIdx >= rawBits.Length) break;
-            if ((rawBits[byteIdx] & (1 << bitIdx)) != 0) v |= (1 << i);
+            if ((rawBits[byteIdx] & (1 << bitIdx)) != 0) v |= 1UL << i;
         }
         return v.ToString(CultureInfo.InvariantCulture);
     }

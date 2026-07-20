@@ -147,3 +147,7 @@ simulate_firmware.py
 __pycache__/
 *.py[cod]
 docs/*.mask.json
+
+# Test run output
+TestResults/
+**/TestResults/

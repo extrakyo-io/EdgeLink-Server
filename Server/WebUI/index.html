@@ -2427,7 +2427,10 @@ function toggleSysLog() {
 }
 
 function esc(s) {
-  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // 單引號也必須跳脫:maskId 會被插進 onclick="openDef('...')" 的 JS 字串字面值裡,
+  // 屬性用雙引號包住,所以漏掉 ' 就能直接跳出字串執行任意程式碼。
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ── Add Port form ─────────────────────────────────────
