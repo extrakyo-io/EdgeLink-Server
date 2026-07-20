@@ -34,6 +34,14 @@ jobs:
         run: Compress-Archive -Path publish_output\* -DestinationPath EdgeLink-Server-${{ github.ref_name }}-win-x64.zip
         shell: pwsh
 
+      # 先前是直接上傳 committed 的 SDK/Arduino/EdgeLink.zip。它是 Git LFS 指標,而
+      # checkout 沒有帶 lfs: true —— 發出去的資產因此是 130 bytes 的指標純文字,
+      # Arduino IDE 會直接拒絕(v2.3.0 的 EdgeLink.zip 就是壞的)。而且就算 LFS 正常,
+      # 那個 zip 也是手動打包的,永遠落後於原始碼。改成每次從原始碼即時打包。
+      - name: Package Arduino SDK zip
+        run: Compress-Archive -Path SDK\Arduino\EdgeLink -DestinationPath EdgeLink.zip
+        shell: pwsh
+
       - name: Pack Unity UPM
         run: npm pack
         working-directory: SDK/Unity/Package
@@ -48,7 +56,7 @@ jobs:
           name: "EdgeLink Server ${{ github.ref_name }}"
           files: |
             EdgeLink-Server-${{ github.ref_name }}-win-x64.zip
-            SDK/Arduino/EdgeLink.zip
+            EdgeLink.zip
             com.extrakyo.edgelink-${{ github.ref_name }}.tgz
           generate_release_notes: true
           body: |
