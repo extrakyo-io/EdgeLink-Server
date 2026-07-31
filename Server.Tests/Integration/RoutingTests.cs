@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using FluentModbus;
 using Xunit;
 
 namespace EdgeLink.Tests.Integration;
@@ -428,6 +429,122 @@ public class RoutingTests(ServerFixture fixture) : IAsyncLifetime
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 7. UDP ROUTING — mask applied while relaying datagrams
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Route_Udp_RequestMask_TransformsDatagramBeforeForwarding()
+    {
+        string maskId = CreateId("UdpMask");
+        await CreateMask(maskId, template: "{id}|{val}", fieldDelim: ";", kvSep: ":");
+
+        const int listenPort  = 19170; // EdgeLink listens here for the incoming datagram
+        const int forwardPort = 19171; // masked output is relayed here
+
+        await AddUdpPort("RT_Udp_Client", listenPort, forwardPort, maskId);
+        await Task.Delay(400);
+
+        using var receiver = new UdpClient(forwardPort);
+        using var sender   = new UdpClient();
+
+        byte[] data = Encoding.UTF8.GetBytes("id:DEV01;val:7\n");
+        await sender.SendAsync(data, data.Length, "127.0.0.1", listenPort);
+
+        // First datagram to a device seen for the first time is an
+        // EDGELINK_STATUS:CONNECTED liveness notice — skip it and read the
+        // masked payload that follows, same as TestTcpConnection.ReadDataLineAsync.
+        string? msg = null;
+        using var cts = new CancellationTokenSource(3000);
+        while (!cts.IsCancellationRequested)
+        {
+            var result = await receiver.ReceiveAsync(cts.Token);
+            string line = Encoding.UTF8.GetString(result.Buffer).TrimEnd('\r', '\n');
+            if (line.StartsWith("EDGELINK_STATUS:")) continue;
+            msg = line;
+            break;
+        }
+
+        Assert.Equal("DEV01|7", msg);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 8. MODBUS ROUTING — polled register value flows through mask to a TCP Client
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public async Task Route_Modbus_PolledRegisterValue_RoutesThroughMaskToClient()
+    {
+        const int slavePort = 19270;
+        var slave = StartModbusServer(slavePort);
+        try
+        {
+            // ModbusTcpMasterConnector always connects with ModbusEndianness.BigEndian,
+            // while GetHoldingRegisterBuffer<T> writes in host (little-endian) byte order —
+            // pre-swap so the master reads back the intended value.
+            slave.GetHoldingRegisterBuffer<ushort>(1)[0] =
+                System.Buffers.Binary.BinaryPrimitives.ReverseEndianness((ushort)12345);
+
+            string maskId = CreateId("ModbusMask");
+            await CreateMask(maskId, template: "{id}={temp}", fieldDelim: ";", kvSep: ":");
+
+            using var remote = new LocalTcpServer(19271);
+
+            var mbResp = await _client.PostJsonAsync("/api/ports", new
+            {
+                protocolName = "RT_Modbus_Master",
+                netProtocol  = "MODBUS TCP MASTER",
+                localPort    = "",
+                remotePort   = slavePort.ToString(),
+                targetIp     = "127.0.0.1",
+                modbus       = new
+                {
+                    slaveId          = 1,
+                    pollIntervalMs   = 150,
+                    connectTimeoutMs = 1000,
+                    readTimeoutMs    = 1000,
+                    deviceId         = "mbtest",
+                    registers        = new[]
+                    {
+                        new { name = "temp", functionCode = 3, startAddress = 0, quantity = 1, dataType = "uint16" },
+                    },
+                },
+            });
+            Assert.Equal(HttpStatusCode.Created, mbResp.StatusCode);
+            using var mbDoc = await mbResp.ReadDocAsync();
+            string modbusId = mbDoc.RootElement.GetProperty("id").GetString()!;
+            _portIds.Add(modbusId);
+
+            var cliResp = await _client.PostJsonAsync("/api/ports", new
+            {
+                protocolName       = "RT_Modbus_Client",
+                netProtocol        = "TCP CLIENT",
+                localPort          = "--",
+                targetIp           = "127.0.0.1",
+                remotePort         = "19271",
+                maskType           = maskId,
+                responseMaskType   = "OriginalData",
+                requestMode        = "serial",
+                sourceProtocolId   = modbusId,
+                sourceProtocolName = "",
+            });
+            Assert.Equal(HttpStatusCode.Created, cliResp.StatusCode);
+            using var cliDoc = await cliResp.ReadDocAsync();
+            _portIds.Add(cliDoc.RootElement.GetProperty("id").GetString()!);
+
+            using var rConn = await remote.AcceptAsync(timeout: 8000);
+            string? msg = await rConn.ReadDataLineAsync(timeout: 8000);
+
+            Assert.NotNull(msg);
+            Assert.Equal("mbtest=12345", msg);
+        }
+        finally
+        {
+            try { slave.Stop(); } catch { }
+            try { slave.Dispose(); } catch { }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -456,6 +573,47 @@ public class RoutingTests(ServerFixture fixture) : IAsyncLifetime
             sampleData         = "",
         });
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+    }
+
+    private async Task<string> AddUdpPort(string name, int listenPort, int forwardPort, string maskType)
+    {
+        var resp = await _client.PostJsonAsync("/api/ports", new
+        {
+            protocolName = name,
+            netProtocol  = "UDP",
+            localPort    = forwardPort.ToString(),   // masked output relayed here
+            remotePort   = listenPort.ToString(),    // EdgeLink listens here
+            targetIp     = "127.0.0.1",
+            maskType,
+        });
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        using var doc = await resp.ReadDocAsync();
+        string id = doc.RootElement.GetProperty("id").GetString()!;
+        _portIds.Add(id);
+        return id;
+    }
+
+    /// <summary>Starts an in-process Modbus TCP slave (unit 1) on the given port, retrying the bind.</summary>
+    private static ModbusTcpServer StartModbusServer(int port)
+    {
+        Exception? last = null;
+        for (int i = 0; i < 20; i++)
+        {
+            var srv = new ModbusTcpServer();
+            try
+            {
+                srv.AddUnit(1);
+                srv.Start(new IPEndPoint(IPAddress.Loopback, port));
+                return srv;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                try { srv.Dispose(); } catch { }
+                Thread.Sleep(250);
+            }
+        }
+        throw new InvalidOperationException($"Could not start ModbusTcpServer on {port}: {last?.Message}");
     }
 
     private async Task<string> AddTcpServer(string name, int localPort)
