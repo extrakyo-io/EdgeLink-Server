@@ -4,126 +4,135 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IoT Server</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --pri:        #4f46e5;
-      --pri-hover:  #4338ca;
-      --pri-light:  #eef2ff;
-      --pri-border: #c7d2fe;
+      color-scheme: light;
+      --pri:        #0891b2;
+      --pri-hover:  #0e7490;
+      --pri-light:  #ecfeff;
+      --pri-border: #a5f3fc;
       --success:    #10b981;
       --success-bg: #d1fae5;
       --danger:     #ef4444;
       --danger-bg:  #fee2e2;
-      --bg:         #f1f4f9;
+      --bg:         #f4f4f5;
       --card:       #ffffff;
-      --border:     #e2e8f2;
-      --border-2:   #c8d5e8;
-      --text:       #0f172a;
-      --text-2:     #4a5568;
-      --text-3:     #94a3b8;
+      --card-2:     #f0f0f1;
+      --border:     #e4e4e7;
+      --border-2:   #d4d4d8;
+      --text:       #18181b;
+      --text-2:     #52525b;
+      --text-3:     #a1a1aa;
       --r:          10px;
       --r-sm:       7px;
-      --sh:         0 1px 4px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.04);
-      --sh-md:      0 4px 16px rgba(15,23,42,.08), 0 1px 4px rgba(15,23,42,.05);
+      --sh:         0 1px 4px rgba(24,24,27,.06), 0 2px 8px rgba(24,24,27,.04);
+      --sh-md:      0 4px 16px rgba(24,24,27,.08), 0 1px 4px rgba(24,24,27,.05);
+      --sidebar-w:  240px;
     }
     [data-theme="dark"] {
-      --pri:        #6366f1;
-      --pri-hover:  #818cf8;
-      --pri-light:  #1a1d3d;
-      --pri-border: #3730a3;
+      color-scheme: dark;
+      --pri:        #22d3ee;
+      --pri-hover:  #67e8f9;
+      --pri-light:  #0e2b33;
+      --pri-border: #155e75;
       --success:    #34d399;
       --success-bg: #022c22;
       --danger:     #f87171;
       --danger-bg:  #450a0a;
-      --bg:         #070b18;
-      --card:       #0d1526;
-      --border:     #1a2d4a;
-      --border-2:   #2a456e;
-      --text:       #e2e8f4;
-      --text-2:     #7a90ae;
-      --text-3:     #4a6080;
-      --sh:         0 4px 20px rgba(0,0,0,.55), 0 1px 4px rgba(0,0,0,.35);
-      --sh-md:      0 8px 32px rgba(0,0,0,.65), 0 2px 8px rgba(99,102,241,.06);
+      --bg:         #09090b;
+      --card:       #18181b;
+      --card-2:     #101012;
+      --border:     #27272a;
+      --border-2:   #3f3f46;
+      --text:       #f4f4f5;
+      --text-2:     #a1a1aa;
+      --text-3:     #71717a;
+      --surface-hover: #202024;
+      /* Diffuse shadows barely register on a near-black page, so depth comes
+         mainly from a soft top highlight (glass-edge) plus a tight contact
+         shadow; the wide blur underneath adds separation from the page. */
+      --sh:         inset 0 1px 0 rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.45);
+      --sh-md:      inset 0 1px 0 rgba(255,255,255,.06), 0 2px 4px rgba(0,0,0,.5), 0 20px 48px rgba(0,0,0,.55);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
 
-    /* ── Header ─────────────────────────────────────────── */
-    header {
-      background: var(--card);
-      border-bottom: 1px solid var(--border);
-      height: 56px;
-      padding: 0 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 1px 0 var(--border), var(--sh);
+    /* ── App shell: fixed left sidebar + main content ─────── */
+    .app-shell { display: flex; min-height: 100vh; }
+    #app-sidebar {
+      position: fixed; left: 0; top: 0; width: var(--sidebar-w); height: 100vh;
+      background: var(--card); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; z-index: 100; overflow-y: auto;
     }
-    [data-theme="dark"] header { box-shadow: 0 1px 0 var(--border), 0 2px 12px rgba(0,0,0,.4); }
-    .h-brand { display: flex; align-items: center; gap: 10px; }
+    .app-main { margin-left: var(--sidebar-w); min-width: 0; flex: 1; }
+
+    .side-brand { display: flex; align-items: center; gap: 10px; padding: 22px 20px 18px; flex-shrink: 0; }
     .h-logo  {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      border-radius: 9px;
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, #22d3ee, #14b8a6);
+      border-radius: 8px;
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 8px rgba(99,102,241,.4);
+      box-shadow: 0 2px 8px rgba(34,211,238,.4);
+      flex-shrink: 0;
     }
-    .h-title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
-    .h-badge {
-      font-size: 11px; color: var(--text-3);
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 20px; padding: 2px 10px; font-weight: 500;
-    }
-    .h-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); transition: background .3s; }
+    .h-title { font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); transition: background .3s; flex-shrink: 0; }
     .dot.ok  { background: var(--success); box-shadow: 0 0 6px rgba(52,211,153,.5); }
     .dot.err { background: var(--danger); box-shadow: 0 0 6px rgba(248,113,113,.5); }
 
-    /* ── Main nav tabs ──────────────────────────────────── */
-    .main-nav { display: flex; align-items: center; gap: 2px; }
+    /* ── Sidebar nav ───────────────────────────────────────── */
+    .main-nav { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; flex: 1; }
     .nav-btn {
+      display: flex; align-items: center; gap: 10px;
       background: none; border: none; cursor: pointer; font-family: inherit;
-      font-size: 13px; font-weight: 500; color: var(--text-2);
-      padding: 6px 18px; border-radius: 8px; transition: all .15s; white-space: nowrap;
+      font-size: 13px; font-weight: 500; color: var(--text-2); text-align: left;
+      padding: 8px 12px; border-radius: var(--r-sm); transition: all .15s; white-space: nowrap;
     }
+    .nav-btn svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
     .nav-btn:hover { color: var(--text); background: var(--bg); }
     .nav-btn.active { color: var(--pri); background: var(--pri-light); font-weight: 600; }
-    [data-theme="dark"] .nav-btn:hover  { background: #111827; }
+    .nav-btn.active svg { opacity: 1; }
+    [data-theme="dark"] .nav-btn:hover  { background: var(--surface-hover); }
     [data-theme="dark"] .nav-btn.active { background: var(--pri-light); }
 
+    /* ── Sidebar footer: status + lang/theme/settings/logout ── */
+    .side-footer { padding: 12px 16px 16px; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+    .h-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); white-space: nowrap; }
+    .side-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
     /* ── Layout ─────────────────────────────────────────── */
-    .layout { display: grid; grid-template-columns: 272px 1fr; gap: 20px; padding: 20px 28px; max-width: 1440px; margin: 0 auto; align-items: stretch; }
-    .layout-full { padding: 20px 28px; max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-    .col-l { display: flex; flex-direction: column; gap: 16px; align-self: stretch; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; padding: 28px 32px; max-width: 1440px; margin: 0 auto; align-items: stretch; }
+    .layout-full { padding: 28px 32px; max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+    .col-l { display: flex; flex-direction: column; gap: 20px; align-self: stretch; }
     .col-l > .card { flex: 1; display: flex; flex-direction: column; }
     .col-l > .card > .card-bd { flex: 1; display: flex; flex-direction: column; }
     .col-l > .card > .card-bd > #mask-list { flex: 1; overflow-y: auto; margin: 0 -4px; padding: 0 4px; min-height: 0; }
-    .col-r { display: flex; flex-direction: column; gap: 16px; }
+    .col-r { display: flex; flex-direction: column; gap: 20px; }
     .col-r > #def-empty { flex: 1; }
 
     /* ── Card ───────────────────────────────────────────── */
     .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
     .card-hd {
-      padding: 12px 18px;
+      padding: 15px 20px;
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(to bottom, rgba(255,255,255,.02), transparent);
+      background: linear-gradient(to bottom, rgba(255,255,255,.025), transparent);
     }
     [data-theme="dark"] .card-hd { background: linear-gradient(to bottom, rgba(255,255,255,.03), transparent); }
-    .card-title { font-size: 13px; font-weight: 600; white-space: nowrap; letter-spacing: -.01em; }
-    .card-bd { padding: 14px 18px; }
+    .card-title { font-size: 14px; font-weight: 600; white-space: nowrap; letter-spacing: -.01em; }
+    .card-bd { padding: 20px; }
 
     /* ── Buttons ─────────────────────────────────────────── */
-    .btn { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: var(--r-sm); padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all .15s; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: var(--r-sm); padding: 7px 15px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all .15s; }
     .btn-pri  {
-      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      background: linear-gradient(135deg, #22d3ee, #0891b2);
       color: #fff;
-      box-shadow: 0 2px 8px rgba(99,102,241,.35);
+      box-shadow: 0 2px 8px rgba(34,211,238,.35);
     }
-    .btn-pri:hover  { background: linear-gradient(135deg, #818cf8, #6366f1); box-shadow: 0 4px 12px rgba(99,102,241,.45); transform: translateY(-1px); }
+    .btn-pri:hover  { background: linear-gradient(135deg, #67e8f9, #22d3ee); box-shadow: 0 4px 12px rgba(34,211,238,.45); transform: translateY(-1px); }
     .btn-pri:active { transform: translateY(0); }
     .btn-ok   { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,.3); }
     .btn-ok:hover   { opacity: .9; transform: translateY(-1px); }
@@ -142,10 +151,10 @@
     }
     input:focus, textarea:focus, select:focus {
       border-color: var(--pri);
-      box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+      box-shadow: 0 0 0 3px rgba(34,211,238,.18);
     }
     [data-theme="dark"] input, [data-theme="dark"] textarea, [data-theme="dark"] select {
-      background: #0a1220;
+      background: var(--card-2);
       border-color: var(--border);
     }
 
@@ -164,31 +173,31 @@
     [data-theme="dark"] .lang-sel { background: transparent; color: var(--text-2); border-color: var(--border); }
 
     /* ── Dark mode overrides ─────────────────────────────── */
-    [data-theme="dark"] .tab.on        { background: #111827; box-shadow: 0 0 0 1px var(--border); color: var(--pri); }
-    [data-theme="dark"] .tabs          { background: #060a14; border-color: var(--border); }
-    [data-theme="dark"] .pbox          { background: #060a14; border-color: var(--border); }
+    [data-theme="dark"] .tab.on        { background: var(--surface-hover); box-shadow: 0 0 0 1px var(--border); color: var(--pri); }
+    [data-theme="dark"] .tabs          { background: var(--card-2); border-color: var(--border); }
+    [data-theme="dark"] .pbox          { background: var(--card-2); border-color: var(--border); }
     [data-theme="dark"] .ftag          { background: #1c1204; border-color: #854d0e; color: #fcd34d; }
-    [data-theme="dark"] .chip          { background: #1a1d3d; border-color: #3730a3; color: #818cf8; }
-    [data-theme="dark"] .chip:hover    { background: #252860; }
-    [data-theme="dark"] .chip.raw      { background: #2e1065; border-color: #7c3aed; color: #c4b5fd; }
-    [data-theme="dark"] .chip.raw:hover{ background: #3b0764; }
-    [data-theme="dark"] .b-off         { background: #111827; color: var(--text-3); }
+    [data-theme="dark"] .chip          { background: #0e2b33; border-color: #155e75; color: #67e8f9; }
+    [data-theme="dark"] .chip:hover    { background: #164e5c; }
+    [data-theme="dark"] .chip.raw      { background: #042f2e; border-color: #14b8a6; color: #5eead4; }
+    [data-theme="dark"] .chip.raw:hover{ background: #064e46; }
+    [data-theme="dark"] .b-off         { background: var(--surface-hover); color: var(--text-3); }
     [data-theme="dark"] .b-off::before { background: var(--text-3); }
     [data-theme="dark"] .b-on          { background: var(--success-bg); color: #6ee7b7; }
     [data-theme="dark"] .b-on::before  { background: var(--success); }
-    [data-theme="dark"] .proto-server  { background: #2a1600; color: #fbbf24; border: 1px solid #78350f; }
-    [data-theme="dark"] .proto-client  { background: #1a1d3d; color: #818cf8; border: 1px solid #3730a3; }
-    [data-theme="dark"] .proto-udp     { background: #071d38; color: #38bdf8; border: 1px solid #0c4a6e; }
-    [data-theme="dark"] .mask-tag      { background: #1a1d3d; color: #818cf8; border-color: #3730a3; }
-    [data-theme="dark"] .mode-tag      { background: #042218; color: #6ee7b7; border-color: #065f46; }
+    [data-theme="dark"] .proto-server  { color: #fbbf24; }
+    [data-theme="dark"] .proto-client  { color: #67e8f9; }
+    [data-theme="dark"] .proto-udp     { color: #38bdf8; }
+    [data-theme="dark"] .mask-tag      { color: #67e8f9; }
+    [data-theme="dark"] .mode-tag      { color: #6ee7b7; }
     [data-theme="dark"] .m-badge       { background: var(--success-bg); color: #6ee7b7; }
-    [data-theme="dark"] .mask-item:hover { background: #131840; }
-    [data-theme="dark"] .mask-item.sel  { background: #131840; border-color: #3730a3; }
-    [data-theme="dark"] .ptable tbody tr:hover td { background: #0f1e35; }
-    [data-theme="dark"] .ptable th    { background: #060a14; }
-    [data-theme="dark"] .step         { border-color: var(--border); background: #0a1220; }
+    [data-theme="dark"] .mask-item:hover { background: #0a2530; }
+    [data-theme="dark"] .mask-item.sel  { background: #0a2530; border-color: #155e75; }
+    [data-theme="dark"] .ptable tbody tr:hover td { background: var(--surface-hover); }
+    [data-theme="dark"] .ptable th    { background: var(--card-2); }
+    [data-theme="dark"] .step         { border-color: var(--border); background: var(--card-2); box-shadow: inset 0 1px 3px rgba(0,0,0,.3); }
     [data-theme="dark"] .btn-ghost    { border-color: var(--border); color: var(--text-2); }
-    [data-theme="dark"] .btn-ghost:hover { background: #111827; border-color: var(--border-2); color: var(--text); }
+    [data-theme="dark"] .btn-ghost:hover { background: var(--surface-hover); border-color: var(--border-2); color: var(--text); }
 
     /* ── Mask sidebar ────────────────────────────────────── */
     .mask-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--r-sm); cursor: pointer; transition: all .15s; border: 1px solid transparent; margin-bottom: 2px; }
@@ -207,11 +216,10 @@
     .tab.on { background: var(--card); color: var(--pri); box-shadow: var(--sh); }
 
     /* ── Step blocks ─────────────────────────────────────── */
-    .steps { display: grid; gap: 12px; }
-    .step { border: 1px solid var(--border); border-radius: var(--r); padding: 16px; background: var(--bg); }
-    [data-theme="dark"] .step { background: #0a1220; }
-    .step-hd { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
-    .step-n  { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(99,102,241,.3); }
+    .steps { display: grid; gap: 16px; }
+    .step { border: 1px solid var(--border); border-radius: var(--r); padding: 18px; background: var(--card-2); }
+    .step-hd { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; }
+    .step-n  { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #22d3ee, #0891b2); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(34,211,238,.3); }
     .step-t  { font-size: 13px; font-weight: 600; }
     .step-t small { font-weight: 400; color: var(--text-3); font-size: 12px; margin-left: 6px; }
 
@@ -229,15 +237,15 @@
     /* ── Chips ───────────────────────────────────────────── */
     .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
     .chip { display: inline-flex; align-items: center; background: var(--pri-light); border: 1px solid var(--pri-border); border-radius: 20px; padding: 3px 11px; font-size: 12px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; color: var(--pri); cursor: pointer; user-select: none; transition: background .12s; }
-    .chip:hover { background: #c7d2fe; }
-    .chip.raw { background: #f3e8ff; border-color: #d8b4fe; color: #7c3aed; }
-    .chip.raw:hover { background: #e9d5ff; }
+    .chip:hover { background: #a5f3fc; }
+    .chip.raw { background: #f0fdfa; border-color: #99f6e4; color: #14b8a6; }
+    .chip.raw:hover { background: #ccfbf1; }
 
     /* ── Template + Preview ──────────────────────────────── */
     .tmpl-input { font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; }
     .preview-grid { display: grid; grid-template-columns: 1fr 32px 1fr; align-items: center; gap: 10px; margin-top: 2px; }
     .preview-lbl { font-size: 11px; color: var(--text-3); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
-    .pbox { background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 9px 12px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 13px; min-height: 40px; word-break: break-all; }
+    .pbox { background: var(--card-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 10px 12px; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 13px; min-height: 40px; word-break: break-all; }
     .pbox.muted { color: var(--text-3); font-style: italic; }
     .pbox.warn  { color: var(--danger); background: var(--danger-bg); border-color: #fca5a5; }
     .arrow { text-align: center; color: var(--text-3); font-size: 20px; line-height: 1; }
@@ -260,7 +268,7 @@
     .ptable td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
     .ptable tr:last-child td { border-bottom: none; }
     .ptable tbody tr { transition: background .12s; }
-    .ptable tbody tr:hover td { background: rgba(99,102,241,.04); }
+    .ptable tbody tr:hover td { background: rgba(34,211,238,.04); }
     .ptable td.chk-col, .ptable th.chk-col { width: 36px; padding: 8px 4px 8px 14px; }
     .batch-bar { display:none; align-items:center; gap:10px; padding:8px 16px; background:var(--pri-light); border-bottom:1px solid var(--pri-border); font-size:13px; color:var(--text); }
     .batch-bar.show { display:flex; }
@@ -270,42 +278,19 @@
     .b-on::before  { background: var(--success); }
     .b-off { background: #f1f5f9; color: var(--text-3); }
     .b-off::before { background: var(--text-3); }
-    .proto { display: inline-block; padding: 2px 9px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid transparent; letter-spacing: .02em; }
-    .proto-client { background: var(--pri-light); color: var(--pri); border-color: var(--pri-border); }
-    .proto-server { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-    .proto-udp    { background: #e0f2fe; color: #075985; border-color: #bae6fd; }
+    /* Plain colored text, not pills — a row already has a protocol badge,
+       a mask label and a status dot; bordering all three turns a data row
+       into a wall of chips. Color alone is enough to tell them apart. */
+    .proto { font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .proto-client { color: var(--pri); }
+    .proto-server { color: #92400e; }
+    .proto-udp    { color: #075985; }
     .mono { font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 12px; }
-    .mask-tag { display: inline-block; background: var(--pri-light); color: var(--pri); border: 1px solid var(--pri-border); border-radius: 5px; padding: 2px 9px; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
-    .mode-tag { display: inline-block; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 5px; padding: 2px 9px; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+    .mask-tag { color: var(--pri); font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+    .mode-tag { color: #166534; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
 
-    /* ── Port Card Grid ─────────────────────────────────────── */
-    .port-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; padding: 4px; }
-    .port-card { position: relative; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px 12px 18px; transition: border-color .15s, transform .15s, box-shadow .15s; overflow: hidden; min-width: 0; }
-    .port-card:hover { border-color: var(--pri); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.06); }
-    .port-card.active { border-color: var(--pri); background: linear-gradient(135deg, var(--pri-light) 0%, var(--card) 60%); }
-    .port-card.disabled { opacity: .55; }
-    .port-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--text-3); transition: background .2s; }
-    .port-card.connected::before { background: var(--success); box-shadow: 0 0 12px rgba(16,185,129,.5); }
-    [data-theme="dark"] .port-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.4); }
-    .pc-hd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .pc-cb { width: 14px; height: 14px; margin: 0; flex-shrink: 0; cursor: pointer; }
-    .pc-title { flex: 1 1 auto; min-width: 0; }
-    .pc-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pc-id { font-size: 10px; color: var(--text-3); font-family: Consolas, 'Cascadia Code', monospace; line-height: 1; }
-    .pc-hd .badge { white-space: nowrap; flex-shrink: 0; }
-    .pc-tags { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-    .pc-meta { display: grid; grid-template-columns: 16px 50px 1fr; gap: 6px 10px; align-items: center; margin: 8px 0; padding: 10px 12px; background: rgba(0,0,0,.02); border-radius: 6px; font-size: 12px; }
-    [data-theme="dark"] .pc-meta { background: rgba(255,255,255,.025); }
-    .pc-meta-ic { width: 14px; height: 14px; color: var(--text-3); flex-shrink: 0; }
-    .pc-meta-lbl { color: var(--text-3); font-size: 11px; }
-    .pc-meta-val { font-family: Consolas, 'Cascadia Code', monospace; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pc-meta-val.dim { color: var(--text-3); }
-    .pc-stats { display: flex; gap: 14px; padding: 8px 4px; font-size: 11px; color: var(--text-3); border-top: 1px solid var(--border); margin-top: 6px; }
-    .pc-stat { display: flex; align-items: center; gap: 5px; }
-    .pc-stat strong { color: var(--text); font-weight: 600; font-family: Consolas, monospace; font-size: 12px; }
-    .pc-devices { font-size: 10px; color: var(--pri); font-family: Consolas, monospace; padding: 5px 9px; background: var(--pri-light); border: 1px solid var(--pri-border); border-radius: 5px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pc-ft { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
-    .pc-disabled-note { display: inline-block; font-size: 10px; color: var(--danger); padding: 2px 6px; background: rgba(239,68,68,.08); border-radius: 4px; margin-right: auto; white-space: nowrap; }
+    /* ── Port table toolbar ─────────────────────────────────── */
+    .pc-disabled-note { display: inline-block; font-size: 10px; color: var(--danger); padding: 2px 6px; background: rgba(239,68,68,.08); border-radius: 4px; white-space: nowrap; }
     .pc-toolbar { display: flex; align-items: center; gap: 14px; padding: 4px 4px 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
     .pc-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); cursor: pointer; user-select: none; }
     .pc-toolbar label input[type=checkbox] { width: 14px; height: 14px; margin: 0; cursor: pointer; }
@@ -415,52 +400,71 @@
 </div>
 
 <!-- Header -->
-<header>
-  <div class="h-brand">
+<div class="app-shell">
+<aside id="app-sidebar">
+  <div class="side-brand">
     <div class="h-logo">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
       </svg>
     </div>
     <span class="h-title">IoT Server</span>
   </div>
   <nav class="main-nav">
-    <button class="nav-btn active" id="nav-mask" onclick="showSection('mask')" data-i18n="navMask"></button>
-    <button class="nav-btn" id="nav-port" onclick="showSection('port')" data-i18n="navPort"></button>
-    <button class="nav-btn" id="nav-log"  onclick="showSection('log')"  data-i18n="navLog"></button>
-    <button class="nav-btn" id="nav-manual" onclick="window.open('/manual','_blank')" data-i18n="navManual"></button>
+    <button class="nav-btn active" id="nav-mask" onclick="showSection('mask')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+      <span data-i18n="navMask"></span>
+    </button>
+    <button class="nav-btn" id="nav-port" onclick="showSection('port')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      <span data-i18n="navPort"></span>
+    </button>
+    <button class="nav-btn" id="nav-log"  onclick="showSection('log')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      <span data-i18n="navLog"></span>
+    </button>
+    <button class="nav-btn" id="nav-manual" onclick="window.open('/manual','_blank')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+      <span data-i18n="navManual"></span>
+    </button>
   </nav>
-  <div class="h-status">
-    <select class="lang-sel" onchange="setLang(this.value)" id="lang-sel">
-      <option value="zh-TW">繁中</option>
-      <option value="en-US">EN</option>
-      <option value="ja-JP">日本語</option>
-    </select>
-    <button class="theme-btn" onclick="toggleTheme()">
-      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
-      </svg>
-      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
-        <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
-        <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      </svg>
-    </button>
-    <div class="dot" id="dot"></div>
-    <span id="status-txt"></span>
-    <button id="settings-btn" class="btn btn-ghost btn-sm" onclick="openSettings()"
-      style="display:none" title="Settings">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
-      </svg>
-    </button>
-    <button id="logout-btn" class="btn btn-ghost btn-sm" onclick="doLogout()"
-      style="display:none;font-size:11px" data-i18n="logout"></button>
+  <div class="side-footer">
+    <div class="h-status">
+      <div class="dot" id="dot"></div>
+      <span id="status-txt"></span>
+    </div>
+    <div class="side-controls">
+      <select class="lang-sel" onchange="setLang(this.value)" id="lang-sel">
+        <option value="zh-TW">繁中</option>
+        <option value="en-US">EN</option>
+        <option value="ja-JP">日本語</option>
+      </select>
+      <button class="theme-btn" onclick="toggleTheme()">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+      <button id="settings-btn" class="btn btn-ghost btn-sm" onclick="openSettings()"
+        style="display:none" title="Settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
+      <button id="logout-btn" class="btn btn-ghost btn-sm" onclick="doLogout()"
+        style="display:none;font-size:11px" data-i18n="logout"></button>
+    </div>
   </div>
-</header>
+</aside>
+
+<div class="app-main">
 
 <!-- Main layout -->
 <div id="sec-mask" class="layout">
@@ -672,7 +676,7 @@
       </div>
 
       <!-- Add Port form -->
-      <div id="add-port-form" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div id="add-port-form" style="display:none;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--card-2)">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <input id="ap-name"      type="text" data-i18n-ph="apName">
           <select id="ap-protocol" onchange="onAddPortProtocolChange()">
@@ -706,7 +710,7 @@
           </div>
         </div>
         <!-- Modbus 區 (僅 Modbus TCP Master 顯示) -->
-        <div id="ap-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(99,102,241,.06);border:1px solid var(--pri-border);border-radius:6px">
+        <div id="ap-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(34,211,238,.06);border:1px solid var(--pri-border);border-radius:6px">
           <div style="font-size:12px;font-weight:700;color:var(--pri)">Modbus 設定</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <div style="display:flex;flex-direction:column;gap:4px">
@@ -726,7 +730,7 @@
             <label style="font-size:11px;color:var(--text-2)">
               Registers (JSON Array) — 每個 register: { name, functionCode, startAddress, quantity, dataType, scale, offset }
             </label>
-            <textarea id="ap-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical" placeholder='[
+            <textarea id="ap-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical" placeholder='[
   { "name": "yaw",   "functionCode": 2, "startAddress": 0, "quantity": 8, "dataType": "bits" },
   { "name": "pitch", "functionCode": 2, "startAddress": 8, "quantity": 8, "dataType": "bits" }
 ]'></textarea>
@@ -745,7 +749,7 @@
       </div>
 
       <!-- Edit Port form -->
-      <div id="edit-port-form" style="display:none;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg)">
+      <div id="edit-port-form" style="display:none;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--card-2)">
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px" data-i18n="editPortTitle"></div>
         <input type="hidden" id="ep-id">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -781,7 +785,7 @@
           </div>
         </div>
         <!-- Modbus 區 (僅 Modbus TCP Master 顯示) -->
-        <div id="ep-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(99,102,241,.06);border:1px solid var(--pri-border);border-radius:6px">
+        <div id="ep-modbus-section" style="display:none;flex-direction:column;gap:8px;margin-bottom:8px;padding:10px 12px;background:rgba(34,211,238,.06);border:1px solid var(--pri-border);border-radius:6px">
           <div style="font-size:12px;font-weight:700;color:var(--pri)">Modbus 設定</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <div style="display:flex;flex-direction:column;gap:4px">
@@ -799,7 +803,7 @@
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
             <label style="font-size:11px;color:var(--text-2)">Registers (JSON Array)</label>
-            <textarea id="ep-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical"></textarea>
+            <textarea id="ep-modbus-regs" rows="6" style="font-family:Consolas,'Cascadia Code',monospace;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:8px;resize:vertical"></textarea>
             <div style="font-size:10px;color:var(--text-3);line-height:1.5">
               <b>functionCode</b>: 1=Coil 2=DI 3=Holding 4=Input | <b>dataType</b>: bit/bits/uint16/int16/uint32/int32/float32
             </div>
@@ -818,8 +822,13 @@
         <button class="btn btn-sm" style="background:var(--danger);color:#fff" onclick="batchDeletePorts()" data-i18n="batchDelete"></button>
         <button class="btn btn-ghost btn-sm" onclick="clearSelection()" data-i18n="cancel"></button>
       </div>
+    </div><!-- /Port actions card -->
 
-      <!-- Port grid toolbar -->
+    <!-- Toolbar sits directly on the page canvas (not inside a full-width
+         card) — a big bordered box around a couple of rows just draws
+         attention to how empty it is. The table itself supplies its own
+         card chrome below. -->
+    <div>
       <div class="pc-toolbar">
         <label>
           <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" title="全選">
@@ -828,10 +837,25 @@
         <div class="pc-summary" id="port-summary"></div>
       </div>
 
-      <!-- Port card grid -->
-      <div id="port-body" class="port-grid">
-        <div class="empty-state" style="padding:48px;grid-column:1/-1"><p data-i18n="loading"></p></div>
+      <div class="card" style="overflow-x:auto">
+        <table class="ptable">
+          <thead>
+            <tr>
+              <th class="chk-col"></th>
+              <th data-i18n="colName"></th>
+              <th data-i18n="colProtocol"></th>
+              <th data-i18n="colConn"></th>
+              <th data-i18n="colStatus"></th>
+              <th data-i18n="colMask"></th>
+              <th style="text-align:right" data-i18n="colActions"></th>
+            </tr>
+          </thead>
+          <tbody id="port-body">
+            <tr><td colspan="7" style="padding:0"><div class="empty-state" style="padding:48px"><p data-i18n="loading"></p></div></td></tr>
+          </tbody>
+        </table>
       </div>
+    </div>
 
       <!-- Monitor Log（只在選擇監控後顯示） -->
       <div class="card" id="monitor-log-card" style="margin-top:16px;display:none">
@@ -867,14 +891,13 @@
           </div>
         </div>
         <div id="log-box" style="
-          height:280px; overflow-y:auto; background:var(--bg);
+          height:380px; overflow-y:auto; background:var(--card-2);
           border:1px solid var(--border); border-radius:var(--r-sm);
-          padding:8px 10px; font-family:Consolas,'Cascadia Code','SF Mono',monospace;
-          font-size:12px; color:var(--text-2); line-height:1.6;">
+          padding:10px 14px; font-family:Consolas,'Cascadia Code','SF Mono',monospace;
+          font-size:12px; color:var(--text-2); line-height:1.7;">
         </div>
       </div>
 
-    </div><!-- /Port card -->
 </div><!-- /sec-port -->
 
 <!-- ── 系統 Log ── -->
@@ -896,15 +919,18 @@
       </div>
       <div id="syslog-body" style="display:block">
         <div id="syslog-box" style="
-          height:220px;overflow-y:auto;background:var(--bg);
+          height:calc(100vh - 210px); min-height:320px; overflow-y:auto; background:var(--card-2);
           border-top:1px solid var(--border);
-          padding:8px 12px;font-family:Consolas,'Cascadia Code','SF Mono',monospace;
-          font-size:12px;color:var(--text-2);line-height:1.6">
+          padding:10px 14px;font-family:Consolas,'Cascadia Code','SF Mono',monospace;
+          font-size:12px;color:var(--text-2);line-height:1.7">
           <span style="color:var(--text-3)" data-i18n="loading"></span>
         </div>
       </div>
     </div><!-- /syslog-card -->
 </div><!-- /sec-log -->
+
+</div><!-- /app-main -->
+</div><!-- /app-shell -->
 
 <script>
 const BASE = window.location.origin;
@@ -1067,12 +1093,11 @@ const LANGS = {
     portStatus:      'Port 狀態',
     colName:         '名稱',
     colProtocol:     '協議',
-    colLocalPort:    '本地端口',
-    colRemotePort:   '遠端端口',
-    colTarget:       '目標 IP',
+    colConn:         '連線',
     colStatus:       '狀態',
     colMask:         '遮罩',
     loading:         '載入中…',
+    noLogsYet:       '尚無日誌',
     noPort:          '尚無 Port 設定',
     selectAll:       '全選',
     totalPort:       'Port',
@@ -1215,12 +1240,11 @@ const LANGS = {
     portStatus:      'Port Status',
     colName:         'Name',
     colProtocol:     'Protocol',
-    colLocalPort:    'Local Port',
-    colRemotePort:   'Remote Port',
-    colTarget:       'Target IP',
+    colConn:         'Connection',
     colStatus:       'Status',
     colMask:         'Mask',
     loading:         'Loading…',
+    noLogsYet:       'No logs yet',
     noPort:          'No port configured',
     selectAll:       'Select All',
     totalPort:       'Port',
@@ -1363,12 +1387,11 @@ const LANGS = {
     portStatus:      'ポート状態',
     colName:         '名前',
     colProtocol:     'プロトコル',
-    colLocalPort:    'ローカルポート',
-    colRemotePort:   'リモートポート',
-    colTarget:       'ターゲット IP',
+    colConn:         '接続',
     colStatus:       '状態',
     colMask:         'マスク',
     loading:         '読み込み中…',
+    noLogsYet:       'ログはまだありません',
     noPort:          'ポート設定なし',
     selectAll:       '全選択',
     totalPort:       'ポート',
@@ -1902,7 +1925,7 @@ async function loadPorts() {
 
   const tb = document.getElementById('port-body');
   if (!ports.length) {
-    tb.innerHTML = `<div class="empty-state" style="padding:48px;grid-column:1/-1"><p>${t('noPort')}</p></div>`;
+    tb.innerHTML = `<tr><td colspan="7" style="padding:0"><div class="empty-state" style="padding:48px"><p>${t('noPort')}</p></div></td></tr>`;
     updatePortSummary(ports);
     updateBatchBar();
     return;
@@ -1916,55 +1939,43 @@ async function loadPorts() {
     const isActive = activeMon === monKey;
     const shortId = p.id ? p.id.slice(0, 8) : '';
 
-    // mask tags
-    const maskTags =
-      `<span class="mask-tag">${esc(maskLabel(p.maskType))}</span>` +
-      (isTcpClient && p.responseMaskType
+    // mask tags — plain colored text, joined with a middle dot rather than
+    // three separate bordered pills stacked on the same row.
+    const maskTags = [
+      `<span class="mask-tag">${esc(maskLabel(p.maskType))}</span>`,
+      (isTcpClient && p.responseMaskType)
         ? `<span class="mask-tag" style="opacity:.75" title="${t('respMaskLabel')}">↩ ${esc(maskLabel(p.responseMaskType))}</span>`
-        : '') +
-      (isTcpClient
-        ? `<span class="mode-tag">${esc(p.requestMode || 'serial')}</span>`
-        : '');
+        : null,
+      isTcpClient ? `<span class="mode-tag">${esc(p.requestMode || 'serial')}</span>` : null,
+    ].filter(Boolean).join('<span style="color:var(--text-3);margin:0 5px">·</span>');
 
-    // metadata rows (icons + label + value)
-    const metaRows = [];
-    if (p.localPort && p.localPort !== '--')
-      metaRows.push(['M3 12h18M3 6h18M3 18h18', t('colLocalPort') || '本地', esc(p.localPort)]);
-    if (p.remotePort && p.remotePort !== '--')
-      metaRows.push(['M5 12h14M12 5l7 7-7 7', t('colRemotePort') || '遠端', esc(p.remotePort)]);
-    if (p.targetIp)
-      metaRows.push(['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2c2 2 3 6 3 10s-1 8-3 10c-2-2-3-6-3-10s1-8 3-10z', t('colTarget') || 'IP', esc(p.targetIp)]);
-    if (isTcpClient && p.sourceProtocolName) {
-      const srcShortId = p.sourceProtocolId ? ' #' + p.sourceProtocolId.slice(0, 8) : '';
-      metaRows.push(['M13 5l7 7-7 7M5 12h15', t('sourceLabel') || '來源', esc(p.sourceProtocolName) + esc(srcShortId)]);
-    }
-    const metaHtml = `<div class="pc-meta">${metaRows.map(([d, lbl, val]) =>
-      `<svg class="pc-meta-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="${d}"/></svg>
-       <span class="pc-meta-lbl">${lbl}</span>
-       <span class="pc-meta-val">${val}</span>`
-    ).join('')}</div>`;
-
-    // stats / connections
-    const showsClients = (p.netProtocol === 'TCP Server' || p.netProtocol === 'UDP');
-    const clientsCount = p.netProtocol === 'UDP' ? (p.connectedDeviceIds || []).length : (p.currentConnections || 0);
-    const statsRow = (showsClients && p.isEnabled) ? `
-      <div class="pc-stats">
-        <div class="pc-stat" title="${t('clients')}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          <strong>${clientsCount}</strong>
-        </div>
-        ${p.netProtocol === 'TCP Server' ? `<div class="pc-stat">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          <strong>${fmtBytes(p.totalReceivedBytes)}</strong>
-        </div>` : ''}
-      </div>` : '';
-
-    // device id summary (small list)
-    const devList = (showsClients && p.isEnabled && (p.connectedDeviceIds || []).length > 0)
-      ? `<div class="pc-devices" title="${esc((p.connectedDeviceIds || []).join(', '))}">${esc((p.connectedDeviceIds || []).slice(0, 4).join(', '))}${(p.connectedDeviceIds || []).length > 4 ? ` +${(p.connectedDeviceIds || []).length - 4}` : ''}</div>`
+    // source (TCP Client only) — shown as a small sub-line under the name
+    const sourceLine = (isTcpClient && p.sourceProtocolName)
+      ? `<div class="mono" style="color:var(--text-3);font-size:11px" title="${t('sourceLabel') || '來源'}">→ ${esc(p.sourceProtocolName)}</div>`
       : '';
 
-    // action buttons (compact icon-only at bottom)
+    // Connection column — one address string that reads naturally for
+    // whichever protocol this port is, instead of three columns (local /
+    // remote / target) that are mostly "—" for any single protocol type.
+    let connInfo;
+    if (p.netProtocol === 'TCP Server') {
+      connInfo = `<span class="mono">:${esc(p.localPort)}</span>`;
+    } else if (p.netProtocol === 'UDP') {
+      connInfo = `<span class="mono">:${esc(p.remotePort)} → ${esc(p.targetIp || '?')}:${esc(p.localPort)}</span>`;
+    } else {
+      connInfo = `<span class="mono">→ ${esc(p.targetIp || '?')}:${esc(p.remotePort)}</span>`;
+    }
+
+    // stats / connections — compact second line under the address, only
+    // where it's meaningful (protocols that actually accept connections).
+    const showsClients = (p.netProtocol === 'TCP Server' || p.netProtocol === 'UDP');
+    const clientsCount = p.netProtocol === 'UDP' ? (p.connectedDeviceIds || []).length : (p.currentConnections || 0);
+    const statsLine = (showsClients && p.isEnabled) ? `
+      <div style="margin-top:2px;font-size:11px;color:var(--text-3);white-space:nowrap">
+        ${clientsCount} ${t('clients')}${p.netProtocol === 'TCP Server' ? ` · ${fmtBytes(p.totalReceivedBytes)}` : ''}
+      </div>` : '';
+
+    // action buttons
     const monBtn = `<button class="btn btn-sm ${isActive ? 'btn-ok' : 'btn-ghost'}" onclick="setMonitor(${isActive ? 'null' : `'${sq(p.id)}'`})" title="${isActive ? t('stopMonitor') : t('startMonitor')}">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <circle cx="12" cy="12" r="3"/><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
@@ -1983,30 +1994,30 @@ async function loadPorts() {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>`;
 
-    const cardCls = ['port-card', p.isConnected ? 'connected' : '', isActive ? 'active' : '', !p.isEnabled ? 'disabled' : ''].filter(Boolean).join(' ');
-
     const wasSelected = prevSelected.has(p.id);
-    return `<div class="${cardCls}">
-      <div class="pc-hd">
-        <input type="checkbox" class="port-cb pc-cb" value="${esc(p.id)}" onchange="updateBatchBar()"${wasSelected ? ' checked' : ''}>
-        <div class="pc-title">
-          <div class="pc-name">${esc(p.protocolName)}</div>
-          ${shortId ? `<div class="pc-id">#${shortId}</div>` : ''}
-        </div>
-        <span class="badge ${p.isConnected?'b-on':'b-off'}">${p.isConnected ? t('connected') : t('disconnected')}</span>
-      </div>
-      <div class="pc-tags">
-        <span class="proto ${pc}">${esc(p.netProtocol)}</span>
-        ${maskTags}
-      </div>
-      ${metaHtml}
-      ${statsRow}
-      ${devList}
-      <div class="pc-ft">
-        ${!p.isEnabled ? `<span class="pc-disabled-note">${t('disablePort')}</span>` : ''}
-        ${monBtn}${clientsBtn}${toggleBtn}${editBtn}${delBtn}
-      </div>
-    </div>`;
+    const rowStyle = !p.isEnabled ? ' style="opacity:.55"' : isActive ? ' style="background:var(--pri-light)"' : '';
+    return `<tr${rowStyle}>
+      <td class="chk-col"><input type="checkbox" class="port-cb" value="${esc(p.id)}" onchange="updateBatchBar()"${wasSelected ? ' checked' : ''}></td>
+      <td>
+        <div style="font-weight:600">${esc(p.protocolName)}</div>
+        ${shortId ? `<div class="mono" style="color:var(--text-3);font-size:11px">#${shortId}</div>` : ''}
+        ${sourceLine}
+      </td>
+      <td><span class="proto ${pc}">${esc(p.netProtocol)}</span></td>
+      <td>
+        ${connInfo}
+        ${statsLine}
+      </td>
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:6px">
+          <span class="dot${p.isConnected ? ' ok' : ''}"></span>
+          <span style="font-size:12px;color:var(--text-2)">${p.isConnected ? t('connected') : t('disconnected')}</span>
+        </span>
+        ${!p.isEnabled ? `<div class="pc-disabled-note" style="margin-top:4px">${t('disablePort')}</div>` : ''}
+      </td>
+      <td style="white-space:nowrap">${maskTags}</td>
+      <td style="text-align:right;white-space:nowrap">${monBtn}${clientsBtn}${toggleBtn}${editBtn}${delBtn}</td>
+    </tr>`;
   }).join('');
 
   // 重新整理 batch-bar (有勾選就顯示)
@@ -2380,15 +2391,19 @@ function clearLog() {
 }
 
 // ── System Log ────────────────────────────────────────
-let sysLogCursor = 0, sysLogFilter = '', sysLogOpen = true;
+let sysLogCursor = 0, sysLogFilter = '', sysLogOpen = true, sysLogInited = false;
 
 async function pollSysLog() {
   try {
     const r = await fetch(`${BASE}/api/logs?cursor=${sysLogCursor}`);
     if (!r.ok) return;
     const d = await r.json();
+    const box = document.getElementById('syslog-box');
+    // First successful poll replaces the static "loading…" placeholder,
+    // whether or not there's anything to show yet — otherwise an empty
+    // log forever displays "loading…", which reads as stuck/broken.
+    if (!sysLogInited) { box.innerHTML = ''; sysLogInited = true; }
     if (d.logs && d.logs.length) {
-      const box = document.getElementById('syslog-box');
       const atBottom = box.scrollHeight - box.clientHeight - box.scrollTop < 20;
       d.logs.forEach(line => {
         const el = document.createElement('div');
@@ -2401,6 +2416,8 @@ async function pollSysLog() {
         box.appendChild(el);
       });
       if (atBottom) box.scrollTop = box.scrollHeight;
+    } else if (!box.querySelector('div[data-raw]')) {
+      box.innerHTML = `<div style="color:var(--text-3);height:100%;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">${t('noLogsYet')}</div>`;
     }
     sysLogCursor = d.total;
   } catch { }
