@@ -76,8 +76,7 @@ jobs:
             1. Extract `EdgeLink-Server-${{ github.ref_name }}-win-x64.zip`
             2. Run `EdgeLinkServer.exe`
             3. Open `http://localhost:8081` in your browser
-            4. Accept the self-signed certificate warning (Advanced → Proceed)
-            5. Default password: `admin` — **change it immediately after login**
+            4. Default password: `admin` — **change it immediately after login**
 
             ## Downloads
 
