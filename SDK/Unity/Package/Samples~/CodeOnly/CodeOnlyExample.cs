@@ -11,7 +11,7 @@ using EdgeLink;
 public class CodeOnlyExample : MonoBehaviour
 {
     [Tooltip("可以從 PlayerPrefs / Lobby / config.json 動態取得")]
-    public string serverUrl = "https://192.168.1.100:8443";
+    public string serverUrl = "http://192.168.1.100:8081";
     public string tcpHost   = "192.168.1.100";
     public int    tcpPort   = 9001;
 
