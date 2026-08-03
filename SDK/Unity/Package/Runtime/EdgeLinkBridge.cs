@@ -163,7 +163,6 @@ namespace EdgeLink
                 loginReq.uploadHandler   = new UploadHandlerRaw(body);
                 loginReq.downloadHandler = new DownloadHandlerBuffer();
                 loginReq.SetRequestHeader("Content-Type", "application/json");
-                loginReq.certificateHandler = new BypassCertificate();
                 yield return loginReq.SendWebRequest();
                 if (loginReq.result != UnityWebRequest.Result.Success) yield break;
 
@@ -172,7 +171,6 @@ namespace EdgeLink
                 using (var maskReq = UnityWebRequest.Get($"{baseUrl}/api/masks/{Uri.EscapeDataString(_config.MaskId)}"))
                 {
                     maskReq.SetRequestHeader("Cookie", cookie);
-                    maskReq.certificateHandler = new BypassCertificate();
                     yield return maskReq.SendWebRequest();
                     if (maskReq.result != UnityWebRequest.Result.Success) yield break;
 
@@ -281,11 +279,6 @@ namespace EdgeLink
 
         private static string EscapeJson(string s) =>
             s?.Replace("\\", "\\\\").Replace("\"", "\\\"") ?? "";
-
-        private class BypassCertificate : CertificateHandler
-        {
-            protected override bool ValidateCertificate(byte[] certificateData) => true;
-        }
 
         [Serializable]
         private class MaskDefResponse
