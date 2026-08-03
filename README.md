@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.4.2-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.4.2)
+[![Version](https://img.shields.io/badge/Version-2.4.3-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.4.3)
 
 輕量級 .NET 8 伺服器：透過 TCP/UDP 橋接 IoT 裝置，以自訂 Mask 定義轉換協定資料，並提供瀏覽器端管理介面。
 
@@ -49,7 +49,7 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 
 ## 安裝
 
-1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.4.2-win-x64.zip`
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.4.3-win-x64.zip`
 2. 解壓縮 zip
 3. 執行 `EdgeLinkServer.exe`
 4. 開啟瀏覽器前往 `http://localhost:8081`
@@ -665,6 +665,7 @@ EdgeLink-Server/
 
 | 版本 | 變更內容 |
 |---------|---------|
+| v2.4.3 | **安全性修正**（#37–#38）— WebUI 儲存型 XSS 徹底修復：先前僅將 maskId／欄位名稱做 HTML 實體跳脫（`'` → `&#39;`），但瀏覽器解析 `onclick="fn('...')"` 屬性時會先做實體解碼、解碼後的結果才當成 JS 執行，等於沒有真正阻止跳出字串注入；改為雙層跳脫（先做 JS 字串跳脫，再做 HTML 屬性跳脫）。Unity SDK 移除登入／拉取 mask 定義請求的 TLS 憑證驗證繞過（原本對任何憑證照單全收，若搭配 HTTPS 反向代理會形同無防禦中間人攻擊）。`MonitorSseHandler` 加上併發連線數上限（50），避免監控 SSE 串流被用來耗盡伺服器資源 |
 | v2.4.2 | **安全性與正確性修正**（#29–#35）— WebUI 儲存型 XSS：`esc()` 漏跳脫單引號，maskId 可跳出 `onclick` 屬性注入任意 JS，管理者匯入一份動過手腳的 settings JSON 即可觸發；TCP accept 迴圈遇暫時性 `SocketException`（連線重置／中斷）就永久終止，該埠從此不再接受新連線；Modbus 位元打包溢位、CTS 事件註冊洩漏；讀取設定檔失敗（IO／權限／鎖檔，並非內容毀損）不再被誤判成空設定並存回，永久覆蓋磁碟上完好的資料；SDK `TcpListener` 的 UTF-8 decoder 誤放成連線間共用欄位，修正 v2.4.0（#20）引入的迴歸（不同連線的資料互相污染）。**Breaking change**：移除內建 HTTPS —— 舊版自簽憑證的私鑰密碼是寫死在原始碼裡的常數，又被裝進機器的 Trusted Root，比沒有 HTTPS 更危險；`--https` / `--no-https` / `--https-port` 旗標與對應環境變數改為忽略並提示，不會讓既有服務啟動失敗，升級時會自動清除舊憑證。**SDK**：Unity 預設 `ServerUrl` 改回 `http://…:8081`（移除 HTTPS 遺留）。新增端對端 smoke test 與 UDP / Modbus TCP Master 路由測試。WebUI 深色主題重新設計 —— 側邊欄排版、中性配色、Port 管理改表格 |
 | v2.4.0 | **穩定性與正確性修正**（全面稽核 #11–#20）— TCP 二進位 framing 與 decoder 改為共用 discriminator 解讀（先前兩邊各自解讀，signed／跨位元組欄位會分包錯位）；BinarySpec 存檔時驗證，壞掉的定義不再癱瘓接收迴圈；停止／改 Mask 時主動關閉已接受的連線（先前舊連線變半開，資料靜默遺失）；Modbus 連線失敗不再洩漏 socket、32 位元型別的暫存器數修正；設定檔原子寫入 + 損毀自動備份，部分 PUT 不再清掉 Modbus 設定；登入加上每 IP 節流（PBKDF2 10 萬次迭代原本可被當成 CPU 放大器）；HTTP body 1 MB 上限。**SDK**：UTF-8 多位元組字元跨 TCP 讀取邊界不再毀損（C#／Unity／JS）；Unity 的 `OnMessage` 補上觸發（先前宣告了卻從不 Invoke）；新增 `EdgeLinkBridge.Get(deviceId, key)`／`KnownDeviceIds`（單參數版會跨裝置混值）；行緩衝上限（C#／Unity 64 KB、Arduino 512 B — MCU 上原本會 heap 耗盡重開機） |
 | v2.3.0 | **二進位 Mask 延伸到 TCP**（v2.2.0 僅支援 UDP）— 新增 `BinaryStreamFramer` 串流分包（`binary.sync` magic 對齊 + discriminator 查長度 + 殘缺等待 + 雜訊重新同步）；TCP Server 埠依該埠 Mask 自動分流二進位／文字，二進位埠不送 app 層 PING、改用 TCP keep-alive。修正設定匯出/匯入遺漏 `binary` 欄位的 bug（備份還原後二進位 mask 會失效）。Unity/CSharp `EdgeLinkClient` 新增 `SendAsync(byte[])`；新增 `EdgeLinkSourceClient`（非 Unity .NET 來源端 SDK，自動回 PONG、自動重連）；`docs/RigBinary.mask.json` 參考 spec |
