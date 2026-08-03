@@ -8,6 +8,7 @@ public class MonitorSseHandler
 {
     private const int MaxQueue = 200;
     private const int MinFlushIntervalMs = 50;
+    private const int MaxClients = 50;
 
     private class Client
     {
@@ -44,6 +45,13 @@ public class MonitorSseHandler
 
     public async Task HandleAsync(HttpListenerContext ctx)
     {
+        if (_clients.Count >= MaxClients)
+        {
+            ctx.Response.StatusCode = 503;
+            try { ctx.Response.Close(); } catch { }
+            return;
+        }
+
         ctx.Response.ContentType = "text/event-stream; charset=utf-8";
         ctx.Response.Headers["Cache-Control"] = "no-cache";
         ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
