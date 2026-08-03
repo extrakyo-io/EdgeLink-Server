@@ -505,7 +505,7 @@ function updateChips(names) {
     : Object.keys(parseText(document.getElementById('sample').value.trim()));
   document.getElementById('chips').innerHTML =
     `<span class="chip raw" onclick="insertChip('{raw}')">{raw}</span>` +
-    names.map(n => `<span class="chip" onclick="insertChip('{${esc(n)}}')">{${esc(n)}}</span>`).join('');
+    names.map(n => `<span class="chip" onclick="insertChip('{${sq(n)}}')">{${esc(n)}}</span>`).join('');
 }
 
 function insertChip(t) {
@@ -632,10 +632,17 @@ function onFileLoad(e) {
 }
 
 function esc(s) {
-  // 單引號也必須跳脫:欄位名稱會被插進 onclick="insertChip('...')" 的 JS 字串字面值裡,
-  // 屬性用雙引號包住,所以漏掉 ' 就能直接跳出字串執行任意程式碼。
   return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function sq(s) {
+  // 用於嵌入 onclick="fn('...')" 這種「HTML 屬性包 JS 字串」的雙層情境:
+  // 瀏覽器解析屬性值時會先做 HTML 實體解碼,解碼後的結果才當成 JS 執行,
+  // 所以單靠 esc() 把 ' 編成 &#39; 沒有用——解碼後照樣還原成真正的引號,字串照樣會被斷開。
+  // 必須先做 JS 字串跳脫(\ 和 '),再做 HTML 屬性跳脫(& 和 "),順序不可顛倒。
+  const js = String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return js.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 </script>
 </body>
