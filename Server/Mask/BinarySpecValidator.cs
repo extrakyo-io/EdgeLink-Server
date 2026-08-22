@@ -35,6 +35,9 @@ public static class BinarySpecValidator
                 return $"discriminator.type 必須是整數型別(u8/i8/u16/i16/u32/i32/u64/i64),收到 '{d.type}'";
         }
 
+        string? mapError = BinaryValueMaps.ValidateTables(spec);
+        if (mapError != null) return mapError;
+
         if (spec.variants.Count == 0) return "至少要有一個 variant";
 
         for (int i = 0; i < spec.variants.Count; i++)
@@ -53,7 +56,7 @@ public static class BinarySpecValidator
 
             foreach (var f in v.fields)
             {
-                string? err = ValidateField(f, v.length, where);
+                string? err = ValidateField(f, v.length, where, spec);
                 if (err != null) return err;
             }
         }
@@ -61,12 +64,34 @@ public static class BinarySpecValidator
         return null;
     }
 
-    private static string? ValidateField(BinaryField f, int variantLength, string where)
+    private static string? ValidateField(BinaryField f, int variantLength, string where, BinarySpec spec)
     {
         string at = $"{where} 的欄位 '{f.name}'";
         if (string.IsNullOrWhiteSpace(f.name)) return $"{where} 有欄位沒有名稱";
 
         string t = (f.type ?? "").ToLowerInvariant();
+
+        // 打錯表名不會有任何徵兆 —— 欄位會安靜地輸出原始數字,看起來就像沒設過查表
+        if (!string.IsNullOrEmpty(f.mapRef))
+        {
+            if (spec.maps == null || !spec.maps.ContainsKey(f.mapRef))
+                return $"{at} 的 mapRef '{f.mapRef}' 在 maps 裡找不到";
+            if (t is "const" or "f32" or "f64")
+                return $"{at} 的型別 '{f.type}' 不支援 mapRef(查表只能用在整數與 bit/bitrange)";
+        }
+
+        // auto 只在編碼方向有意義,但寫錯了要在存檔時就擋下 —— 否則要等到真的送出封包
+        // 才發現整批命令被靜默丟棄,而丟棄是沒有回應可看的(對端根本沒收到)。
+        if (!string.IsNullOrEmpty(f.auto))
+        {
+            string a = f.auto.ToLowerInvariant();
+            if (a is not ("seq" or "timems" or "framelength"))
+                return $"{at} 的 auto '{f.auto}' 不認得(只能是 seq / timeMs / frameLength)";
+            if (t is "const" or "bit" or "bitrange" or "f32" or "f64")
+                return $"{at} 標了 auto,型別必須是整數(u8/i8/u16/i16/u32/i32/u64/i64),收到 '{f.type}'";
+            if (a == "framelength" && variantLength <= 0)
+                return $"{at} 的 auto=frameLength 需要該 variant 有明確的 length";
+        }
 
         if (t == "const") return null;   // 不讀封包
 

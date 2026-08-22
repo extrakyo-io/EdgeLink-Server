@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
-using System.Text.RegularExpressions;
+using System.Runtime.CompilerServices;
 
 namespace EdgeLink.Mask;
 
@@ -8,10 +8,15 @@ namespace EdgeLink.Mask;
 // 回傳 null / "" = 該封包被丟棄(discriminator 無對應 variant、長度不符、或 template 有缺欄位)。
 public static class BinaryMaskDecoder
 {
-    private static readonly Regex Placeholder = new(@"\{([^{}]+)\}", RegexOptions.Compiled);
-
     public static string? Decode(ReadOnlySpan<byte> data, BinarySpec spec)
     {
+        // sync(magic/version)不符就不是這個協定的封包。
+        //
+        // TCP 走 BinaryStreamFramer,框出來的封包開頭必然對齊到 sync,所以這裡等於免費;
+        // 但 UDP 沒有分包步驟,整個 datagram 直接進來 —— 先前完全不驗 magic,
+        // 任何長度湊巧相同、discriminator 位址湊巧對上的雜訊都會被解成合法資料轉發下去。
+        if (!SyncMatches(data, spec)) return null;
+
         var variant = SelectVariant(data, spec);
         if (variant == null) return null;
         if (variant.length > 0 && data.Length != variant.length) return null;
@@ -20,10 +25,52 @@ public static class BinaryMaskDecoder
         var fields = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var f in variant.fields)
         {
-            string? v = ReadField(data, f, big);
+            string? v = ReadField(data, f, big, spec);
             if (v != null) fields[f.name] = v;
         }
-        return ApplyTemplate(variant.template, fields);
+        return TemplateRenderer.Render(variant, variant.template, fields);
+    }
+
+    // sync 的 hex 字串每包重新解析太浪費(100 Hz 的路徑),以 spec 實例快取;
+    // 樣板被就地改寫的情況比照 TemplateRenderer,用來源字串的參考比對決定要不要重解。
+    private static readonly ConditionalWeakTable<BinarySpec, SyncBytes> _syncCache = new();
+
+    private sealed class SyncBytes
+    {
+        public required string Source { get; init; }
+        public required byte[] Bytes { get; init; }
+    }
+
+    private static bool SyncMatches(ReadOnlySpan<byte> data, BinarySpec spec)
+    {
+        string src = spec.sync ?? "";
+        if (src.Length == 0) return true;                 // 沒設 sync = 不檢查(維持原行為)
+
+        var cached = _syncCache.GetValue(spec, s => new SyncBytes { Source = s.sync, Bytes = ParseHex(s.sync) });
+        if (!ReferenceEquals(cached.Source, src))
+        {
+            cached = new SyncBytes { Source = src, Bytes = ParseHex(src) };
+            _syncCache.AddOrUpdate(spec, cached);
+        }
+
+        var want = cached.Bytes;
+        if (want.Length == 0) return true;                // sync 格式不合法 → 不擋(驗證器會擋下)
+        if (data.Length < want.Length) return false;
+        for (int i = 0; i < want.Length; i++)
+            if (data[i] != want[i]) return false;
+        return true;
+    }
+
+    private static byte[] ParseHex(string hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex)) return [];
+        hex = hex.Replace(" ", "").Replace("0x", "").Replace("0X", "");
+        if (hex.Length == 0 || hex.Length % 2 != 0) return [];
+        var b = new byte[hex.Length / 2];
+        for (int i = 0; i < b.Length; i++)
+            if (!byte.TryParse(hex.AsSpan(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out b[i]))
+                return [];
+        return b;
     }
 
     private static BinaryVariant? SelectVariant(ReadOnlySpan<byte> data, BinarySpec spec)
@@ -40,7 +87,7 @@ public static class BinaryMaskDecoder
             ?? spec.variants.FirstOrDefault(v => v.isDefault);
     }
 
-    private static string? ReadField(ReadOnlySpan<byte> d, BinaryField f, bool big)
+    private static string? ReadField(ReadOnlySpan<byte> d, BinaryField f, bool big, BinarySpec spec)
     {
         string t = f.type.ToLowerInvariant();
         if (t == "const") return f.value;
@@ -53,7 +100,8 @@ public static class BinaryMaskDecoder
             if (f.offset < 0 || f.bit < 0) return null;
             long byteIdx = (long)f.offset + f.bit / 8;          // long:避免超大 offset 溢位
             if (byteIdx >= d.Length) return null;
-            return ((d[(int)byteIdx] >> (f.bit % 8)) & 1) != 0 ? "1" : "0";
+            long bitVal = (d[(int)byteIdx] >> (f.bit % 8)) & 1;
+            return MapOrRaw(f, spec, bitVal, bitVal != 0 ? "1" : "0");
         }
 
         // bitrange:支援跨位元組。先前 count 被 clamp 到 1..8 且只讀單一位元組,
@@ -72,7 +120,19 @@ public static class BinaryMaskDecoder
                 int one = (d[f.offset + abs / 8] >> (abs % 8)) & 1;
                 val |= (uint)one << i;
             }
-            return val.ToString(CultureInfo.InvariantCulture);
+            return MapOrRaw(f, spec, val, val.ToString(CultureInfo.InvariantCulture));
+        }
+
+        // mapRef 查的是 wire 上的原始碼(錯誤碼表描述的是線上的值,不是工程值),
+        // 所以擺在 scale/add 之前。查不到才落回下面的數值輸出。
+        if (!string.IsNullOrEmpty(f.mapRef))
+        {
+            long? code = ReadInt(d, f.offset, t, big);
+            if (code == null) return null;
+            string? mapped = BinaryValueMaps.Lookup(spec, f.mapRef, code.Value);
+            if (mapped != null) return mapped;
+            if (!string.IsNullOrEmpty(f.mapDefault)) return f.mapDefault;
+            return code.Value.ToString(CultureInfo.InvariantCulture);
         }
 
         // 整數型別在沒有 scale/add/自訂格式時走「精確整數」路徑,不經 double。
@@ -93,6 +153,14 @@ public static class BinaryMaskDecoder
         bool isFloat = t is "f32" or "f64" || f.scale != 1.0 || f.add != 0.0;
         string fmt = string.IsNullOrEmpty(f.format) ? (isFloat ? "0.######" : "0") : f.format;
         return outv.ToString(fmt, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>有 mapRef 就查表,否則回原本的數值字串。</summary>
+    private static string MapOrRaw(BinaryField f, BinarySpec spec, long raw, string fallback)
+    {
+        if (string.IsNullOrEmpty(f.mapRef)) return fallback;
+        return BinaryValueMaps.Lookup(spec, f.mapRef, raw)
+            ?? (string.IsNullOrEmpty(f.mapDefault) ? fallback : f.mapDefault);
     }
 
     /// <summary>整數型別的精確讀取(不經 double)。非整數型別或越界時回 null,
@@ -189,12 +257,4 @@ public static class BinaryMaskDecoder
         }
     }
 
-    // 與 MaskProcessor 相同語意:樣板中任一 {欄位} 缺 → 回 ""(丟棄)
-    private static string ApplyTemplate(string template, Dictionary<string, string> fields)
-    {
-        if (string.IsNullOrEmpty(template)) return "";
-        foreach (Match m in Placeholder.Matches(template))
-            if (!fields.ContainsKey(m.Groups[1].Value)) return "";
-        return Placeholder.Replace(template, m => fields.TryGetValue(m.Groups[1].Value, out var v) ? v : m.Value);
-    }
 }
