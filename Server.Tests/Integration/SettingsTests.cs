@@ -30,6 +30,94 @@ public class SettingsTests(ServerFixture fixture) : IAsyncLifetime
 
     // ── Export ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// 匯入時埠的 Id 一律重新產生,所以檔案裡帶的 sourceProtocolId 一定是別台機器的舊值。
+    /// Router 只認 Id,連結一斷會變成「埠都在、狀態正常,但資料靜靜地不流動」——
+    /// 沒有任何錯誤訊息可看。匯入後要依 sourceProtocolName 自動接回去。
+    /// </summary>
+    [Fact]
+    public async Task Import_RelinksSourceProtocolIdByName()
+    {
+        string src = CreateId("RL_Src");
+        string dst = CreateId("RL_Dst");
+
+        var payload = new
+        {
+            masks = Array.Empty<object>(),
+            ports = new object[]
+            {
+                new
+                {
+                    protocolName = src, netProtocol = "TCP SERVER",
+                    localPort = "19240", remotePort = "--", targetIp = "",
+                    maskType = "OriginalData", responseMaskType = "", requestMode = "serial",
+                    sourceProtocolName = "", sourceProtocolId = "", isEnabled = false,
+                },
+                new
+                {
+                    protocolName = dst, netProtocol = "TCP CLIENT",
+                    localPort = "--", remotePort = "19241", targetIp = "127.0.0.1",
+                    maskType = "OriginalData", responseMaskType = "OriginalData",
+                    requestMode = "concurrent",
+                    // 這個 Id 在本機根本不存在 —— 匯出檔一定會長這樣
+                    sourceProtocolName = src, sourceProtocolId = "deadbeef", isEnabled = false,
+                },
+            },
+        };
+
+        var resp = await _client.PostJsonAsync("/api/settings/import", payload);
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var list = await _client.GetAsync("/api/ports");
+        using var doc = await list.ReadDocAsync();
+        var ports = doc.RootElement.GetProperty("ports").EnumerateArray().ToList();
+
+        var srcPort = ports.First(p => p.GetProperty("protocolName").GetString() == src);
+        var dstPort = ports.First(p => p.GetProperty("protocolName").GetString() == dst);
+        _portIds.Add(srcPort.GetProperty("id").GetString()!);
+        _portIds.Add(dstPort.GetProperty("id").GetString()!);
+
+        string srcId = srcPort.GetProperty("id").GetString()!;
+        Assert.NotEqual("deadbeef", srcId);
+        Assert.Equal(srcId, dstPort.GetProperty("sourceProtocolId").GetString());
+    }
+
+    /// <summary>來源埠沒一起匯入時不要亂接 —— 使用者可能是刻意分批匯入的。</summary>
+    [Fact]
+    public async Task Import_LeavesSourceProtocolIdAloneWhenNameNotFound()
+    {
+        string dst = CreateId("RL_Orphan");
+
+        var payload = new
+        {
+            masks = Array.Empty<object>(),
+            ports = new object[]
+            {
+                new
+                {
+                    protocolName = dst, netProtocol = "TCP CLIENT",
+                    localPort = "--", remotePort = "19242", targetIp = "127.0.0.1",
+                    maskType = "OriginalData", responseMaskType = "OriginalData",
+                    requestMode = "serial",
+                    sourceProtocolName = "NoSuchSourcePort", sourceProtocolId = "deadbeef",
+                    isEnabled = false,
+                },
+            },
+        };
+
+        Assert.Equal(HttpStatusCode.OK, (await _client.PostJsonAsync("/api/settings/import", payload)).StatusCode);
+
+        var list = await _client.GetAsync("/api/ports");
+        using var doc = await list.ReadDocAsync();
+        var port = doc.RootElement.GetProperty("ports").EnumerateArray()
+            .First(p => p.GetProperty("protocolName").GetString() == dst);
+        _portIds.Add(port.GetProperty("id").GetString()!);
+
+        Assert.Equal("deadbeef", port.GetProperty("sourceProtocolId").GetString());
+    }
+
+    private string CreateId(string prefix) => $"{prefix}_{Guid.NewGuid().ToString("N")[..6]}";
+
     [Fact]
     public async Task Export_ReturnsPortsAndMasksArrays()
     {

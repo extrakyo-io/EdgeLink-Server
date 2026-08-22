@@ -8,6 +8,68 @@ namespace EdgeLink.Tests.Unit;
 
 public class BinaryMaskDecoderTests
 {
+    // ── sync(magic)驗證 ─────────────────────────────────────────────────────
+
+    private static BinarySpec SyncSpec(string sync) => new()
+    {
+        byteOrder = "little",
+        sync = sync,
+        discriminator = new BinaryFieldRef { offset = 3, type = "u8" },
+        variants =
+        [
+            new BinaryVariant {
+                match = 1, length = 8, template = "v:{v}",
+                fields = [ new(){ name="v", offset=4, type="u32" } ]
+            },
+        ]
+    };
+
+    private static byte[] SyncPacket(byte m0, byte m1, byte ver)
+        => [m0, m1, ver, 1, 0x2A, 0, 0, 0];
+
+    /// <summary>
+    /// UDP 沒有分包步驟,整個 datagram 直接進解碼器 —— 先前完全不驗 magic,
+    /// 任何長度湊巧相同、discriminator 湊巧對上的雜訊都會被解成合法資料轉發下去。
+    /// TCP 那條靠 framer 對齊看不出這個洞。
+    /// </summary>
+    [Fact]
+    public void Decode_RejectsPacketWhoseSyncDoesNotMatch()
+    {
+        var spec = SyncSpec("4f4b01");
+
+        Assert.Equal("v:42", BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x4B, 1), spec));
+        Assert.Null(BinaryMaskDecoder.Decode(SyncPacket(0x58, 0x4B, 1), spec));   // magic0 錯
+        Assert.Null(BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x58, 1), spec));   // magic1 錯
+        Assert.Null(BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x4B, 2), spec));   // version 錯
+    }
+
+    /// <summary>sync 只涵蓋前兩個位元組時,第三個位元組(version)不該被連坐檢查。</summary>
+    [Fact]
+    public void Decode_OnlyChecksTheBytesSyncCovers()
+    {
+        var spec = SyncSpec("4f4b");
+        Assert.Equal("v:42", BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x4B, 1), spec));
+        Assert.Equal("v:42", BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x4B, 7), spec));
+        Assert.Null(BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x58, 1), spec));
+    }
+
+    /// <summary>沒設 sync 的 mask 維持原本行為(不檢查),否則既有設定會全部失效。</summary>
+    [Fact]
+    public void Decode_SkipsSyncCheckWhenNotConfigured()
+    {
+        var spec = SyncSpec("");
+        Assert.Equal("v:42", BinaryMaskDecoder.Decode(SyncPacket(0x4F, 0x4B, 1), spec));
+        Assert.Equal("v:42", BinaryMaskDecoder.Decode(SyncPacket(0xAA, 0xBB, 9), spec));
+    }
+
+    /// <summary>封包比 sync 還短一定不是這個協定的東西。</summary>
+    [Fact]
+    public void Decode_RejectsPacketShorterThanSync()
+    {
+        var spec = SyncSpec("4f4b01");
+        Assert.Null(BinaryMaskDecoder.Decode(new byte[] { 0x4F, 0x4B }, spec));
+    }
+
     // ── OK-protocol spec(對應 RigBinary)────────────────────────────────────
     private static BinarySpec OkSpec() => new BinarySpec
     {
