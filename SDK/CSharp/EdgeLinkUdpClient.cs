@@ -18,7 +18,11 @@ namespace EdgeLink
         public event Action<bool, string, string>? OnDeviceStatus;
 
         public int  LocalPort { get; }
-        public bool IsRunning => !disposed && !cts.IsCancellationRequested;
+        // 由 Start/Dispose 明確維護,而不是從 cts 推導。先前寫成
+        //   !disposed && !cts.IsCancellationRequested
+        // 而 cts 是欄位初始化就建好的 —— 剛 new 出來、還沒 Start 的物件會回報 IsRunning=true,
+        // 呼叫端拿它判斷「要不要 Start」就會整個跳過啟動。與同專案的 EdgeLinkTcpListener 對齊。
+        public bool IsRunning { get; private set; }
 
         private UdpClient?              udp;
         private CancellationTokenSource cts = new();
@@ -33,12 +37,30 @@ namespace EdgeLink
         public void Start()
         {
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpClient));
-            cts = new CancellationTokenSource();
+
+            // 重新 Start 前必須先收掉舊的。先前直接覆寫 cts 與 udp:舊的 UdpClient 仍然綁著
+            // LocalPort、參考卻已經弄丟 —— 第二次 Start 會因為埠被佔著丟 SocketException,
+            // 而舊的接收迴圈還對著那個 socket 繼續跑。Unity 版早就有這段,C# 版一直沒補上。
+            try { cts.Cancel(); }   catch (ObjectDisposedException) { }
+            try { cts.Dispose(); }  catch (ObjectDisposedException) { }
+            try { udp?.Close(); }   catch (SocketException) { }
+            try { udp?.Dispose(); } catch (SocketException) { }
+
+            var myCts = new CancellationTokenSource();
+            cts = myCts;
             udp = new UdpClient(LocalPort);
-            _ = Task.Run(() => ReceiveLoopAsync(cts.Token), cts.Token);
+            IsRunning = true;
+            _ = Task.Run(() => ReceiveLoopAsync(myCts, myCts.Token), myCts.Token);
         }
 
-        private async Task ReceiveLoopAsync(CancellationToken ct)
+        // 只有「還是目前這一代」的迴圈才能把 IsRunning 歸位。重新 Start 時舊迴圈正在收尾,
+        // 讓它無條件寫 false 會把新一代剛設好的旗標蓋掉 —— 看起來就是 Start 完卻不在跑。
+        private void MarkStopped(CancellationTokenSource owner)
+        {
+            if (ReferenceEquals(cts, owner)) IsRunning = false;
+        }
+
+        private async Task ReceiveLoopAsync(CancellationTokenSource owner, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
@@ -67,10 +89,11 @@ namespace EdgeLink
                     queue.Enqueue(msg);
                     OnMessage?.Invoke(msg);
                 }
-                catch (OperationCanceledException) { return; }
-                catch (ObjectDisposedException)    { return; }
+                catch (OperationCanceledException) { MarkStopped(owner); return; }
+                catch (ObjectDisposedException)    { MarkStopped(owner); return; }
                 catch (Exception ex) { OnError?.Invoke(ex); }
             }
+            MarkStopped(owner);
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -79,6 +102,7 @@ namespace EdgeLink
         {
             if (disposed) return;
             disposed = true;
+            IsRunning = false;
             cts.Cancel();
             udp?.Close();
             udp?.Dispose();

@@ -16,7 +16,11 @@ namespace EdgeLink
         public event Action<bool, string, string>? OnDeviceStatus;
 
         public int  LocalPort  { get; }
-        public bool IsRunning  => !disposed && cts != null && !cts.IsCancellationRequested;
+        // 由 Start/Dispose 明確維護,而不是從 cts 推導。先前寫成
+        //   !disposed && !cts.IsCancellationRequested
+        // 而 cts 是欄位初始化就建好的 —— 剛 new 出來、還沒 Start 的物件會回報 IsRunning=true,
+        // 呼叫端拿它判斷「要不要 Start」就會整個跳過啟動。與同專案的 EdgeLinkTcpListener 對齊。
+        public bool IsRunning { get; private set; }
 
         private UdpClient?              udp;
         private CancellationTokenSource cts = new CancellationTokenSource();
@@ -36,12 +40,21 @@ namespace EdgeLink
             try { cts.Dispose(); } catch { }
             try { udp?.Close(); } catch { }
             try { udp?.Dispose(); } catch { }
-            cts = new CancellationTokenSource();
+            var myCts = new CancellationTokenSource();
+            cts = myCts;
             udp = new UdpClient(LocalPort);
-            _ = Task.Run(() => ReceiveLoopAsync(cts.Token), cts.Token);
+            IsRunning = true;
+            _ = Task.Run(() => ReceiveLoopAsync(myCts, myCts.Token), myCts.Token);
         }
 
-        private async Task ReceiveLoopAsync(CancellationToken ct)
+        // 只有「還是目前這一代」的迴圈才能把 IsRunning 歸位。重新 Start 時舊迴圈正在收尾,
+        // 讓它無條件寫 false 會把新一代剛設好的旗標蓋掉 —— 看起來就是 Start 完卻不在跑。
+        private void MarkStopped(CancellationTokenSource owner)
+        {
+            if (ReferenceEquals(cts, owner)) IsRunning = false;
+        }
+
+        private async Task ReceiveLoopAsync(CancellationTokenSource owner, CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
@@ -70,10 +83,11 @@ namespace EdgeLink
                     queue.Enqueue(msg);
                     OnMessage?.Invoke(msg);   // 先前宣告了事件卻從不觸發,C# 版則有
                 }
-                catch (OperationCanceledException) { return; }
-                catch (ObjectDisposedException)    { return; }
+                catch (OperationCanceledException) { MarkStopped(owner); return; }
+                catch (ObjectDisposedException)    { MarkStopped(owner); return; }
                 catch (Exception ex) { OnError?.Invoke(ex); }
             }
+            MarkStopped(owner);
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -82,6 +96,7 @@ namespace EdgeLink
         {
             if (disposed) return;
             disposed = true;
+            IsRunning = false;
             cts.Cancel();
             udp?.Close();
             udp?.Dispose();

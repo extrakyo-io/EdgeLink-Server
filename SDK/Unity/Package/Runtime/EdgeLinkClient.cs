@@ -15,7 +15,8 @@ namespace EdgeLink
         public event Action?            OnDisconnected;
         public event Action<Exception>? OnError;
         /// <summary>Fired when an upstream device connects or disconnects from EdgeLink Server.
-        /// Parameters: isConnected, protocol, endpoint (e.g. "TCPServer@192.168.1.50:9001")</summary>
+        /// Parameters: isConnected, endpoint (e.g. "TCPServer@192.168.1.50"), deviceId(從訊息的 id 欄位解出,可能為空)
+        /// —— 註解原本寫成 (isConnected, protocol, endpoint),與實際傳入的第三個參數不符。</summary>
         public event Action<bool, string, string>? OnDeviceStatus;
 
         public bool IsConnected => tcpClient?.Connected == true && !disposed;
