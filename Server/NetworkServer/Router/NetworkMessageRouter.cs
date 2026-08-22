@@ -51,10 +51,9 @@ public class NetworkMessageRouter
                ?? MaskDefinitionManager.Instance.GetDefinition("OriginalData");
         if (def == null) { LogHelper.LogToConsole($"[Router] Mask not found: '{maskId}'", isError: true); return; }
 
-        string? output = MaskProcessor.Process(def, rawBytes, parsedMessage);
-        if (string.IsNullOrEmpty(output)) return;
+        var bytes = MaskProcessor.ProcessToBytes(def, rawBytes, parsedMessage, client.BinarySeq);
+        if (bytes == null || bytes.Length == 0) return;
 
-        var bytes = Encoding.UTF8.GetBytes(output.EndsWith("\n") ? output : output + "\n");
         await TrySendToClient(client, protocolName, bytes);
     }
 
@@ -129,10 +128,9 @@ public class NetworkMessageRouter
 
         if (isPolling)
         {
-            string? output = MaskProcessor.Process(def, rawBytes, parsedMessage);
-            if (string.IsNullOrEmpty(output)) return;
+            var bytes = MaskProcessor.ProcessToBytes(def, rawBytes, parsedMessage, client.BinarySeq);
+            if (bytes == null || bytes.Length == 0) return;
 
-            var bytes  = Encoding.UTF8.GetBytes(output.EndsWith("\n") ? output : output + "\n");
             var stream = serverData.ClientStreams.GetValueOrDefault(clientKey);
             client.LatestPollRequest = new PollSlot
             {
@@ -145,10 +143,9 @@ public class NetworkMessageRouter
         {
             string correlationId = Guid.NewGuid().ToString("N")[..8];
             var extra  = new Dictionary<string, string> { ["_corrId"] = correlationId };
-            string? output = MaskProcessor.Process(def, rawBytes, parsedMessage, extra);
-            if (string.IsNullOrEmpty(output)) return;
+            var bytes = MaskProcessor.ProcessToBytes(def, rawBytes, parsedMessage, client.BinarySeq, extra);
+            if (bytes == null || bytes.Length == 0) return;
 
-            var bytes  = Encoding.UTF8.GetBytes(output.EndsWith("\n") ? output : output + "\n");
             var stream = serverData.ClientStreams.GetValueOrDefault(clientKey);
             client.PendingRequests[correlationId] = new PendingRequest
             {
@@ -159,10 +156,9 @@ public class NetworkMessageRouter
         }
         else
         {
-            string? output = MaskProcessor.Process(def, rawBytes, parsedMessage);
-            if (string.IsNullOrEmpty(output)) return;
+            var bytes = MaskProcessor.ProcessToBytes(def, rawBytes, parsedMessage, client.BinarySeq);
+            if (bytes == null || bytes.Length == 0) return;
 
-            var bytes  = Encoding.UTF8.GetBytes(output.EndsWith("\n") ? output : output + "\n");
             var stream = serverData.ClientStreams.GetValueOrDefault(clientKey);
             client.RequestQueue.Enqueue((
                 new PendingRequest { ClientKey = clientKey, Stream = stream, EnqueueTime = DateTime.UtcNow },
@@ -260,6 +256,14 @@ public class NetworkMessageRouter
         return targets;
     }
 
+    /// <summary>監控頁要顯示的送出內容。二進位埠印 hex —— 直接把它貼進 Mask 的二進位預覽
+    /// 就能重現這一包解出來是什麼,拿 UTF8.GetString 印只會得到一排替換字元。</summary>
+    internal static string DescribeOutbound(PortData? portData, byte[] data)
+    {
+        var def = MaskDefinitionManager.Instance.GetDefinition(portData?.MaskType?.Trim() ?? "OriginalData");
+        return def?.binary != null ? Convert.ToHexString(data) : Encoding.UTF8.GetString(data);
+    }
+
     private async Task TrySendToClient(TCPClientData tcpClient, string protocolName, byte[] data)
     {
         if (tcpClient?.portData == null) return;
@@ -283,7 +287,7 @@ public class NetworkMessageRouter
             try { await stream.WriteAsync(data, 0, data.Length, cts.Token); }
             finally { try { tcpClient.DeviceWriteLock.Release(); } catch (ObjectDisposedException) { } }
 
-            RouterLogHelper.LogSend(tcpClient.portData, MonitorTargetType.TCPClient, Encoding.UTF8.GetString(data));
+            RouterLogHelper.LogSend(tcpClient.portData, MonitorTargetType.TCPClient, DescribeOutbound(tcpClient.portData, data));
         }
         catch (OperationCanceledException) { }
         catch (IOException) { }
