@@ -71,7 +71,16 @@ public class MaskDefinitionDto
     public BinarySpec? binary;   // 二進位 mask 版面(null = 純文字 mask)
 }
 
-public class BinaryPreviewReq  { public BinarySpec? binary; public string? hex; }
+// hex 有值 → 解碼預覽(wire → KV);kv 有值 → 編碼預覽(KV → wire,output 是 hex)。
+// 兩者都給時以 kv 優先。fieldDelimiter/kvSeparator 只在編碼時用來切 KV,留空取 ";" 與 ":"。
+public class BinaryPreviewReq
+{
+    public BinarySpec? binary;
+    public string? hex;
+    public string? kv;
+    public string? fieldDelimiter;
+    public string? kvSeparator;
+}
 public class BinaryPreviewResp { public string output = ""; public bool dropped; public string? error; }
 
 public class PortExportDto

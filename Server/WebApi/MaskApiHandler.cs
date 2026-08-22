@@ -115,6 +115,33 @@ public class MaskApiHandler
             return;
         }
 
+        // 編碼預覽:KV → wire。跟出站方向用的是同一個編碼器,所以這裡看到的 hex
+        // 就是實際會送上線的位元組(seq 例外 —— 預覽沒有連線可綁,一律給 1)。
+        if (!string.IsNullOrWhiteSpace(req.kv))
+        {
+            var def = new MaskDefinition
+            {
+                fieldDelimiter = string.IsNullOrEmpty(req.fieldDelimiter) ? ";" : req.fieldDelimiter,
+                kvSeparator    = string.IsNullOrEmpty(req.kvSeparator)    ? ":" : req.kvSeparator,
+                binary         = req.binary,
+            };
+
+            byte[]? encoded;
+            try { encoded = MaskProcessor.ProcessToBytes(def, [], req.kv!); }
+            catch (Exception ex)
+            {
+                HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp { error = ex.Message }));
+                return;
+            }
+
+            HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new BinaryPreviewResp
+            {
+                output  = encoded != null ? Convert.ToHexString(encoded) : "",
+                dropped = encoded == null,
+            }));
+            return;
+        }
+
         byte[] bytes;
         try
         {
