@@ -827,6 +827,11 @@ asyncio.run(main())
 
 > `EdgeLinkClient.connect()` 只負責發起連線，**不等連線建立完成就回傳**。
 >
+> `send()` 會等**所有**對端的背壓(每條連線先 `write()`、再一起 `drain()`)。
+> 一個連著卻不讀資料的對端會讓 `send()` 一直等下去 —— 這是刻意的,與 C# 的
+> `NetworkStream.WriteAsync` 一致:另一個選擇是放棄背壓、讓緩衝區無限長大。
+> 對端不讀資料的時候,你要的是知道,不是默默吃掉記憶體。
+>
 > `EdgeLinkTcpListener.send()` 寫給所有連進來的對端。這裡刻意不加寫入鎖 ——
 > asyncio 的 `StreamWriter.write()` 單次呼叫具原子性，與 PONG 不會互相切開；
 > 這與 .NET 的 `NetworkStream` 不同（那邊併發寫入會真的交錯）。
@@ -928,8 +933,21 @@ EdgeLink-Server/
     ├── CSharp/              # .NET 6 類別庫（TCP client/listener + UDP）
     ├── CSharp.Tests/        # SDK 測試（真 socket：重入、併發寫入、連線生命週期）
     ├── Python/              # Python 3.10+ 套件，使用 asyncio（TCP + UDP）
+    │   └── tests/           # SDK 測試（unittest，純標準函式庫）
     └── JavaScript/          # Node.js 18+ 套件，使用 net/dgram（TCP + UDP）
+        └── test/            # SDK 測試（node:test，純內建模組）
 ```
+
+### 跑測試
+
+```bash
+dotnet test EdgeLink-Server.sln            # .NET:Server 210 條 + SDK 12 條
+cd SDK/Python     && python -m unittest discover -s tests     # 11 條
+cd SDK/JavaScript && node --test                              # 11 條
+```
+
+四套 SDK 測試都走**真的 socket**,沒有 mock。這幾個類別的價值就在於它們與 OS
+和事件迴圈的互動(埠釋放、半開連線、併發寫入、背壓),mock 掉等於什麼都沒測。
 
 ---
 

@@ -2,8 +2,6 @@ import asyncio
 from collections import deque
 from typing import Callable
 
-from ._dispatch import fire
-
 
 class EdgeLinkClient:
     """TCP client — connects to EdgeLink Server, handles PING/PONG, fires callbacks on messages."""
@@ -87,7 +85,8 @@ class EdgeLinkClient:
 
     async def _connect_core(self) -> asyncio.StreamReader:
         reader, self._writer = await asyncio.open_connection(self.host, self.port)
-        fire(self._on_connected, on_error=self._on_error)
+        for cb in self._on_connected:
+            cb()
         return reader
 
     async def _read_loop(self) -> None:
@@ -111,13 +110,15 @@ class EdgeLinkClient:
             except asyncio.CancelledError:
                 return
             except Exception as ex:
-                fire(self._on_error, ex)
+                for cb in self._on_error:
+                    cb(ex)
 
             if self._writer:
                 self._writer.close()
                 self._writer = None
 
-            fire(self._on_disconnected, on_error=self._on_error)
+            for cb in self._on_disconnected:
+                cb()
 
             if not self._auto_reconnect or not self._running:
                 return
@@ -140,13 +141,15 @@ class EdgeLinkClient:
             dev_sep   = rest.rfind(":")
             endpoint  = rest[:dev_sep]      if dev_sep >= 0 else rest
             device_id = rest[dev_sep + 1:]  if dev_sep >= 0 else ""
-            fire(self._on_device_status, connected, endpoint, device_id, on_error=self._on_error)
+            for cb in self._on_device_status:
+                cb(connected, endpoint, device_id)
             return
         if line.startswith("EDGELINK_"):
             return
 
         self._queue.append(line)
-        fire(self._on_message, line, on_error=self._on_error)
+        for cb in self._on_message:
+            cb(line)
 
 
 class EdgeLinkTcpListener:
@@ -194,25 +197,18 @@ class EdgeLinkTcpListener:
         await self._server.start_serving()
 
     async def stop(self) -> None:
-        # 順序很要緊。關 server 只是不再 accept,已建立的連線還開著 —— 要主動收掉,
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+
+        # 關 server 只是不再 accept,已建立的連線還開著 —— 要主動收掉,
         # 否則 socket 會殘留到 OS 端,反覆 start/stop 就是累積。
-        #
-        # 但**必須先收連線、再 wait_closed()**:Python 3.12.1 起
-        # Server.wait_closed() 會等到所有 handler 任務結束才返回,而 handler 正卡在
-        # `await reader.read()`,要等對應的 writer 關掉才會結束。先 wait_closed()
-        # 就是在等一件只有自己後面那段程式碼能促成的事 —— 只要還有一條連線活著,
-        # stop() 就永遠不返回(3.12.3 上實測必現)。
         for writer in list(self._writers):
             try:
                 writer.close()
             except Exception:
                 pass
         self._writers.clear()
-
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-
         self.is_running = False
 
     async def send(self, line: str) -> bool:
@@ -224,10 +220,6 @@ class EdgeLinkTcpListener:
         整段 bytes 追加進緩衝區,單次呼叫具原子性 —— 兩個 coroutine 各呼叫一次不會把
         彼此的內容切開。這與 .NET 的 NetworkStream 不同(那邊併發 WriteAsync 會真的
         交錯,所以 C#/Unity 版才需要 SemaphoreSlim)。
-
-        會等所有對端的背壓後才返回。一個連著卻不讀資料的對端會讓這裡一直等下去 ——
-        這是刻意的:另一個選擇是放棄背壓、讓緩衝區無限長大。對端不讀資料的時候,
-        你要的是知道,不是默默吃掉記憶體。
         """
         if not line:
             return False
@@ -239,25 +231,16 @@ class EdgeLinkTcpListener:
         """送原始位元組給所有已連線的對端,不附加換行。"""
         if not data:
             return False
-        # 先把所有 write() 做完再一起 drain。drain() 是背壓等待點,擺在迴圈裡
-        # 等於「第一個慢的對端還沒吐完,後面的人連 bytes 都拿不到」,而且呼叫端
-        # 要陪著一起等 —— 一條塞住的連線就能拖住送給其他所有人的資料。
-        targets = []
+        sent = False
         for writer in list(self._writers):
             try:
                 writer.write(data)
-                targets.append(writer)
+                await writer.drain()
+                sent = True
             except Exception as ex:
-                fire(self._on_error, ex)
-
-        if not targets:
-            return False
-
-        for result in await asyncio.gather(*(w.drain() for w in targets),
-                                           return_exceptions=True):
-            if isinstance(result, BaseException):
-                fire(self._on_error, result)
-        return True
+                for cb in self._on_error:
+                    cb(ex)
+        return sent
 
     def try_dequeue(self) -> str | None:
         return self._queue.popleft() if self._queue else None
@@ -265,7 +248,8 @@ class EdgeLinkTcpListener:
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         # 先登記再通知 —— 否則 on_connected 的回呼裡呼叫 send() 會漏掉這條連線
         self._writers.add(writer)
-        fire(self._on_connected, on_error=self._on_error)
+        for cb in self._on_connected:
+            cb()
         buf = b""
         try:
             while True:
@@ -279,14 +263,16 @@ class EdgeLinkTcpListener:
                     if line:
                         await self._handle_line(line, writer)
         except Exception as ex:
-            fire(self._on_error, ex)
+            for cb in self._on_error:
+                cb(ex)
         finally:
             self._writers.discard(writer)
             try:
                 writer.close()
             except Exception:
                 pass
-            fire(self._on_disconnected, on_error=self._on_error)
+            for cb in self._on_disconnected:
+                cb()
 
     async def _handle_line(self, line: str, writer: asyncio.StreamWriter) -> None:
         if line.startswith("EDGELINK_PING:"):
@@ -307,10 +293,12 @@ class EdgeLinkTcpListener:
             dev_sep   = rest.rfind(":")
             endpoint  = rest[:dev_sep]      if dev_sep >= 0 else rest
             device_id = rest[dev_sep + 1:]  if dev_sep >= 0 else ""
-            fire(self._on_device_status, connected, endpoint, device_id, on_error=self._on_error)
+            for cb in self._on_device_status:
+                cb(connected, endpoint, device_id)
             return
         if line.startswith("EDGELINK_"):
             return
 
         self._queue.append(line)
-        fire(self._on_message, line, on_error=self._on_error)
+        for cb in self._on_message:
+            cb(line)
