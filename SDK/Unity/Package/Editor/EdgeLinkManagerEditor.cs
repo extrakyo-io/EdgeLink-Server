@@ -46,6 +46,14 @@ public class EdgeLinkManagerEditor : Editor
                 break;
             case EdgeLinkManager.Protocol.UDP:
                 m.udpLocalPort = EditorGUILayout.IntField("Local Port", m.udpLocalPort);
+                // 送出的目的地與收資料的埠不是同一個:EdgeLink 的 UDP 埠是
+                // 「聽 remotePort、轉發到 localPort」,要送進去得打它的監聽埠。
+                m.udpTargetHost = EditorGUILayout.TextField(
+                    new GUIContent("Target Host", "要送資料才需要;留空表示只收不送"),
+                    m.udpTargetHost);
+                m.udpTargetPort = EditorGUILayout.IntField(
+                    new GUIContent("Target Port", "EdgeLink 該 UDP 埠的『監聽埠』,與上面的 Local Port 不同"),
+                    m.udpTargetPort);
                 break;
         }
         EditorGUI.indentLevel--;

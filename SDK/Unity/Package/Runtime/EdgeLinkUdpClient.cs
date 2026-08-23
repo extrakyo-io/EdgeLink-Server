@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -103,4 +104,59 @@ namespace EdgeLink
             cts.Dispose();
         }
     }
+
+    /// <summary>UDP 送端 —— 只送不收,不綁本機埠。
+    /// <para>用來把資料打進 EdgeLink 的 UDP 監聽埠(該埠設定裡的 remotePort)。
+    /// UDP 無連線,所以沒有心跳、也沒有「連上了沒」可問。</para></summary>
+    public class EdgeLinkUdpSender : IDisposable
+    {
+        private readonly UdpClient udp = new UdpClient();
+        private bool disposed;
+
+        public Task SendAsync(string host, int port, string message)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpSender));
+            return SendAsync(Resolve(host, port), message);
+        }
+
+        // host 字串 → 解析過的端點。UdpClient.SendAsync(bytes,len,host,port) 內部會在
+        // 呼叫端的執行緒上同步做 Dns.GetHostAddresses;在 Unity 主執行緒上那是可見的卡頓,
+        // 而且每一筆送出都要付一次。解析結果快取起來,主機沒換就不用重解。
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IPEndPoint> _resolved
+            = new System.Collections.Concurrent.ConcurrentDictionary<string, IPEndPoint>();
+
+        private IPEndPoint Resolve(string host, int port)
+        {
+            string key = host + ":" + port;
+            if (_resolved.TryGetValue(key, out var ep)) return ep;
+
+            IPAddress addr;
+            if (!IPAddress.TryParse(host, out addr))
+            {
+                var list = Dns.GetHostAddresses(host);
+                if (list == null || list.Length == 0)
+                    throw new SocketException((int)SocketError.HostNotFound);
+                addr = list[0];
+            }
+            ep = new IPEndPoint(addr, port);
+            _resolved[key] = ep;
+            return ep;
+        }
+
+
+        public Task SendAsync(IPEndPoint endpoint, string message)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpSender));
+            byte[] bytes = Encoding.UTF8.GetBytes(message);
+            return udp.SendAsync(bytes, bytes.Length, endpoint);
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            udp.Dispose();
+        }
+    }
+
 }

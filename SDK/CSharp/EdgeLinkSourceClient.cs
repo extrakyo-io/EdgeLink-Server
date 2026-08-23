@@ -84,6 +84,17 @@ namespace EdgeLink
         // ── 送資料 ──────────────────────────────────────────────────────────
 
         /// <summary>送一行 KV 文字（自動補換行）。未連線時直接丟棄（遙測 fire-and-forget）。</summary>
+        /// <summary>數值轉字串,固定用 InvariantCulture。
+        /// <para>系統地區設定會把小數點變成逗號(例如德文環境的 "1,5"),而逗號在 KV 裡
+        /// 沒有特殊意義 —— EdgeLink 會把那樣的值當成不合法而丟掉整包。這種 bug 只在
+        /// 特定地區的機器上出現,在自己電腦上永遠測不到。</para></summary>
+        public static string Num(float value) =>
+            value.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>同上,double 版本。</summary>
+        public static string Num(double value) =>
+            value.ToString("0.#########", System.Globalization.CultureInfo.InvariantCulture);
+
         public Task SendLineAsync(string kvLine, CancellationToken ct = default)
         {
             if (string.IsNullOrEmpty(kvLine)) return Task.CompletedTask;

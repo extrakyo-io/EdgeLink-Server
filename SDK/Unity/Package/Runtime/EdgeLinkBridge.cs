@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -32,6 +34,10 @@ namespace EdgeLink
             public int      TcpPort              = 9001;
             public int      TcpListenPort        = 9001;
             public int      UdpLocalPort         = 9002;
+            // UDP 送出的目的地 = EdgeLink 該埠的「監聽埠」(設定裡的 remotePort),
+            // 與上面收的 UdpLocalPort 不是同一個。留空/0 表示這條只收不送。
+            public string   UdpTargetHost        = "";
+            public int      UdpTargetPort        = 0;
             public string   DeviceIdKey          = "id";
             public float    DeviceTimeoutSeconds = 20f;
             public string   FieldDelimiter       = ";";
@@ -96,6 +102,7 @@ namespace EdgeLink
         private EdgeLinkClient      _tcp;
         private EdgeLinkTcpListener _tcpListener;
         private EdgeLinkUdpClient   _udp;
+        private EdgeLinkUdpSender   _udpSender;
 
         private readonly Dictionary<string, string> _latest       = new Dictionary<string, string>();
         /// <summary>逐裝置的最新欄位值,供 Get(deviceId, key) 使用。</summary>
@@ -147,6 +154,7 @@ namespace EdgeLink
             try { _tcp?.Dispose(); }         catch { } _tcp = null;
             try { _tcpListener?.Dispose(); } catch { } _tcpListener = null;
             try { _udp?.Dispose(); }         catch { } _udp = null;
+            try { _udpSender?.Dispose(); }   catch { } _udpSender = null;
         }
 
         // ── Mask 拉取 ──────────────────────────────────────
@@ -217,7 +225,167 @@ namespace EdgeLink
                     _udp.OnError        += ex => Debug.LogWarning($"[EdgeLink UDP] {ex.Message}");
                     _udp.OnDeviceStatus += (c, ep, id) => _deviceStatusQ.Enqueue((c, ep, id));
                     _udp.Start();
+                    if (!string.IsNullOrEmpty(_config.UdpTargetHost) && _config.UdpTargetPort > 0)
+                        _udpSender = new EdgeLinkUdpSender();
                     Debug.Log($"[EdgeLink UDP] Listening on port {_config.UdpLocalPort}");
+                    break;
+            }
+        }
+
+        // ── 送出 ────────────────────────────────────────────
+        //
+        // 三種模式都送得出去,對象不同:
+        //   TCP          寫進那條對外連線
+        //   TCPListener  寫給所有連進來的對端(通常只有 EdgeLink 一條)
+        //   UDP          打到 UdpTargetHost:UdpTargetPort —— 注意那是 EdgeLink 該埠的
+        //                「監聽埠」,與收資料的 UdpLocalPort 不是同一個
+        //
+        // 送不出去時一律丟講清楚原因的例外,而不是靜靜地什麼都沒發生。
+
+        /// <summary>現在送得出去嗎。三種模式的判斷不同:
+        /// TCP 看連上沒;TCPListener 看有沒有對端連進來;UDP 看有沒有設定目的地
+        /// (UDP 無連線,設了就永遠「送得出去」—— 但送到不存在的對象不會有任何錯誤)。</summary>
+        public bool CanSend
+        {
+            get
+            {
+                switch (_config.Protocol)
+                {
+                    case Protocol.TCP:         return _tcp != null && _tcp.IsConnected;
+                    case Protocol.TCPListener: return _tcpListener != null && _tcpListener.ConnectionCount > 0;
+                    case Protocol.UDP:         return _udpSender != null;
+                    default:                   return false;
+                }
+            }
+        }
+
+        /// <summary>送一行 KV 文字給 EdgeLink。會自動補換行,呼叫端不必自己加。
+        /// <para>該埠的 Mask 是二進位時,EdgeLink 會把這行 KV 編碼成封包再送給對端;
+        /// 是文字 Mask 時則原樣轉發。兩種情況呼叫端寫法相同。</para></summary>
+        public Task SendAsync(string kvLine)
+        {
+            RequireSendable();
+            switch (_config.Protocol)
+            {
+                case Protocol.TCP:         return _tcp.SendAsync(kvLine);
+                case Protocol.TCPListener: return ThrowIfNotWritten(_tcpListener.SendAsync(kvLine));
+                default:                   return _udpSender.SendAsync(
+                                               _config.UdpTargetHost, _config.UdpTargetPort, kvLine);
+            }
+        }
+
+        /// <summary>用設定好的分隔符把欄位組成一行送出。
+        /// <para>浮點請先自己轉字串並指定 InvariantCulture —— 系統地區設定會把小數點變成
+        /// 逗號,而逗號在 KV 裡沒有特殊意義,EdgeLink 會當成不合法數值把整包丟掉。
+        /// <see cref="Num(float)"/> 已經處理好這件事。</para></summary>
+        public Task SendAsync(IEnumerable<KeyValuePair<string, string>> fields)
+            => SendAsync(BuildLine(fields));
+
+        /// <summary>送原始位元組,不附加換行也不做任何轉換。
+        /// <para>用在「該埠 Mask 為二進位、而且你想自己組封包」的情境 —— 一般情況請用
+        /// <see cref="SendAsync(string)"/> 讓 EdgeLink 依 Mask 編碼。</para></summary>
+        public Task SendRawAsync(byte[] data)
+        {
+            RequireSendable();
+            switch (_config.Protocol)
+            {
+                case Protocol.TCP:         return _tcp.SendAsync(data);
+                case Protocol.TCPListener: return ThrowIfNotWritten(_tcpListener.SendAsync(data));
+                default:
+                    throw new InvalidOperationException(
+                        "UDP 送原始位元組請直接用 EdgeLinkUdpSender —— " +
+                        "Bridge 這層的 UDP 送出只處理文字。");
+            }
+        }
+
+        /// <summary>依目前設定把欄位組成一行(不送出)。除錯或先看一眼要送什麼時用。</summary>
+        public string BuildLine(IEnumerable<KeyValuePair<string, string>> fields)
+        {
+            if (fields == null) throw new ArgumentNullException(nameof(fields));
+
+            var sb = new StringBuilder();
+            foreach (var f in fields)
+            {
+                // KV 是純文字格式,沒有跳脫機制 —— 值裡混進分隔符就等於多送了幾個欄位,
+                // 收端會把它們當成正常資料。與其產生一行看起來正常、意思卻不同的訊息,
+                // 不如在這裡就擋下來。
+                Reject(f.Key,   "欄位名");
+                Reject(f.Value, "欄位值");
+
+                if (sb.Length > 0) sb.Append(_config.FieldDelimiter);
+                sb.Append(f.Key).Append(_config.KvSeparator).Append(f.Value);
+            }
+            return sb.ToString();
+        }
+
+        private void Reject(string text, string what)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            if (text.Contains(_config.FieldDelimiter) || text.Contains(_config.KvSeparator) ||
+                text.IndexOf('\n') >= 0 || text.IndexOf('\r') >= 0)
+                throw new ArgumentException(
+                    $"{what} 含有分隔符或換行,會破壞 KV 的結構:'{text}'。" +
+                    "KV 沒有跳脫機制,請先自行編碼(例如換成底線或百分號編碼)。");
+        }
+
+        /// <summary>數值轉字串,固定用 InvariantCulture。
+        /// <para>NaN / Infinity 會直接丟例外而不是輸出 "NaN"/"∞" —— 那種字串送出去之後,
+        /// 對端要嘛整包丟棄、要嘛解析成 0,兩種都比在來源端就發現難查得多。</para></summary>
+        public static string Num(float value)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value))
+                throw new ArgumentException($"不能送出 {value} —— KV 沒有表示 NaN/Infinity 的方式。");
+            return value.ToString("0.#####", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>同上,double 版本。</summary>
+        public static string Num(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+                throw new ArgumentException($"不能送出 {value} —— KV 沒有表示 NaN/Infinity 的方式。");
+            return value.ToString("0.#########", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>整數版本 —— 沒有這個多載的話 Num(someInt) 會靜默走 float,
+        /// 超過 2^24 的值就被改掉了(例如序號、時間戳)。</summary>
+        public static string Num(long value) => value.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>把 listener 的「回 false」翻成例外。
+        /// <para>EdgeLinkClient 送不出去是丟例外,EdgeLinkTcpListener 是回 false —— 兩種失敗語意
+        /// 混在同一個 Task 回傳型別裡的話,呼叫端(尤其是 Manager.Send 的 try/catch)只會看到
+        /// TCP 那條的失敗,TCPListener 的失敗完全靜音。這裡統一成例外。</para></summary>
+        private static async Task ThrowIfNotWritten(Task<bool> send)
+        {
+            if (!await send.ConfigureAwait(false))
+                throw new InvalidOperationException(
+                    "沒有任何連線寫入成功 —— 對端可能剛斷線,或寫入時發生錯誤(細節見 OnError)。");
+        }
+
+        private void RequireSendable()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(EdgeLinkBridge));
+
+            switch (_config.Protocol)
+            {
+                case Protocol.TCP:
+                    if (_tcp == null || !_tcp.IsConnected)
+                        throw new InvalidOperationException("尚未連上 EdgeLink(或連線已中斷)。先看 CanSend。");
+                    break;
+
+                case Protocol.TCPListener:
+                    if (_tcpListener == null)
+                        throw new InvalidOperationException("listener 尚未啟動。");
+                    if (_tcpListener.ConnectionCount == 0)
+                        throw new InvalidOperationException(
+                            "還沒有對端連進來。TCPListener 模式是 EdgeLink 主動連向這裡," +
+                            "沒有連線就沒有可寫回的對象 —— 先看 CanSend。");
+                    break;
+
+                case Protocol.UDP:
+                    if (_udpSender == null)
+                        throw new InvalidOperationException(
+                            "UDP 模式要送資料必須設定 UdpTargetHost 與 UdpTargetPort " +
+                            "(EdgeLink 該 UDP 埠的監聽埠,與收資料的 UdpLocalPort 不是同一個)。");
                     break;
             }
         }
