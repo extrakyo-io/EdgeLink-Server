@@ -61,7 +61,9 @@ namespace EdgeLink
             try { oldCts.Dispose(); } catch { }
             cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await ConnectCoreAsync(cts.Token);
-            _ = Task.Run(() => ReadLoopAsync(cts.Token), cts.Token);
+            // 同上:token 不傳給 Task.Run,否則取消時讀取迴圈不會啟動,
+            // OnDisconnected 與資源回收都不會發生。
+            _ = Task.Run(() => ReadLoopAsync(cts.Token));
         }
 
         private async Task ConnectCoreAsync(CancellationToken ct)

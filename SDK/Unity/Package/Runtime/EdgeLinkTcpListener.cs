@@ -111,7 +111,11 @@ namespace EdgeLink
                 {
                     var client = await listener!.AcceptTcpClientAsync();
                     _accepted.TryAdd(client, new Conn { Client = client });
-                    _ = Task.Run(() => ReadLoopAsync(client, ct), ct);
+                    // 不要把 token 傳給 Task.Run 的第二個參數:token 若在工作排程前就被取消,
+                    // 委派根本不會執行 —— finally 不跑、OnDisconnected 不觸發、資源不回收。
+                    // 連線已經登記進 accepted(ConnectionCount 也算了),卻永遠不會回報斷線,
+                    // 消費端就留下一條幽靈連線。迴圈本身已經吃這個 token,交給它才會走完清理。
+                    _ = Task.Run(() => ReadLoopAsync(client, ct));
                 }
                 catch (OperationCanceledException) { return; }
                 catch (ObjectDisposedException)    { return; }   // listener 已 Stop()

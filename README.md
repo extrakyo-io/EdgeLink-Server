@@ -24,17 +24,22 @@
 | **訊息路由** | 透過 `SourceProtocolId` 自動橋接各 port |
 | **Mask 系統** | 自訂協定解析與轉換規則；**二進位版面雙向轉換** —— 入站解碼成 KV（UDP 逐包／TCP 串流分包），出站把 KV 編碼成封包（含 seq／時間戳／長度自動填值、錯誤碼具名查表） |
 | **即時監控** | 每個 port 的 SSE 串流日誌，支援關鍵字搜尋 |
-| **Web 管理介面** | 瀏覽器端管理 — 卡片式 port 檢視，免前端建置 |
+| **Web 管理介面** | 瀏覽器端管理 — 表格式 port 檢視、深色主題，免前端建置 |
 | **裝置識別** | TCP Server 與 UDP 上逐連線的裝置 ID 追蹤，於 WebUI 與 SDK 中呈現 |
 | **安全性** | PBKDF2 密碼雜湊、工作階段持久化、HttpOnly cookie |
 | **檔案日誌** | 每日輪替日誌檔，保留 7 天 |
-| **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js）。**送出能力目前只有 Unity 與 C#**（見下表） |
+| **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js） —— 五套都能雙向收送（見「SDK 能力對照」） |
 
 ---
 
 ## 系統架構
 
-EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub）**：數值處理程式透過 **Modbus TCP** 輪詢現場硬體、計算出應用數值，再經由 SDK 用戶端推送進 EdgeLink。EdgeLink 對每筆訊息套用 **Mask**，並依 `SourceProtocolId` **路由**，透過 **UDP / TCP** 一次送達所有下游消費端。
+EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub）**：數值處理程式透過 **Modbus TCP** 輪詢現場硬體、計算出應用數值，再經由 SDK 用戶端推送進 EdgeLink。EdgeLink 對每筆訊息套用 **Mask**，並依 `SourceProtocolId` **路由**給所有指向它的下游埠。
+
+> **路由目標是 TCP Client 埠。** `SourceProtocolId` 的轉發只會找到 TCP Client 埠 ——
+> UDP 埠不參與這個機制，它是自成一條的中繼：從自己的監聽埠收、解碼後直接送到自己設定的
+> 目的地。要用 UDP 扇出給多個消費端，靠的是 UDP 廣播（目標 IP 留空）或多開幾支 UDP 埠，
+> 不是 `SourceProtocolId`。
 
 此參考部署是一套雲梯消防車水炮訓練平台。**AX-5 運動控制器**（霍爾搖桿按鈕 / 踏板 / 緊急停止、伺服驅動器）與**三軸平台訊號擷取模組**（16× DI 絕對編碼器、4× AI 雙軸搖桿）由數值處理程式讀取 —— 進行 Gray code→角度轉換、低通濾波、搖桿 0.25–4.75 V / 雙軸 5 V 檢查、姿態 + 奇異點偵測 + 逆向運動學 —— 再餵給 EdgeLink。EdgeLink 將處理後的數值扇出到 Unity 3D 與另外兩台電腦。
 
@@ -49,13 +54,13 @@ EdgeLink Server 位於控制系統的核心，扮演**扇出樞紐（fan-out hub
 
 ## 安裝
 
-1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.4.3-win-x64.zip`
+1. 從 [Releases](https://github.com/extrakyo-io/EdgeLink-Server/releases) 下載 `EdgeLink-Server-v2.5.0-win-x64.zip`
 2. 解壓縮 zip
 3. 執行 `EdgeLinkServer.exe`
 4. 開啟瀏覽器前往 `http://localhost:8081`
 
 > **沒有內建 HTTPS。** 管理介面走純 HTTP，登入密碼會以明文經過網路。請只在受信任的內部網段開放，或在前面架反向代理（IIS / nginx / Caddy）承接 TLS。
-> v2.4.0 以前曾自帶自簽憑證，但其私鑰密碼是寫死在公開原始碼裡的常數、憑證又會被裝進機器的 Trusted Root —— 比沒有 HTTPS 更危險，已整個移除。
+> v2.4.2 以前曾自帶自簽憑證，但其私鑰密碼是寫死在公開原始碼裡的常數、憑證又會被裝進機器的 Trusted Root —— 比沒有 HTTPS 更危險，已於 v2.4.2 整個移除。
    - 預設密碼：`admin` — **登入後請立即修改**
 
 ---
@@ -82,8 +87,11 @@ EdgeLinkServer.exe [options]
   --uninstall         移除 Windows 服務後結束
 
 環境變數：
-  EDGELINK_PORT       同 --port
+  EDGELINK_PORT                    同 --port
+  EDGELINK_UDP_DEVICE_TIMEOUT_SEC  UDP 埠判定裝置離線的秒數（預設 30）
 ```
+
+`--install` / `--uninstall` 需要**系統管理員權限**，否則會直接以 exit code 1 結束。
 
 優先順序：命令列參數 > 環境變數 > 預設值
 
@@ -135,6 +143,10 @@ id:WaterCannon01;yaw:128;pitch:64;joyx:2.5;joyy:1.802
 | `2` | Read Discrete Inputs | 開關、按鈕、GrayCode 編碼器位元 |
 | `3` | Read Holding Registers | 一般 16-bit，可讀寫 |
 | `4` | Read Input Registers | 類比輸入（搖桿、感測器電壓） |
+
+> **`scale` / `offset` 只作用在暫存器型別**（`uint16` / `int16` / `uint32` / `int32` /
+> `float32`）。FC 01/02 讀出來的 `bit` / `bits` 走的是另一條格式化路徑，
+> 設了也不會生效 —— 需要換算請在下游處理。
 
 ### 資料型別
 
@@ -191,6 +203,9 @@ python modbus_slave_sim.py
 > discriminator 位址湊巧對上的雜訊都會被解成合法資料轉發下去。
 > 把版本號一起放進 `sync`（例如 `"4f4b01"` = magic `OK` + version 1）還能順便
 > 實作「版本不符即丟棄」。
+>
+> 注意：**設了 `sync` 就等於宣告要做 TCP 分包，每個 variant 都必須指定 `length`**，
+> 否則存檔時會被驗證擋下來（沒有長度就框不出封包）。
 
 ### 出站編碼
 
@@ -203,7 +218,13 @@ python modbus_slave_sim.py
 | `timeMs` | 當下的 Unix epoch UTC 毫秒 |
 | `frameLength` | 該 variant 的封包長度 |
 
-`sync` 與 `discriminator` 也由編碼器自己寫——那兩者的值是版面決定的，讓使用者從 KV
+**要送哪一個 variant，是靠 KV 裡的 discriminator 欄位決定的。** 編碼器會在每個 variant
+裡找「宣告在 `discriminator.offset` 上的那個欄位」，用它的名字去 KV 取值，再跟
+`variant.match` 比對。所以 spec 裡**必須**有一個欄位宣告在那個位址上（例如
+`{ "name": "mt", "offset": 3, "type": "u8" }`），送出時 KV 也要帶 `mt:16` ——
+兩者缺一，編碼器挑不到 variant，整包會被丟掉。
+
+`sync` 與 `discriminator` 的**值**則由編碼器自己寫——那兩者的值是版面決定的，讓使用者從 KV
 傳進來只會多一個填錯的機會。沒有宣告的位元組維持 0，正好對應多數協定的「保留欄位填 0」。
 
 **缺欄位預設整包丟棄，而不是填 0。** 送出一筆被靜默歸零的命令，遠比沒送出去危險——
@@ -319,15 +340,19 @@ Base URL：`http://<host>:8081`
 
 | SDK | 收 | 送（Client 連出） | 送（Listener 回應） | 送（UDP） |
 |---|:--:|:--:|:--:|:--:|
-| **Unity** | ✔ | ✔ | ✔ | ✔ |
-| **C#** | ✔ | ✔ | ✔ | ✔ |
-| Python | ✔ | ✔ | — | ✔ |
-| JavaScript | ✔ | ✔ | — | ✔ |
+| Unity | ✔ | ✔ | ✔ | ✔ |
+| C# | ✔ | ✔ | ✔ | ✔ |
+| Python | ✔ | ✔ | ✔ | ✔ |
+| JavaScript | ✔ | ✔ | ✔ | ✔ |
 | Arduino | ✔ | ✔ | 不適用 | ✔ |
 
 「Listener 回應」是指 EdgeLink 的 TCP Client 埠連進來時，用戶端寫回那條連線。
-Python / JavaScript 的 `EdgeLinkTcpListener` 目前只會回 `EDGELINK_PONG` 心跳，
-沒有對外的送出 API。
+Arduino 沒有這個模式（裝置端不會被 EdgeLink 反向連入）。
+
+**Unity 與 C# 的 `TcpListener` 用每條連線一把寫入鎖**，因為 .NET 的 `NetworkStream`
+併發寫入會真的交錯；Python 與 JavaScript 不需要 —— `StreamWriter.write()` 與
+`socket.write()` 單次呼叫具原子性。同一個問題在不同語言有不同的正確解法，
+不是照搬。
 
 ---
 
@@ -375,9 +400,14 @@ https://github.com/extrakyo-io/EdgeLink-Server.git?path=SDK/Unity/Package
 | Protocol | `TCP` / `TCPListener` / `UDP` |
 | TCP Host / Port | （TCP 模式）EdgeLink Server IP 與埠 |
 | Listen Port | （TCPListener 模式）Unity 監聽的本機埠 |
-| UDP Local Port | （UDP 模式）本機 UDP 埠 |
+| UDP Local Port | （UDP 模式）本機 UDP 埠 —— **收**資料用 |
+| UDP Target Host / Port | （UDP 模式）**送**資料的目的地，即 EdgeLink 該埠的「監聽埠」。留空表示只收不送 |
 | Device Id Key | 訊息中用來識別裝置的欄位名（例如 `id`）。留空則停用逾時追蹤。 |
 | Device Timeout (s) | 多少秒未收到訊息即視為裝置離線（`0` = 停用） |
+
+Inspector 下方還有一組**遮罩瀏覽工具**：填好 Server URL 與 Password 後按「拉取遮罩清單」，
+會向 EdgeLink 要一份現有的 mask 名稱，用下拉選單挑一個再按「套用 Mask ID」寫回上面的欄位。
+純粹是編輯期的便利功能 —— 手動輸入 Mask ID 效果完全一樣。
 
 ### 用法 — POCO（`EdgeLinkBridge`）
 
@@ -448,9 +478,14 @@ public class Example : MonoBehaviour
 
 | 成員 | 型別 | 說明 |
 |--------|------|------|
+| `OnMessage` | `event Action<string>` | 每收到一筆訊息觸發（參數是整行原文）。四個官方範例都靠它 |
 | `Raw` | `string` | 最新的原始訊息字串（未解析） |
 | `Get(key)` | `string` | 依欄位名取得最新解析值，找不到則為 `null` |
 | `Bridge` | `EdgeLinkBridge` | 底層 bridge，想要更細部控制時用 |
+
+> **多裝置情境要用 `Bridge`。** `Get(key)` 是所有裝置混在同一份字典，後到的會蓋掉先到的。
+> 逐裝置取值的 `Get(deviceId, key)` 與 `KnownDeviceIds` **只在 `EdgeLinkBridge` 上**，
+> `EdgeLinkManager` 沒有轉發 —— 請走 `edgeLink.Bridge.Get(deviceId, key)`。
 
 ### 送出資料
 
@@ -473,7 +508,7 @@ void FireCommand()
 
     edgeLink.Send("cmd:start");             // 送一整行
 
-    edgeLink.Send(                          // 或給欄位，分隔符用 Inspector 設定的那組
+    edgeLink.Send(                          // 或給欄位，分隔符用該 mask 的設定
         ("cmd", "move"),
         ("x", EdgeLinkManager.Num(transform.position.x)),
         ("y", EdgeLinkManager.Num(transform.position.y)));
@@ -490,9 +525,9 @@ async void FireCritical()                   // 要自己處理失敗就用 async
 |--------|------|------|
 | `CanSend` | `bool` | 現在送得出去嗎（各 Protocol 判斷不同，見上表） |
 | `Send(kvLine)` | `void` | 送一行，失敗只記 log — MonoBehaviour 裡多半不想為了送資料改成 `async`，而 `async void` 會**吞掉例外** |
-| `Send(params (key, value)[])` | `void` | 送一組欄位，分隔符用 Inspector 設定的那組 |
+| `Send(params (key, value)[])` | `void` | 送一組欄位，分隔符用該 mask 的設定 |
 | `SendAsync(kvLine)` | `Task` | 同上，但失敗會丟例外由你處理 |
-| `Num(float / double / long)` | `static string` | 數值轉字串，固定 `InvariantCulture` |
+| `Num(float / double / long)` | `static string` | 數值轉字串，固定 `InvariantCulture`。**NaN / Infinity 會丟 `ArgumentException`** —— 用在 `Send(欄位)` 的參數裡時，例外發生在呼叫 `Send()` **之前**，不會被它的「失敗只記 log」接住 |
 
 **兩個一定要走 `Num()` 與 `Send(欄位)` 的理由：**
 
@@ -567,7 +602,7 @@ EdgeLink Arduino Library 讓 ESP32 / ESP8266 / Arduino 裝置連上 EdgeLink Ser
 
 ```cpp
 #include <WiFi.h>
-#include <EdgeLink.h>
+#include <EdgeLinkTCP.h>   // 或 <EdgeLink.h> 一次含入全部
 
 WiFiClient  wifiClient;
 EdgeLinkTCP edgelink(wifiClient);
@@ -601,7 +636,7 @@ void loop() {
 ```cpp
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <EdgeLink.h>
+#include <EdgeLinkUDP.h>   // 或 <EdgeLink.h> 一次含入全部
 
 WiFiUDP     wifiUdp;
 EdgeLinkUDP edgelink(wifiUdp);
@@ -643,7 +678,10 @@ void loop() {
 | | `loop()` | 必須在 `loop()` 中呼叫 — 接收封包 |
 | | `send(host, port, msg)` | 送出 UDP 封包到 EdgeLink |
 | | `onMessage(cb)` | 回呼帶 `(msg, remoteIP, remotePort)` |
+| | `send(host, port, msg)` / `send(ip, port, msg)` | 送出 UDP 封包，回傳是否成功 |
+| | `onDeviceStatus(cb)` | EdgeLink 回報的裝置上下線 |
 | `EdgeLinkAsyncUDP` | `begin(localPort = 0)` | 非同步 UDP：ESP32 內建 `<AsyncUDP.h>` 或 ESP8266 的 ESPAsyncUDP |
+| | `send(host, port, msg)` / `send(ip, port, msg)` | 送出，回傳寫出的位元組數 |
 | | `onMessage(cb)` / `onDeviceStatus(cb)` | 回呼 |
 | | `close()` | 關閉 |
 
@@ -683,7 +721,7 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 | 類別 | 成員 | 說明 |
 |-------|--------|------|
 | `EdgeLinkClient` | `ConnectAsync()` | 連線並在背景啟動讀取迴圈 |
-| | `SendAsync(msg)` | 送出訊息（文字，自動補換行） |
+| | `SendAsync(msg)` | 送出訊息（文字，自動補換行）。**未連線時丟 `InvalidOperationException`** |
 | | `SendAsync(byte[] data)` | 送出**原始位元組**（給 binary mask 埠；不補換行、不做轉換） |
 | | `IsConnected` / `Host` / `Port` | 連線狀態與目標 |
 | | `SetAutoReconnect(enable, delayMs)` | 斷線時自動重連（預設：啟用，5000 ms） |
@@ -703,18 +741,19 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 | `EdgeLinkUdpClient` | `Start()` | 綁定本機埠並接收封包 |
 | | `IsRunning` / `LocalPort` | 接收狀態與埠 |
 | | `Dispose()` | 停止接收並釋放 socket |
+| （全部） | `IDisposable` | 五個類別都實作 —— 請用 `using` 或明確 `Dispose()`，否則 socket 會殘留 |
 | | `OnMessage / OnError` | 事件 |
 | | `OnDeviceStatus` | 依訊息 `id` 欄位做逾時判斷後回報 |
 | | `TryDequeue(out msg)` | 以輪詢取代事件的替代方式 |
 | `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | 送出 UDP 封包（端點會快取，避免每次同步 DNS 解析） |
 | | `SendAsync(IPEndPoint, msg)` | 同上，直接給端點 |
-| `EdgeLinkSourceClient` | `Start()` | **來源端**：連上 EdgeLink，背景自動回應 `EDGELINK_PONG` 心跳並斷線自動重連 |
+| `EdgeLinkSourceClient` | `Start()` | **來源端**：啟動背景連線迴圈，自動回應 `EDGELINK_PONG` 心跳並斷線自動重連。**不等連線建立完成就回傳** —— 送出前請先看 `IsConnected` |
 | | `IsConnected` / `Host` / `Port` | 連線狀態與目標 |
 | | `SetAutoReconnect(enable, delayMs)` | 預設啟用，3000 ms |
 | | `OnConnected / OnDisconnected / OnError` | 事件 |
-| | `SendLineAsync(kv)` | 送一行 KV 文字（自動補換行） |
-| | `SendRawAsync(bytes)` | 送原始位元組（給 binary mask 埠） |
-| | `Num(float)` / `Num(double)` | 數值轉字串，固定 `InvariantCulture`（見下方提醒） |
+| | `SendLineAsync(kv)` | 送一行 KV 文字（自動補換行）。**未連線時靜默丟棄**（與 `EdgeLinkClient` 丟例外不同） |
+| | `SendRawAsync(bytes)` | 送原始位元組（給 binary mask 埠），同樣未連線時靜默丟棄 |
+| | `static Num(float)` / `Num(double)` | 數值轉字串，固定 `InvariantCulture`（見下方提醒） |
 
 > **送出浮點一律走 `Num()`。** 系統地區設定會把小數點變成逗號（德文環境的 `1,5`），
 > 而逗號在 KV 裡沒有特殊意義 —— EdgeLink 會把那樣的值當成不合法而**丟掉整包**。
@@ -770,12 +809,15 @@ asyncio.run(main())
 | | `on_device_status` | EdgeLink 回報的上游裝置上下線 |
 | `EdgeLinkTcpListener` | `start()` | 開始監聽（coroutine） |
 | | `stop()` | 停止監聽器（coroutine） |
-| | `is_connected` | 是否有對端連著 |
+| | `send(line)` | 送一行 KV 給所有已連線的對端（coroutine，自動補換行）；沒有連線時回 `False` |
+| | `send_bytes(data)` | 送原始位元組給所有已連線的對端（coroutine） |
+| | `connection_count` | 目前連進來的對端數 |
+| | `is_running` | 監聽狀態（**不是** `is_connected` —— 那是 `EdgeLinkClient` 的） |
 | | `try_dequeue()` | 以輪詢取代回呼 |
 | | `on_message / on_connected / on_disconnected / on_error` | 註冊回呼 |
 | | `on_device_status` | `(connected, endpoint, device_id)` |
 | `EdgeLinkUdpClient` | `start()` | 綁定並開始接收（coroutine） |
-| | `stop()` | 停止接收（coroutine） |
+| | `stop()` | 停止接收（**同步**方法，不是 coroutine） |
 | | `try_dequeue()` | 以輪詢取代回呼 |
 | | `on_message / on_error` | 註冊回呼 |
 | | `on_device_status` | 依訊息 `id` 欄位做逾時判斷後回報 |
@@ -783,9 +825,11 @@ asyncio.run(main())
 | | `send_async(host, port, msg)` | 送出 UDP 封包（coroutine） |
 | | `close()` / `with` 語法 | 釋放 socket |
 
-> **`EdgeLinkTcpListener` 沒有送出 API。** 它只會自動回 `EDGELINK_PONG` 心跳，
-> 無法主動寫回連進來的 EdgeLink —— 需要那個方向請用 C# 或 Unity SDK。
-> `connect()` 只負責發起連線，不等連線建立完成就回傳。
+> `EdgeLinkClient.connect()` 只負責發起連線，**不等連線建立完成就回傳**。
+>
+> `EdgeLinkTcpListener.send()` 寫給所有連進來的對端。這裡刻意不加寫入鎖 ——
+> asyncio 的 `StreamWriter.write()` 單次呼叫具原子性，與 PONG 不會互相切開；
+> 這與 .NET 的 `NetworkStream` 不同（那邊併發寫入會真的交錯）。
 
 ---
 
@@ -795,12 +839,13 @@ EdgeLink JavaScript SDK 以 **Node.js 18+** 為目標，僅使用內建模組（
 
 ### 安裝
 
-```bash
-# 把 SDK/JavaScript/ 複製進你的專案並命名為 edgelink/，然後：
+把 `SDK/JavaScript/` 複製進你的專案並命名為 `edgelink/`，然後：
+
+```js
 const { EdgeLinkClient } = require("./edgelink/src");
 
-# 資料夾維持原名的話,路徑要跟著改:
-# const { EdgeLinkClient } = require("./SDK/JavaScript/src");
+// 資料夾維持原名的話，路徑要跟著改：
+// const { EdgeLinkClient } = require("./SDK/JavaScript/src");
 ```
 
 ### TCP 範例
@@ -834,18 +879,22 @@ setInterval(() => {
 | | `disconnect()` | **永久**停用這個 client（會關掉自動重連），不是暫時斷線 |
 | | 事件：`"connected" / "disconnected" / "message" / "error" / "deviceStatus"` | `EventEmitter` 事件 |
 | `EdgeLinkTcpListener` | `start()` | 啟動 TCP 伺服器 |
-| | `stop()` | 停止 TCP 伺服器 |
+| | `stop()` | 停止伺服器**並主動關閉所有已接受的連線** |
+| | `send(line)` | 送一行 KV 給所有已連線的對端（自動補換行）；沒有連線時回 `false` |
+| | `sendBytes(buf)` | 送原始位元組給所有已連線的對端 |
+| | `connectionCount` | 目前連進來的對端數 |
 | | `isRunning` | 監聽狀態 |
 | | 事件：`"connected" / "disconnected" / "message" / "error" / "deviceStatus"` | `EventEmitter` 事件 |
 | `EdgeLinkUdpClient` | `start()` | 綁定並接收 UDP 封包 |
 | | `stop()` | 停止接收 |
 | | `isRunning` | 接收狀態 |
 | | 事件：`"message" / "error" / "deviceStatus"` | `EventEmitter` 事件 |
-
-> **`EdgeLinkTcpListener` 沒有送出 API**（同 Python）。三個類別都會 emit
-> `"deviceStatus"`，先前的事件清單全部漏列了它。
 | `EdgeLinkUdpSender` | `send(host, port, msg)` | 送出 UDP 封包（回傳 `Promise`） |
 | | `close()` | 關閉 socket |
+
+> `EdgeLinkClient` / `EdgeLinkTcpListener` / `EdgeLinkUdpClient` 都會 emit
+> `"deviceStatus"`。`EdgeLinkTcpListener.send()` 寫給所有連進來的對端；這裡同樣不需要
+> 寫入鎖 —— Node 的 `socket.write()` 單次呼叫具原子性。
 
 ---
 
@@ -854,22 +903,30 @@ setInterval(() => {
 ```
 EdgeLink-Server/
 ├── Server/
-│   ├── Infrastructure/      # AppConfig、AppLogger、AppPaths、CertificateHelper
+│   ├── Infrastructure/      # AppConfig、AppLogger、AppPaths、AtomicFile、ServiceManager
+│   ├── Mask/                # BinaryMaskDecoder/Encoder、BinaryStreamFramer、
+│   │                        #   BinaryValueMap（具名查表）、TemplateRenderer、驗證器
 │   ├── NetworkServer/
 │   │   ├── Base/            # Connector 基底、models（PortData…）
+│   │   ├── Connector/       # NetworkConnectorCore
 │   │   ├── TCP/             # TCPServerConnector、TCPClientConnector
 │   │   ├── Udp/             # UdpConnector
+│   │   ├── Modbus/          # Modbus TCP Master 輪詢
+│   │   ├── Logging/         # MonitorManager、RouterLogHelper
 │   │   ├── Router/          # NetworkMessageRouter
 │   │   └── Services/        # PortManager、PortDataStorageService
-│   ├── WebApi/              # HttpApiServer、Auth/Port/Mask/Monitor handlers
+│   ├── WebApi/              # HttpApiServer、Auth/Port/Mask/Monitor/Settings handlers
 │   ├── WebUI/               # 前端 HTML/CSS/JS（index、manual、docs）
+│   ├── EdgeLinkService.cs   # Windows 服務宿主
 │   └── Program.cs           # 進入點
+├── Server.Tests/            # .NET 單元 + 整合測試
 └── SDK/
     ├── Unity/
     │   └── Package/         # UPM 套件（Runtime + Editor + Samples~）
     ├── Arduino/
-    │   └── EdgeLink/        # Arduino 函式庫（TCP + UDP，自動處理 PING/PONG）
+    │   └── EdgeLink/        # Arduino 函式庫（TCP 自動處理 PING/PONG；UDP 無心跳）
     ├── CSharp/              # .NET 6 類別庫（TCP client/listener + UDP）
+    ├── CSharp.Tests/        # SDK 測試（真 socket：重入、併發寫入、連線生命週期）
     ├── Python/              # Python 3.10+ 套件，使用 asyncio（TCP + UDP）
     └── JavaScript/          # Node.js 18+ 套件，使用 net/dgram（TCP + UDP）
 ```
@@ -880,7 +937,7 @@ EdgeLink-Server/
 
 | 版本 | 變更內容 |
 |---------|---------|
-| v2.5.0 | **SDK 送出能力**（#41）— C# 與 Unity 兩套 SDK 的 `EdgeLinkTcpListener` 新增 `SendAsync` / `ConnectionCount`，可寫回連進來的 EdgeLink；`EdgeLinkUdpSender` 移植進 Unity SDK 並加上端點快取（先前每次送出都在呼叫端執行緒同步做 DNS 解析）；`EdgeLinkManager` / `EdgeLinkBridge` 三種 Protocol 都能送，並提供 `Num()`（固定 `InvariantCulture`、擋 NaN/Infinity）與欄位分隔符驗證。每條連線一把寫入鎖，PONG 與使用者送出共用同一把 —— 交錯會同時毀掉心跳 token 與訊息。**安全性**：Unity **Editor** 面板的 TLS 憑證驗證繞過終於移除 —— v2.4.3 宣稱已移除但只改到 Runtime，Editor 這支被漏掉，而它的 Mono fallback 走 `ServicePointManager` 是**行程全域**的，等於關掉整個 Unity Editor 的憑證驗證。**修正**：`SDK/Python/pyproject.toml` 的 `build-backend` 指向不存在的模組，`pip install SDK/Python` 一定失敗。README 對回實際程式碼（新增 SDK 能力對照表、Binary Mask 雙向轉換、補齊四套 SDK 的 API 表、修掉貼上去編不過的範例） |
+| v2.5.0 | **二進位 Mask 雙向轉換**（#40）— 同一份 `BinarySpec` 入站解碼、出站編碼；`auto` 欄位自動產生 seq／時間戳／封包長度；`maps` + `mapRef` 具名查表（支援範圍 key）；解碼前驗證 `sync`（先前 UDP 完全不驗 magic）；TCP Client 埠支援二進位收發。**SDK 送出能力**（#41）— C# 與 Unity 兩套 SDK 的 `EdgeLinkTcpListener` 新增 `SendAsync` / `ConnectionCount`，可寫回連進來的 EdgeLink；`EdgeLinkUdpSender` 移植進 Unity SDK 並加上端點快取（先前每次送出都在呼叫端執行緒同步做 DNS 解析）；`EdgeLinkManager` / `EdgeLinkBridge` 三種 Protocol 都能送，並提供 `Num()`（固定 `InvariantCulture`、擋 NaN/Infinity）與欄位分隔符驗證。每條連線一把寫入鎖，PONG 與使用者送出共用同一把 —— 交錯會同時毀掉心跳 token 與訊息。**安全性**：Unity **Editor** 面板的 TLS 憑證驗證繞過終於移除 —— v2.4.3 宣稱已移除但只改到 Runtime，Editor 這支被漏掉，而它的 Mono fallback 走 `ServicePointManager` 是**行程全域**的，等於關掉整個 Unity Editor 的憑證驗證。**修正**：`SDK/Python/pyproject.toml` 的 `build-backend` 指向不存在的模組，`pip install SDK/Python` 一定失敗。README 對回實際程式碼（新增 SDK 能力對照表、Binary Mask 雙向轉換、補齊四套 SDK 的 API 表、修掉貼上去編不過的範例） |
 | v2.4.3 | **安全性修正**（#37–#38）— WebUI 儲存型 XSS 徹底修復：先前僅將 maskId／欄位名稱做 HTML 實體跳脫（`'` → `&#39;`），但瀏覽器解析 `onclick="fn('...')"` 屬性時會先做實體解碼、解碼後的結果才當成 JS 執行，等於沒有真正阻止跳出字串注入；改為雙層跳脫（先做 JS 字串跳脫，再做 HTML 屬性跳脫）。Unity SDK 移除登入／拉取 mask 定義請求的 TLS 憑證驗證繞過（原本對任何憑證照單全收，若搭配 HTTPS 反向代理會形同無防禦中間人攻擊）。`MonitorSseHandler` 加上併發連線數上限（50），避免監控 SSE 串流被用來耗盡伺服器資源 |
 | v2.4.2 | **安全性與正確性修正**（#29–#35）— WebUI 儲存型 XSS：`esc()` 漏跳脫單引號，maskId 可跳出 `onclick` 屬性注入任意 JS，管理者匯入一份動過手腳的 settings JSON 即可觸發；TCP accept 迴圈遇暫時性 `SocketException`（連線重置／中斷）就永久終止，該埠從此不再接受新連線；Modbus 位元打包溢位、CTS 事件註冊洩漏；讀取設定檔失敗（IO／權限／鎖檔，並非內容毀損）不再被誤判成空設定並存回，永久覆蓋磁碟上完好的資料；SDK `TcpListener` 的 UTF-8 decoder 誤放成連線間共用欄位，修正 v2.4.0（#20）引入的迴歸（不同連線的資料互相污染）。**Breaking change**：移除內建 HTTPS —— 舊版自簽憑證的私鑰密碼是寫死在原始碼裡的常數，又被裝進機器的 Trusted Root，比沒有 HTTPS 更危險；`--https` / `--no-https` / `--https-port` 旗標與對應環境變數改為忽略並提示，不會讓既有服務啟動失敗，升級時會自動清除舊憑證。**SDK**：Unity 預設 `ServerUrl` 改回 `http://…:8081`（移除 HTTPS 遺留）。新增端對端 smoke test 與 UDP / Modbus TCP Master 路由測試。WebUI 深色主題重新設計 —— 側邊欄排版、中性配色、Port 管理改表格 |
 | v2.4.0 | **穩定性與正確性修正**（全面稽核 #11–#20）— TCP 二進位 framing 與 decoder 改為共用 discriminator 解讀（先前兩邊各自解讀，signed／跨位元組欄位會分包錯位）；BinarySpec 存檔時驗證，壞掉的定義不再癱瘓接收迴圈；停止／改 Mask 時主動關閉已接受的連線（先前舊連線變半開，資料靜默遺失）；Modbus 連線失敗不再洩漏 socket、32 位元型別的暫存器數修正；設定檔原子寫入 + 損毀自動備份，部分 PUT 不再清掉 Modbus 設定；登入加上每 IP 節流（PBKDF2 10 萬次迭代原本可被當成 CPU 放大器）；HTTP body 1 MB 上限。**SDK**：UTF-8 多位元組字元跨 TCP 讀取邊界不再毀損（C#／Unity／JS）；Unity 的 `OnMessage` 補上觸發（先前宣告了卻從不 Invoke）；新增 `EdgeLinkBridge.Get(deviceId, key)`／`KnownDeviceIds`（單參數版會跨裝置混值）；行緩衝上限（C#／Unity 64 KB、Arduino 512 B — MCU 上原本會 heap 耗盡重開機） |

@@ -164,7 +164,15 @@ class EdgeLinkTcpListener:
         self._on_device_status: list[Callable[[bool, str, str], None]] = []
         self._queue:   deque[str] = deque()
         self._server:  asyncio.Server | None = None
+        # 已接受、還沒斷的對端。send() 要寫給它們,stop() 要主動關掉它們 ——
+        # 只關 server 不會關掉已建立的連線。
+        self._writers: set[asyncio.StreamWriter] = set()
         self.is_running = False
+
+    @property
+    def connection_count(self) -> int:
+        """目前連進來的對端數(通常只有 EdgeLink 一條)。"""
+        return len(self._writers)
 
     def on_message(self, cb: Callable[[str], None]) -> None:
         self._on_message.append(cb)
@@ -192,12 +200,54 @@ class EdgeLinkTcpListener:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+
+        # 關 server 只是不再 accept,已建立的連線還開著 —— 要主動收掉,
+        # 否則 socket 會殘留到 OS 端,反覆 start/stop 就是累積。
+        for writer in list(self._writers):
+            try:
+                writer.close()
+            except Exception:
+                pass
+        self._writers.clear()
         self.is_running = False
+
+    async def send(self, line: str) -> bool:
+        """送一行 KV 給所有已連線的對端(自動補換行)。沒有任何連線時回 False。
+
+        對端是 EdgeLink 的 TCP Client 埠連進來,所以「送」= 回應 EdgeLink。
+
+        這裡刻意**不**加每條連線的寫入鎖:asyncio 的 StreamWriter.write() 是同步把
+        整段 bytes 追加進緩衝區,單次呼叫具原子性 —— 兩個 coroutine 各呼叫一次不會把
+        彼此的內容切開。這與 .NET 的 NetworkStream 不同(那邊併發 WriteAsync 會真的
+        交錯,所以 C#/Unity 版才需要 SemaphoreSlim)。
+        """
+        if not line:
+            return False
+        if not line.endswith("\n"):
+            line += "\n"
+        return await self.send_bytes(line.encode())
+
+    async def send_bytes(self, data: bytes) -> bool:
+        """送原始位元組給所有已連線的對端,不附加換行。"""
+        if not data:
+            return False
+        sent = False
+        for writer in list(self._writers):
+            try:
+                writer.write(data)
+                await writer.drain()
+                sent = True
+            except Exception as ex:
+                for cb in self._on_error:
+                    cb(ex)
+        return sent
 
     def try_dequeue(self) -> str | None:
         return self._queue.popleft() if self._queue else None
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        # 先登記再通知 —— 否則 on_connected 的回呼裡呼叫 send() 會漏掉這條連線
+        self._writers.add(writer)
         for cb in self._on_connected:
             cb()
         buf = b""
@@ -216,7 +266,11 @@ class EdgeLinkTcpListener:
             for cb in self._on_error:
                 cb(ex)
         finally:
-            writer.close()
+            self._writers.discard(writer)
+            try:
+                writer.close()
+            except Exception:
+                pass
             for cb in self._on_disconnected:
                 cb()
 

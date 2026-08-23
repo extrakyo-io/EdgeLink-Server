@@ -136,7 +136,16 @@ namespace EdgeLink
                 var list = Dns.GetHostAddresses(host);
                 if (list == null || list.Length == 0)
                     throw new SocketException((int)SocketError.HostNotFound);
-                addr = list[0];
+
+                // 必須挑與 socket 位址族相容的那一個。udp 是 new UdpClient() 建的,
+                // 也就是 IPv4;而 "localhost" 在雙協定的機器上會先解析出 IPv6 的 ::1 ——
+                // 拿它去送會直接丟 AddressFamilyNotSupported。
+                // 原本的 SendAsync(bytes, len, host, port) 多載內部有處理這件事,
+                // 改成自己快取端點之後就得自己挑。
+                var family = udp.Client.AddressFamily;
+                addr = Array.Find(list, a => a.AddressFamily == family);
+                if (addr == null)
+                    throw new SocketException((int)SocketError.AddressFamilyNotSupported);
             }
             ep = new IPEndPoint(addr, port);
             _resolved[key] = ep;
