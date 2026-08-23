@@ -62,7 +62,8 @@ public class EdgeLinkManager : MonoBehaviour
         _ = SendAndLogAsync(kvLine);
     }
 
-    /// <summary>送一組欄位並在失敗時記 log。分隔符用 Inspector 上設定的那組。</summary>
+    /// <summary>送一組欄位並在失敗時記 log。分隔符來自該 mask 的設定,不是 Inspector
+    /// (fieldDelimiter / kvSeparator 是 [HideInInspector],值由開場拉取 mask 時填入)。</summary>
     public void Send(params (string key, string value)[] fields)
     {
         // 整段包進 try:BuildLine 現在會對含分隔符的值丟例外,而這個多載的契約是

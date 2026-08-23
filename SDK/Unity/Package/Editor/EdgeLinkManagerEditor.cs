@@ -9,6 +9,20 @@ using UnityEngine;
 [CustomEditor(typeof(EdgeLinkManager))]
 public class EdgeLinkManagerEditor : Editor
 {
+    // 全部走 SerializedProperty,不直接寫 target 的欄位。
+    //
+    // 先前是 `m.serverUrl = EditorGUILayout.TextField(...)` 這種直接賦值,靠結尾的
+    // `if (GUI.changed) EditorUtility.SetDirty(m)` 補髒標記 —— 存檔是會生效,但:
+    //   • Undo 完全無效:沒有 Undo.RecordObject,Ctrl+Z revert 不掉 Inspector 的修改。
+    //   • prefab override 不成立:直接寫欄位不會登記成對 prefab 的覆寫,
+    //     藍色 override 標記與右鍵 Revert 都不會出現。
+    //   • 同一個檔案裡的「套用 Mask ID」按鈕反而有做 Undo.RecordObject,兩套做法並存。
+    // PropertyField 把這三件事都免費處理掉。
+    private SerializedProperty _serverUrl, _password, _maskId;
+    private SerializedProperty _protocol, _tcpHost, _tcpPort, _tcpListenPort;
+    private SerializedProperty _udpLocalPort, _udpTargetHost, _udpTargetPort;
+    private SerializedProperty _deviceIdKey, _deviceTimeoutSeconds;
+
     private string[] maskIds     = null;
     private int      selectedIdx = 0;
     private string   statusMsg   = "";
@@ -16,60 +30,75 @@ public class EdgeLinkManagerEditor : Editor
 
     private static readonly HttpClient http = CreateHttpClient();
 
+    private void OnEnable()
+    {
+        _serverUrl            = serializedObject.FindProperty("serverUrl");
+        _password             = serializedObject.FindProperty("password");
+        _maskId               = serializedObject.FindProperty("maskId");
+        _protocol             = serializedObject.FindProperty("protocol");
+        _tcpHost              = serializedObject.FindProperty("tcpHost");
+        _tcpPort              = serializedObject.FindProperty("tcpPort");
+        _tcpListenPort        = serializedObject.FindProperty("tcpListenPort");
+        _udpLocalPort         = serializedObject.FindProperty("udpLocalPort");
+        _udpTargetHost        = serializedObject.FindProperty("udpTargetHost");
+        _udpTargetPort        = serializedObject.FindProperty("udpTargetPort");
+        _deviceIdKey          = serializedObject.FindProperty("deviceIdKey");
+        _deviceTimeoutSeconds = serializedObject.FindProperty("deviceTimeoutSeconds");
+    }
+
     public override void OnInspectorGUI()
     {
-        var m  = (EdgeLinkManager)target;
-        var so = new SerializedObject(m);
-        so.Update();
+        serializedObject.Update();
 
         // ── Server ───────────────────────────────────────
         EditorGUILayout.LabelField("Server", EditorStyles.boldLabel);
-        m.serverUrl = EditorGUILayout.TextField("URL",      m.serverUrl);
-        m.password  = EditorGUILayout.PasswordField("Password", m.password);
-        m.maskId    = EditorGUILayout.TextField("Mask ID",  m.maskId);
+        EditorGUILayout.PropertyField(_serverUrl, new GUIContent("URL"));
+
+        // PasswordField 沒有 SerializedProperty 版本,自己接 —— 但要用
+        // DelayedTextField 之外的方式時仍需明確把值寫回 property,
+        // 這樣 undo / override 才會跟著走。
+        EditorGUI.BeginChangeCheck();
+        string pw = EditorGUILayout.PasswordField("Password", _password.stringValue);
+        if (EditorGUI.EndChangeCheck()) _password.stringValue = pw;
+
+        EditorGUILayout.PropertyField(_maskId, new GUIContent("Mask ID"));
 
         EditorGUILayout.Space(8);
 
         // ── 連線 ─────────────────────────────────────────
         EditorGUILayout.LabelField("連線", EditorStyles.boldLabel);
-        m.protocol = (EdgeLinkManager.Protocol)EditorGUILayout.EnumPopup("Protocol", m.protocol);
+        EditorGUILayout.PropertyField(_protocol, new GUIContent("Protocol"));
 
         EditorGUI.indentLevel++;
-        switch (m.protocol)
+        switch ((EdgeLinkManager.Protocol)_protocol.enumValueIndex)
         {
             case EdgeLinkManager.Protocol.TCP:
-                m.tcpHost = EditorGUILayout.TextField("Host", m.tcpHost);
-                m.tcpPort = EditorGUILayout.IntField("Port", m.tcpPort);
+                EditorGUILayout.PropertyField(_tcpHost, new GUIContent("Host"));
+                EditorGUILayout.PropertyField(_tcpPort, new GUIContent("Port"));
                 break;
             case EdgeLinkManager.Protocol.TCPListener:
-                m.tcpListenPort = EditorGUILayout.IntField("Local Port", m.tcpListenPort);
+                EditorGUILayout.PropertyField(_tcpListenPort, new GUIContent("Local Port"));
                 break;
             case EdgeLinkManager.Protocol.UDP:
-                m.udpLocalPort = EditorGUILayout.IntField("Local Port", m.udpLocalPort);
+                EditorGUILayout.PropertyField(_udpLocalPort, new GUIContent("Local Port"));
                 // 送出的目的地與收資料的埠不是同一個:EdgeLink 的 UDP 埠是
                 // 「聽 remotePort、轉發到 localPort」,要送進去得打它的監聽埠。
-                m.udpTargetHost = EditorGUILayout.TextField(
-                    new GUIContent("Target Host", "要送資料才需要;留空表示只收不送"),
-                    m.udpTargetHost);
-                m.udpTargetPort = EditorGUILayout.IntField(
-                    new GUIContent("Target Port", "EdgeLink 該 UDP 埠的『監聽埠』,與上面的 Local Port 不同"),
-                    m.udpTargetPort);
+                EditorGUILayout.PropertyField(_udpTargetHost,
+                    new GUIContent("Target Host", "要送資料才需要;留空表示只收不送"));
+                EditorGUILayout.PropertyField(_udpTargetPort,
+                    new GUIContent("Target Port", "EdgeLink 該 UDP 埠的『監聽埠』,與上面的 Local Port 不同"));
                 break;
         }
         EditorGUI.indentLevel--;
-
-        so.ApplyModifiedProperties();
 
         EditorGUILayout.Space(8);
 
         // ── 設備偵測 ──────────────────────────────────────
         EditorGUILayout.LabelField("設備偵測", EditorStyles.boldLabel);
-        m.deviceIdKey          = EditorGUILayout.TextField(
-            new GUIContent("Device Id Key", "訊息中代表設備 ID 的欄位名稱，留空則不追蹤 Timeout"),
-            m.deviceIdKey);
-        m.deviceTimeoutSeconds = EditorGUILayout.FloatField(
-            new GUIContent("Device Timeout (s)", "超過幾秒沒收到訊息視為設備離線（0 = 停用）"),
-            m.deviceTimeoutSeconds);
+        EditorGUILayout.PropertyField(_deviceIdKey,
+            new GUIContent("Device Id Key", "訊息中代表設備 ID 的欄位名稱，留空則不追蹤 Timeout"));
+        EditorGUILayout.PropertyField(_deviceTimeoutSeconds,
+            new GUIContent("Device Timeout (s)", "超過幾秒沒收到訊息視為設備離線（0 = 停用）"));
 
         EditorGUILayout.Space(12);
 
@@ -79,7 +108,7 @@ public class EdgeLinkManagerEditor : Editor
         using (new EditorGUI.DisabledScope(isFetching))
         {
             if (GUILayout.Button(isFetching ? "載入中..." : "拉取遮罩清單"))
-                _ = FetchMasksAsync(m.serverUrl, m.password);
+                _ = FetchMasksAsync(_serverUrl.stringValue, _password.stringValue);
         }
 
         if (!string.IsNullOrEmpty(statusMsg))
@@ -91,15 +120,15 @@ public class EdgeLinkManagerEditor : Editor
             selectedIdx = EditorGUILayout.Popup("選擇遮罩", selectedIdx, maskIds);
             if (GUILayout.Button("套用 Mask ID"))
             {
-                Undo.RecordObject(m, "Set EdgeLink Mask ID");
-                m.maskId  = maskIds[selectedIdx];
-                statusMsg = $"Mask ID 已設為：{m.maskId}";
-                EditorUtility.SetDirty(m);
+                // 透過 property 寫入 —— undo 與 prefab override 都由
+                // ApplyModifiedProperties 一併處理,不必自己 RecordObject + SetDirty。
+                _maskId.stringValue = maskIds[selectedIdx];
+                statusMsg = $"Mask ID 已設為：{maskIds[selectedIdx]}";
                 Repaint();
             }
         }
 
-        if (GUI.changed) EditorUtility.SetDirty(m);
+        serializedObject.ApplyModifiedProperties();
     }
 
     private async Task FetchMasksAsync(string serverUrl, string password)

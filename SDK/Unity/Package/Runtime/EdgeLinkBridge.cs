@@ -43,6 +43,17 @@ namespace EdgeLink
             public string   FieldDelimiter       = ";";
             public string   KvSeparator          = ":";
             public bool     FetchMaskOnStart     = true;
+
+            /// <summary>單一幀最多處理幾筆訊息。0 = 不設限。
+            /// <para>Tick() 原本會把佇列抽乾才返回。元件被 disable、場景載入卡住之後
+            /// 恢復的那一幀,會一次處理完整個 backlog —— 100 Hz 停 30 秒就是單一幀處理
+            /// 3000 筆並觸發 3000 次 OnMessage。預設值對正常流量有兩個數量級的餘裕,
+            /// 只在異常堆積時才會生效。</para></summary>
+            public int      MaxMessagesPerTick   = 500;
+
+            /// <summary>接收佇列上限,滿了丟最舊的。0 = 不設限。詳見
+            /// <see cref="EdgeLinkClient.MaxQueuedMessages"/>。</summary>
+            public int      MaxQueuedMessages    = 1000;
         }
 
         private readonly Config _config;
@@ -98,6 +109,18 @@ namespace EdgeLink
         /// <summary>逾時的裝置重新送資料時觸發。</summary>
         public event Action<string> OnDeviceReconnected;
 
+        /// <summary>連線層錯誤。在主執行緒觸發(與 OnMessage 同一個 Tick)。
+        /// <para>沒有訂閱者時錯誤仍會進 Unity Console —— 但要用程式反應(切換備援、
+        /// 在 HUD 上顯示斷線)就得靠這個事件。先前只有 Debug.LogWarning,
+        /// 而 SendAsync 失敗時丟的例外訊息卻叫人「見 OnError」,指向一個不存在的東西。</para></summary>
+        public event Action<Exception> OnError;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。</summary>
+        public long DroppedMessageCount =>
+            (_tcp?.DroppedMessageCount ?? 0) +
+            (_tcpListener?.DroppedMessageCount ?? 0) +
+            (_udp?.DroppedMessageCount ?? 0);
+
         // ── 內部 ────────────────────────────────────────────
         private EdgeLinkClient      _tcp;
         private EdgeLinkTcpListener _tcpListener;
@@ -112,6 +135,9 @@ namespace EdgeLink
         private readonly HashSet<string>            _timedOut     = new HashSet<string>();
         private readonly ConcurrentQueue<(bool, string, string)> _deviceStatusQ
             = new ConcurrentQueue<(bool, string, string)>();
+        // 錯誤同樣要搬到主執行緒才能交給使用者 —— 它們是從背景讀取迴圈來的。
+        private readonly ConcurrentQueue<Exception> _errorQ = new ConcurrentQueue<Exception>();
+        private long _lastReportedDrops;
         private bool _disposed;
 
         // ── 啟動 ────────────────────────────────────────────
@@ -127,9 +153,22 @@ namespace EdgeLink
         public void Tick()
         {
             if (_disposed) return;
-            if (_tcp         != null) while (_tcp.TryDequeue(out var m))         Handle(m);
-            if (_tcpListener != null) while (_tcpListener.TryDequeue(out var m)) Handle(m);
-            if (_udp         != null) while (_udp.TryDequeue(out var m))         Handle(m);
+
+            int budget = _config.MaxMessagesPerTick > 0 ? _config.MaxMessagesPerTick : int.MaxValue;
+            if (_tcp         != null) while (budget > 0 && _tcp.TryDequeue(out var m))         { Handle(m); budget--; }
+            if (_tcpListener != null) while (budget > 0 && _tcpListener.TryDequeue(out var m)) { Handle(m); budget--; }
+            if (_udp         != null) while (budget > 0 && _udp.TryDequeue(out var m))         { Handle(m); budget--; }
+
+            while (_errorQ.TryDequeue(out var ex)) OnError?.Invoke(ex);
+
+            // 丟棄不該是靜默的。只在數字變動時講一次,免得每幀洗版。
+            long drops = DroppedMessageCount;
+            if (drops != _lastReportedDrops)
+            {
+                Debug.LogWarning($"[EdgeLink] 接收佇列滿,已累計丟棄 {drops} 筆 —— " +
+                                 "消費端跟不上,或 Tick() 有一段時間沒被呼叫。");
+                _lastReportedDrops = drops;
+            }
 
             while (_deviceStatusQ.TryDequeue(out var ds))
             {
@@ -195,15 +234,33 @@ namespace EdgeLink
 
         // ── 建立連線 ────────────────────────────────────────
 
+        // async void 是不得已 —— 它由 InitializeCoroutine 以 fire-and-forget 呼叫。
+        // 代價是逃出去的例外會變成未處理例外,所以每個分支都要自己收乾淨:
+        // 埠被占用時 listener.Start() / udp.Start() 會丟 SocketException,
+        // 先前 TCPListener 與 UDP 兩個分支完全沒有 try。
         private async void Connect()
+        {
+            try
+            {
+                await ConnectCoreAsync();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[EdgeLink] 建立連線失敗:{ex.Message}");
+                _errorQ.Enqueue(ex);
+            }
+        }
+
+        private async Task ConnectCoreAsync()
         {
             switch (_config.Protocol)
             {
                 case Protocol.TCP:
-                    _tcp = new EdgeLinkClient(_config.TcpHost, _config.TcpPort);
+                    _tcp = new EdgeLinkClient(_config.TcpHost, _config.TcpPort)
+                           { MaxQueuedMessages = _config.MaxQueuedMessages };
                     _tcp.OnConnected    += () => Debug.Log("[EdgeLink TCP] Connected");
                     _tcp.OnDisconnected += () => Debug.Log("[EdgeLink TCP] Disconnected");
-                    _tcp.OnError        += ex => Debug.LogWarning($"[EdgeLink TCP] {ex.Message}");
+                    _tcp.OnError        += ex => { Debug.LogWarning($"[EdgeLink TCP] {ex.Message}"); _errorQ.Enqueue(ex); };
                     _tcp.OnDeviceStatus += (c, ep, id) => _deviceStatusQ.Enqueue((c, ep, id));
                     _tcp.SetAutoReconnect(true, 5000);
                     try   { await _tcp.ConnectAsync(); }
@@ -211,18 +268,20 @@ namespace EdgeLink
                     break;
 
                 case Protocol.TCPListener:
-                    _tcpListener = new EdgeLinkTcpListener(_config.TcpListenPort);
+                    _tcpListener = new EdgeLinkTcpListener(_config.TcpListenPort)
+                                   { MaxQueuedMessages = _config.MaxQueuedMessages };
                     _tcpListener.OnConnected    += () => Debug.Log("[EdgeLink TCPListener] EdgeLink connected");
                     _tcpListener.OnDisconnected += () => Debug.Log("[EdgeLink TCPListener] EdgeLink disconnected");
-                    _tcpListener.OnError        += ex => Debug.LogWarning($"[EdgeLink TCPListener] {ex.Message}");
+                    _tcpListener.OnError        += ex => { Debug.LogWarning($"[EdgeLink TCPListener] {ex.Message}"); _errorQ.Enqueue(ex); };
                     _tcpListener.OnDeviceStatus += (c, ep, id) => _deviceStatusQ.Enqueue((c, ep, id));
                     _tcpListener.Start();
                     Debug.Log($"[EdgeLink TCPListener] Listening on port {_config.TcpListenPort}");
                     break;
 
                 case Protocol.UDP:
-                    _udp = new EdgeLinkUdpClient(_config.UdpLocalPort);
-                    _udp.OnError        += ex => Debug.LogWarning($"[EdgeLink UDP] {ex.Message}");
+                    _udp = new EdgeLinkUdpClient(_config.UdpLocalPort)
+                           { MaxQueuedMessages = _config.MaxQueuedMessages };
+                    _udp.OnError        += ex => { Debug.LogWarning($"[EdgeLink UDP] {ex.Message}"); _errorQ.Enqueue(ex); };
                     _udp.OnDeviceStatus += (c, ep, id) => _deviceStatusQ.Enqueue((c, ep, id));
                     _udp.Start();
                     if (!string.IsNullOrEmpty(_config.UdpTargetHost) && _config.UdpTargetPort > 0)
@@ -358,7 +417,8 @@ namespace EdgeLink
         {
             if (!await send.ConfigureAwait(false))
                 throw new InvalidOperationException(
-                    "沒有任何連線寫入成功 —— 對端可能剛斷線,或寫入時發生錯誤(細節見 OnError)。");
+                    "沒有任何連線寫入成功 —— 對端可能剛斷線,或寫入時發生錯誤" +
+                    "(細節見 Unity Console,或訂閱 EdgeLinkBridge.OnError)。");
         }
 
         private void RequireSendable()
@@ -412,7 +472,10 @@ namespace EdgeLink
             if (!string.IsNullOrEmpty(_config.DeviceIdKey) &&
                 parsed.TryGetValue(_config.DeviceIdKey, out var deviceId))
             {
-                _lastSeenTime[deviceId] = Time.time;
+                // unscaledTime 而不是 time:「這台實體裝置還活著嗎」是牆鐘問題。
+                // Time.time 受 timeScale 影響 —— VR 訓練程式開暫停選單設 timeScale = 0
+                // 是標準做法,那一刻起 Time.time 就停住,暫停期間把設備拔掉也不會逾時。
+                _lastSeenTime[deviceId] = Time.unscaledTime;
                 if (_timedOut.Remove(deviceId))
                     OnDeviceReconnected?.Invoke(deviceId);
             }
@@ -423,7 +486,7 @@ namespace EdgeLink
             if (_config.DeviceTimeoutSeconds <= 0 || string.IsNullOrEmpty(_config.DeviceIdKey)) return;
             foreach (var kv in _lastSeenTime)
             {
-                if (Time.time - kv.Value > _config.DeviceTimeoutSeconds && _timedOut.Add(kv.Key))
+                if (Time.unscaledTime - kv.Value > _config.DeviceTimeoutSeconds && _timedOut.Add(kv.Key))
                     OnDeviceTimeout?.Invoke(kv.Key);
             }
         }

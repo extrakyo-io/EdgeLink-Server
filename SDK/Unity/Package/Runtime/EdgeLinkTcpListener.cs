@@ -25,6 +25,30 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         // 追蹤所有 Accept 進來的 client，Stop/Dispose 要強制關掉，否則 socket 漏到 OS。
         private readonly ConcurrentDictionary<TcpClient, Conn> _accepted
             = new ConcurrentDictionary<TcpClient, Conn>();
@@ -50,12 +74,15 @@ namespace EdgeLink
         {
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkTcpListener));
             if (IsRunning) return;
-            IsRunning = true;
             // 舊 CTS 不再 leak — Stop() 應已 cancel + dispose 它，這裡再保險換新
             try { cts.Dispose(); } catch { }
             cts      = new CancellationTokenSource();
             listener = new TcpListener(IPAddress.Any, LocalPort);
             listener.Start();
+            // 綁定成功之後才算 running。先前這行擺在 listener.Start() 之前 ——
+            // 埠被占用時 Start() 丟 SocketException,IsRunning 卻已經是 true,
+            // 物件從此謊報自己在跑,呼叫端拿它判斷「要不要重啟」就整個跳過。
+            IsRunning = true;
             _ = Task.Run(() => AcceptLoopAsync(cts.Token));
         }
 
@@ -214,7 +241,7 @@ namespace EdgeLink
             }
             if (line.StartsWith("EDGELINK_", StringComparison.Ordinal)) return;
 
-            queue.Enqueue(line);
+            EnqueueBounded(line);
             OnMessage?.Invoke(line);   // 先前宣告了事件卻從不觸發,C# 版則有
         }
 

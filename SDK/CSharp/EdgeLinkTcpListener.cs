@@ -25,6 +25,30 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         /// <summary>所有 accept 進來、還沒斷的 client。Stop/Dispose 必須主動關掉它們 ——
         /// 先前只關 listener,已建立的連線 socket 會一路殘留到 OS 端;反覆 Start/Stop 就是累積。</summary>
         private readonly ConcurrentDictionary<TcpClient, Conn> accepted = new();
@@ -50,10 +74,13 @@ namespace EdgeLink
         {
             if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkTcpListener));
             if (IsRunning) return;
-            IsRunning = true;
             cts      = new CancellationTokenSource();
             listener = new TcpListener(IPAddress.Any, LocalPort);
             listener.Start();
+            // 綁定成功之後才算 running。先前這行擺在 listener.Start() 之前 ——
+            // 埠被占用時 Start() 丟 SocketException,IsRunning 卻已經是 true,
+            // 物件從此謊報自己在跑,呼叫端拿它判斷「要不要重啟」就整個跳過。
+            IsRunning = true;
             _ = Task.Run(() => AcceptLoopAsync(cts.Token));
         }
 
@@ -218,7 +245,7 @@ namespace EdgeLink
             }
             if (line.StartsWith("EDGELINK_", StringComparison.Ordinal)) return;
 
-            queue.Enqueue(line);
+            EnqueueBounded(line);
             OnMessage?.Invoke(line);
         }
 

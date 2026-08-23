@@ -26,6 +26,30 @@ namespace EdgeLink
         private UdpClient?              udp;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         private bool disposed;
 
         public EdgeLinkUdpClient(int localPort)
@@ -81,7 +105,7 @@ namespace EdgeLink
                     }
                     if (msg.StartsWith("EDGELINK_", StringComparison.Ordinal)) continue;
 
-                    queue.Enqueue(msg);
+                    EnqueueBounded(msg);
                     OnMessage?.Invoke(msg);   // 先前宣告了事件卻從不觸發,C# 版則有
                 }
                 catch (OperationCanceledException) { MarkStopped(owner); return; }
@@ -122,13 +146,23 @@ namespace EdgeLink
         // host 字串 → 解析過的端點。UdpClient.SendAsync(bytes,len,host,port) 內部會在
         // 呼叫端的執行緒上同步做 Dns.GetHostAddresses;在 Unity 主執行緒上那是可見的卡頓,
         // 而且每一筆送出都要付一次。解析結果快取起來,主機沒換就不用重解。
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IPEndPoint> _resolved
-            = new System.Collections.Concurrent.ConcurrentDictionary<string, IPEndPoint>();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (IPEndPoint Ep, DateTime At)> _resolved
+            = new System.Collections.Concurrent.ConcurrentDictionary<string, (IPEndPoint, DateTime)>();
+
+        /// <summary>解析結果的保留時間。設 0 表示每次都重新解析。
+        /// <para>沒有這個上限的話,對端換 IP(DHCP 續約、伺服器搬機)之後就會永遠打舊位址,
+        /// 直到整個程式重啟為止 —— 而且畫面上看不出任何異常,UDP 送出本來就沒有回報。</para></summary>
+        public TimeSpan ResolveCacheTtl { get; set; } = TimeSpan.FromMinutes(5);
 
         private IPEndPoint Resolve(string host, int port)
         {
             string key = host + ":" + port;
-            if (_resolved.TryGetValue(key, out var ep)) return ep;
+            if (_resolved.TryGetValue(key, out var hit) &&
+                ResolveCacheTtl > TimeSpan.Zero &&
+                DateTime.UtcNow - hit.At < ResolveCacheTtl)
+                return hit.Ep;
+
+            IPEndPoint ep;
 
             IPAddress addr;
             if (!IPAddress.TryParse(host, out addr))
@@ -148,7 +182,7 @@ namespace EdgeLink
                     throw new SocketException((int)SocketError.AddressFamilyNotSupported);
             }
             ep = new IPEndPoint(addr, port);
-            _resolved[key] = ep;
+            _resolved[key] = (ep, DateTime.UtcNow);
             return ep;
         }
 

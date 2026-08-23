@@ -53,7 +53,7 @@ public class TwoWayExample : MonoBehaviour
         edgeLink.Send("cmd:start");
     }
 
-    /// <summary>送一組欄位,分隔符用 Inspector 上設定的那組。</summary>
+    /// <summary>送一組欄位,分隔符來自該 mask 的設定。</summary>
     public void SendMove()
     {
         if (!edgeLink.CanSend) { Debug.LogWarning("還沒連上,送不出去"); return; }

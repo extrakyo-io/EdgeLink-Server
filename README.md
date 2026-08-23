@@ -562,8 +562,28 @@ void Start()
 | `OnDeviceStatus` | EdgeLink Server 偵測到 TCP 開啟/關閉 | IP 位址 |
 | `OnDeviceTimeout` | 超過 `Device Timeout (s)` 未收到訊息 | 裝置 ID 欄位 |
 | `OnDeviceReconnected` | 逾時後再次收到訊息 | 裝置 ID 欄位 |
+| `OnError` | 連線層錯誤（`EdgeLinkBridge` 上，主執行緒觸發） | — |
+
+> **逾時偵測用的是牆鐘（`Time.unscaledTime`），不是 `Time.time`。** 開暫停選單設
+> `Time.timeScale = 0` 不會讓所有裝置看起來都「剛回報過」。
 
 > **斷電情境：** EdgeLink 偵測到連續 3 次 PING 未回應（約 15 秒）後觸發 `OnDeviceStatus(false, ...)`。在你設定的逾時時間內仍無新訊息時，`OnDeviceTimeout` 也會觸發。
+
+#### 流量控制
+
+`EdgeLinkBridge.Config` 有兩個上限，`EdgeLinkManager` 用的是預設值：
+
+| 欄位 | 預設 | 說明 |
+|---|---|---|
+| `MaxMessagesPerTick` | 500 | 單一幀最多處理幾筆。`0` = 不設限 |
+| `MaxQueuedMessages` | 1000 | 接收佇列上限，滿了丟**最舊的**。`0` = 不設限 |
+
+元件被 disable、場景載入卡住時 `Update()` 不會跑，但背景 socket 照收。沒有上限的話
+佇列會一路長到記憶體耗盡，恢復的那一幀還會一次處理完整個 backlog（100 Hz 停 30 秒
+＝單一幀處理 3000 筆並觸發 3000 次 `OnMessage`）。
+
+丟棄不是靜默的：`EdgeLinkBridge.DroppedMessageCount` 拿得到累計數，Console 也會在
+數字變動時提醒一次。
 
 #### 何時該用哪個事件
 
@@ -955,6 +975,7 @@ cd SDK/JavaScript && node --test                              # 11 條
 
 | 版本 | 變更內容 |
 |---------|---------|
+| v2.6.0 | **Unity SDK 加固**(#41)— 裝置離線偵測改用 `Time.unscaledTime`:先前用 `Time.time`,那是受 `timeScale` 影響的遊戲時間,VR 程式開暫停選單設 `timeScale = 0` 之後逾時偵測完全停擺,暫停期間拔掉設備也不會觸發 `OnDeviceTimeout`。接收佇列加上上限(預設 1000,滿了丟最舊的)與每幀處理上限(預設 500)—— 元件被 disable 時 `Update()` 不跑但背景 socket 照收,先前佇列會一路長到記憶體耗盡,恢復的那一幀還會一次處理完整個 backlog;丟棄不靜默,`DroppedMessageCount` 拿得到累計數。`EdgeLinkBridge` 新增 `OnError` 事件(先前錯誤只進 Console,而送出失敗的例外訊息卻叫人「見 OnError」,指向一個不存在的東西)。`Connect()` 的 TCPListener 與 UDP 分支補上 try —— 埠被占用時 `SocketException` 會從 `async void` 逃出去。`EdgeLinkTcpListener.IsRunning` 改成綁定成功後才設(先前擺在 `listener.Start()` 之前,失敗後物件謊報在跑)。`EdgeLinkUdpSender` 的 DNS 快取加上 TTL(預設 5 分鐘),先前對端換 IP 後會永遠打舊位址。Inspector 改用 `SerializedProperty`:先前直接寫欄位,Undo 無效、prefab override 不成立。套件補上 README / CHANGELOG / LICENSE |
 | v2.5.0 | **二進位 Mask 雙向轉換**（#40）— 同一份 `BinarySpec` 入站解碼、出站編碼；`auto` 欄位自動產生 seq／時間戳／封包長度；`maps` + `mapRef` 具名查表（支援範圍 key）；解碼前驗證 `sync`（先前 UDP 完全不驗 magic）；TCP Client 埠支援二進位收發。**SDK 送出能力**（#41）— C# 與 Unity 兩套 SDK 的 `EdgeLinkTcpListener` 新增 `SendAsync` / `ConnectionCount`，可寫回連進來的 EdgeLink；`EdgeLinkUdpSender` 移植進 Unity SDK 並加上端點快取（先前每次送出都在呼叫端執行緒同步做 DNS 解析）；`EdgeLinkManager` / `EdgeLinkBridge` 三種 Protocol 都能送，並提供 `Num()`（固定 `InvariantCulture`、擋 NaN/Infinity）與欄位分隔符驗證。每條連線一把寫入鎖，PONG 與使用者送出共用同一把 —— 交錯會同時毀掉心跳 token 與訊息。**安全性**：Unity **Editor** 面板的 TLS 憑證驗證繞過終於移除 —— v2.4.3 宣稱已移除但只改到 Runtime，Editor 這支被漏掉，而它的 Mono fallback 走 `ServicePointManager` 是**行程全域**的，等於關掉整個 Unity Editor 的憑證驗證。**修正**：`SDK/Python/pyproject.toml` 的 `build-backend` 指向不存在的模組，`pip install SDK/Python` 一定失敗。README 對回實際程式碼（新增 SDK 能力對照表、Binary Mask 雙向轉換、補齊四套 SDK 的 API 表、修掉貼上去編不過的範例） |
 | v2.4.3 | **安全性修正**（#37–#38）— WebUI 儲存型 XSS 徹底修復：先前僅將 maskId／欄位名稱做 HTML 實體跳脫（`'` → `&#39;`），但瀏覽器解析 `onclick="fn('...')"` 屬性時會先做實體解碼、解碼後的結果才當成 JS 執行，等於沒有真正阻止跳出字串注入；改為雙層跳脫（先做 JS 字串跳脫，再做 HTML 屬性跳脫）。Unity SDK 移除登入／拉取 mask 定義請求的 TLS 憑證驗證繞過（原本對任何憑證照單全收，若搭配 HTTPS 反向代理會形同無防禦中間人攻擊）。`MonitorSseHandler` 加上併發連線數上限（50），避免監控 SSE 串流被用來耗盡伺服器資源 |
 | v2.4.2 | **安全性與正確性修正**（#29–#35）— WebUI 儲存型 XSS：`esc()` 漏跳脫單引號，maskId 可跳出 `onclick` 屬性注入任意 JS，管理者匯入一份動過手腳的 settings JSON 即可觸發；TCP accept 迴圈遇暫時性 `SocketException`（連線重置／中斷）就永久終止，該埠從此不再接受新連線；Modbus 位元打包溢位、CTS 事件註冊洩漏；讀取設定檔失敗（IO／權限／鎖檔，並非內容毀損）不再被誤判成空設定並存回，永久覆蓋磁碟上完好的資料；SDK `TcpListener` 的 UTF-8 decoder 誤放成連線間共用欄位，修正 v2.4.0（#20）引入的迴歸（不同連線的資料互相污染）。**Breaking change**：移除內建 HTTPS —— 舊版自簽憑證的私鑰密碼是寫死在原始碼裡的常數，又被裝進機器的 Trusted Root，比沒有 HTTPS 更危險；`--https` / `--no-https` / `--https-port` 旗標與對應環境變數改為忽略並提示，不會讓既有服務啟動失敗，升級時會自動清除舊憑證。**SDK**：Unity 預設 `ServerUrl` 改回 `http://…:8081`（移除 HTTPS 遺留）。新增端對端 smoke test 與 UDP / Modbus TCP Master 路由測試。WebUI 深色主題重新設計 —— 側邊欄排版、中性配色、Port 管理改表格 |

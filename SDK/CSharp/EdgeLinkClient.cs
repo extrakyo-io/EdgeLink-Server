@@ -26,6 +26,30 @@ namespace EdgeLink
         private NetworkStream?          stream;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         /// <summary>Serialises every write to <see cref="stream"/>. The read loop answers PING with
         /// PONG on its own thread while the caller may be sending — NetworkStream does not allow
         /// concurrent writes, and an interleave corrupts both the PONG token (causing the server to
@@ -172,7 +196,7 @@ namespace EdgeLink
             }
             if (line.StartsWith("EDGELINK_", StringComparison.Ordinal)) return;
 
-            queue.Enqueue(line);
+            EnqueueBounded(line);
             OnMessage?.Invoke(line);
         }
 
