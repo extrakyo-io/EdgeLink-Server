@@ -647,10 +647,10 @@
               type: u8/u16/u32/u64/i8/i16/i32/f32/f64/bit/bitrange/const ｜ 每個 variant 各自 template（用 {欄位}）｜ 空白 = 純文字 mask（用上方設定）
             </div>
             <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-              <input id="bin-hex" type="text" placeholder="貼封包 hex 測解碼,如 4f4b010100..." style="flex:1;font-family:Consolas,monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 8px">
-              <button class="btn btn-ghost btn-sm" onclick="previewBinary()" style="white-space:nowrap">解碼預覽</button>
+              <input id="bin-hex" type="text" placeholder="貼封包 hex 測解碼,或貼 KV 測編碼(如 mt:16;mode:1)" style="flex:1;font-family:Consolas,monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:6px 8px">
+              <button class="btn btn-ghost btn-sm" onclick="previewBinary()" style="white-space:nowrap">預覽</button>
             </div>
-            <div class="pbox muted" id="bin-out" style="margin-top:6px">（貼封包 hex → 按解碼預覽,顯示解出的 KV)</div>
+            <div class="pbox muted" id="bin-out" style="margin-top:6px">（貼 hex → 解出 KV;貼 KV → 編成 hex。依輸入內容自動判斷方向)</div>
             <div class="err" id="bin-err" style="margin-top:4px"></div>
           </div>
 
@@ -1696,23 +1696,41 @@ function buildBinary() {
 }
 function onBinSpecChange() { try { buildBinary(); } catch {} }
 
-// 二進位解碼預覽:把目前⑤的 spec + hex 送後端(重用同一個解碼器)顯示結果
+// 二進位預覽:把目前⑤的 spec 送後端跑真正的編/解碼器。
+// 方向由輸入內容決定 —— 純 hex 字元就是解碼,否則當成 KV 走編碼(KV 一定含分隔符,不會是純 hex)。
 async function previewBinary() {
   const out = document.getElementById('bin-out');
   let binary;
   try { binary = buildBinary(); }
   catch { out.textContent = 'binary JSON 有誤(見上方紅字)'; out.className = 'pbox warn'; return; }
   if (!binary) { out.textContent = '（步驟⑤ 沒有 binary JSON）'; out.className = 'pbox muted'; return; }
-  const hex = document.getElementById('bin-hex').value.trim();
-  if (!hex) { out.textContent = '（先貼封包 hex）'; out.className = 'pbox muted'; return; }
+
+  const input = document.getElementById('bin-hex').value.trim();
+  if (!input) { out.textContent = '（先貼封包 hex 或 KV）'; out.className = 'pbox muted'; return; }
+
+  const isHex = /^[0-9a-fA-F\s-]+$/.test(input);
+  const body  = isHex
+    ? { binary, hex: input }
+    : { binary, kv: input,
+        fieldDelimiter: document.getElementById('fd').value,
+        kvSeparator:    document.getElementById('kv').value };
+
   try {
     const r = await (await fetch(`${BASE}/api/masks/preview-binary`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ binary, hex })
+      body: JSON.stringify(body)
     })).json();
     if (r.error)        { out.textContent = '錯誤: ' + r.error; out.className = 'pbox warn'; }
-    else if (r.dropped) { out.textContent = '(丟棄:長度/discriminator 不符或 template 缺欄位)'; out.className = 'pbox warn'; }
-    else                { out.textContent = r.output; out.className = 'pbox'; }
+    else if (r.dropped) {
+      out.textContent = isHex
+        ? '(丟棄:長度/discriminator 不符或 template 缺欄位)'
+        : '(丟棄:對不到 variant、必填欄位缺漏,或數值不合法/超出型別範圍)';
+      out.className = 'pbox warn';
+    }
+    else {
+      out.textContent = (isHex ? '' : 'hex: ') + r.output;
+      out.className = 'pbox';
+    }
   } catch (e) { out.textContent = '請求失敗: ' + e.message; out.className = 'pbox warn'; }
 }
 

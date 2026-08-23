@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using EdgeLink.Infrastructure;
+using EdgeLink.Mask;
 using EdgeLink.NetworkServer.Base;
 using EdgeLink.NetworkServer.Base.Models;
 
@@ -29,6 +30,10 @@ public class TCPClientData : DisposableBase
     public readonly ConcurrentDictionary<string, PendingRequest> PendingRequests = new();
 
     public readonly SemaphoreSlim DeviceWriteLock = new(1, 1);
+
+    /// <summary>出站二進位編碼用的 seq counter(每個 msgType 一條)。
+    /// 綁在這條連線上:每次(重)連線成功都會 Reset,對端才會從 1 開始接受。</summary>
+    public readonly BinarySeqCounters BinarySeq = new();
 
     protected override void DisposeManagedResources()
     {

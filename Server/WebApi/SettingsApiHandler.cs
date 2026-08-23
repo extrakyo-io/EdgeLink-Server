@@ -120,8 +120,51 @@ public class SettingsApiHandler
                     PortManager.Instance.AddPortData(portData);
             }
 
+            RelinkSourceProtocols();
+
             HttpApiServer.WriteJson(ctx, 200, Json.ToJson(new ApiResult { success = true }));
         }
         catch (Exception ex) { HttpApiServer.WriteError(ctx, 500, ex.Message); }
+    }
+
+    /// <summary>
+    /// 匯入後把 <c>SourceProtocolId</c> 依 <c>SourceProtocolName</c> 重新接回去。
+    ///
+    /// <para>埠的 Id 是在 <c>AddPortData</c> 當下用 Guid 產生的,而匯出檔裡帶的是「來源機器上」
+    /// 的舊 Id —— 匯進另一台(或刪掉重建)之後那個 Id 根本不存在。Router 是純粹比對
+    /// <c>SourceProtocolId</c> 來決定要轉發給誰的,所以連結一斷,埠看起來都在、狀態也正常,
+    /// 資料卻靜靜地不會流動。這種故障沒有錯誤訊息可看,只能靠這裡自動接回。</para>
+    ///
+    /// <para>只修「指到不存在的 Id」的那些;已經對得上的不動,同名找不到的也不動
+    /// (使用者可能是刻意留白,或來源埠這次沒一起匯入)。</para>
+    /// </summary>
+    private static void RelinkSourceProtocols()
+    {
+        var ports = PortManager.Instance.GetAllPortDatas();
+        var idByName = new Dictionary<string, string>(StringComparer.Ordinal);
+        var knownIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var p in ports)
+        {
+            knownIds.Add(p.Id);
+            if (!string.IsNullOrEmpty(p.ProtocolName)) idByName[p.ProtocolName] = p.Id;
+        }
+
+        bool changed = false;
+        foreach (var p in ports)
+        {
+            if (string.IsNullOrEmpty(p.SourceProtocolName)) continue;
+            if (!string.IsNullOrEmpty(p.SourceProtocolId) && knownIds.Contains(p.SourceProtocolId)) continue;
+
+            if (idByName.TryGetValue(p.SourceProtocolName, out var id) && id != p.SourceProtocolId)
+            {
+                AppLogger.Log($"[Settings] 匯入後重新接上來源埠:{p.ProtocolName} → " +
+                              $"{p.SourceProtocolName} ({p.SourceProtocolId} → {id})");
+                p.SourceProtocolId = id;
+                changed = true;
+            }
+        }
+
+        if (changed) PortManager.Instance.SaveData();
     }
 }

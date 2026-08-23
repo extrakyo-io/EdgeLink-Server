@@ -25,6 +25,9 @@ namespace EdgeLink
         private TcpListener?            listener;
         private CancellationTokenSource cts = new();
         private readonly ConcurrentQueue<string> queue = new();
+        /// <summary>所有 accept 進來、還沒斷的 client。Stop/Dispose 必須主動關掉它們 ——
+        /// 先前只關 listener,已建立的連線 socket 會一路殘留到 OS 端;反覆 Start/Stop 就是累積。</summary>
+        private readonly ConcurrentDictionary<TcpClient, byte> accepted = new();
         /// <summary>行緩衝上限。對端若一直不送換行,緩衝會無限成長。</summary>
         private const int MaxLineBufferChars = 64 * 1024;
         private bool disposed;
@@ -52,9 +55,11 @@ namespace EdgeLink
                 try
                 {
                     var client = await listener!.AcceptTcpClientAsync(ct);
+                    accepted.TryAdd(client, 0);
                     _ = Task.Run(() => ReadLoopAsync(client, ct), ct);
                 }
                 catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException)    { return; }   // listener 已被 Stop()
                 catch (Exception ex) { OnError?.Invoke(ex); }
             }
         }
@@ -62,7 +67,18 @@ namespace EdgeLink
         private async Task ReadLoopAsync(TcpClient client, CancellationToken ct)
         {
             OnConnected?.Invoke();
-            var networkStream = client.GetStream();
+
+            NetworkStream networkStream;
+            try { networkStream = client.GetStream(); }
+            catch (Exception)
+            {
+                // 對方在 accept 後立刻斷線時 GetStream 會拋 —— 不能讓它衝掉整條 accept 迴圈
+                accepted.TryRemove(client, out _);
+                try { client.Dispose(); } catch (Exception) { }
+                OnDisconnected?.Invoke();
+                return;
+            }
+
             var buf           = new byte[4096];
             var lineBuf       = new StringBuilder();
             // 有狀態的 UTF-8 解碼器,**每條連線各一份**。
@@ -109,7 +125,9 @@ namespace EdgeLink
             catch (Exception ex) { OnError?.Invoke(ex); }
             finally
             {
-                client.Dispose();
+                accepted.TryRemove(client, out _);
+                try { networkStream.Dispose(); } catch (Exception) { }
+                try { client.Dispose(); }        catch (Exception) { }
                 OnDisconnected?.Invoke();
             }
         }
@@ -158,9 +176,20 @@ namespace EdgeLink
 
         public void Stop()
         {
-            cts.Cancel();
-            listener?.Stop();
+            if (!IsRunning) return;
             IsRunning = false;
+            try { cts.Cancel(); }    catch (ObjectDisposedException) { }
+            try { listener?.Stop(); } catch (SocketException) { }
+            listener = null;
+
+            // 主動關掉還連著的 client。取消 token 只會讓 ReadLoop 停止讀取,
+            // 不會關閉對端的連線 —— 沒有這一段,socket 會殘留到 OS 端。
+            foreach (var kv in accepted)
+            {
+                try { kv.Key.Close(); }   catch (Exception) { }
+                try { kv.Key.Dispose(); } catch (Exception) { }
+            }
+            accepted.Clear();
         }
 
         public void Dispose()

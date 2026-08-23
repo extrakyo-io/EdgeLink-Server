@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Sockets;
 using System.Text;
+using EdgeLink.Mask;
 using EdgeLink.NetworkServer.Base;
 using EdgeLink.NetworkServer.Base.Models;
 using EdgeLink.NetworkServer.Logging;
@@ -188,6 +189,10 @@ public class TCPClientConnector : NetworkConnectorBase
 
                     clientData.RequestQueue.Clear();
 
+                    // 出站 seq 必須跟著連線重來 —— 協定上「新的 TCP 連線 → 期望值重置回 1」,
+                    // 沿用舊 counter 的話對端會看到一個遠大於 1 的起始值。
+                    clientData.BinarySeq.Reset();
+
                     portData.IsConnected = true;
                     LogHelper.LogToConsole($"{LogHelper.Tag("TCP Client", portData)} Connected → {portData.TargetIP}:{portData.RemotePortDetails.Port}");
                     _dispatcher.Enqueue(() => portData.OnUpdate?.Invoke(portData));
@@ -325,43 +330,21 @@ public class TCPClientConnector : NetworkConnectorBase
 
     private async Task StartReceiveAsync(TCPClientData clientData, NetworkStream stream)
     {
-        var portData   = clientData.portData;
-        var token      = clientData.CancellationTokenSource.Token;
-        byte[] buffer  = new byte[2048];
-        var lineBuffer = new StringBuilder();
-        const int MaxBufferSize = 1024 * 1024;
+        var portData = clientData.portData;
+        var token    = clientData.CancellationTokenSource.Token;
+
+        // 依此埠的「回應 Mask」決定收包模式:binary mask → 二進位分包;否則 → 文字(換行分隔)。
+        // 二進位封包不能走文字路徑 —— UTF8.GetString 會把非法位元組換成 U+FFFD 而毀掉原始
+        // bytes,且 f32/u64 承載本來就會出現 0x0A,照換行切行會把一包從中間剖開。
+        // 與 TCPServerConnector 一樣是「每條連線判斷一次」;連線期間改 Mask 需重連才生效。
+        var maskDef = MaskDefinitionManager.Instance.GetDefinition(portData.ResponseMaskType?.Trim() ?? "OriginalData");
 
         try
         {
-            while (!token.IsCancellationRequested)
-            {
-                int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
-                if (bytesRead <= 0) break;
-
-                string chunk;
-                try { chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead); }
-                catch { chunk = Encoding.GetEncoding("UTF-8", EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback).GetString(buffer, 0, bytesRead); }
-
-                if (lineBuffer.Length + chunk.Length > MaxBufferSize) lineBuffer.Clear();
-                lineBuffer.Append(chunk);
-
-                string current  = lineBuffer.ToString();
-                int lastNewline = current.LastIndexOf('\n');
-                if (lastNewline < 0) continue;
-
-                string processable = current[..lastNewline];
-                string remaining   = current[(lastNewline + 1)..];
-                lineBuffer.Clear();
-                lineBuffer.Append(remaining);
-
-                foreach (var rawLine in processable.Split('\n'))
-                {
-                    string line = rawLine.Trim();
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    byte[] lineBytes = Encoding.UTF8.GetBytes(line);
-                    await NetworkMessageRouter.Instance.RouteResponseAsync(clientData, lineBytes, line);
-                }
-            }
+            if (maskDef?.binary != null)
+                await ReceiveBinaryLoopAsync(clientData, stream, maskDef.binary, token);
+            else
+                await ReceiveTextLoopAsync(clientData, stream, token);
         }
         catch (OperationCanceledException) { }
         catch (IOException) { }
@@ -370,6 +353,90 @@ public class TCPClientConnector : NetworkConnectorBase
         {
             clientData.ResponseSignal?.TrySetCanceled();
             LogHelper.LogToConsole($"{LogHelper.Tag("TCP Client", portData)} Device connection lost (receive loop ended)");
+        }
+    }
+
+    // 文字收包:UTF-8 解碼後照換行分隔,每行一筆訊息。
+    private async Task ReceiveTextLoopAsync(TCPClientData clientData, NetworkStream stream, CancellationToken token)
+    {
+        byte[] buffer  = new byte[2048];
+        var lineBuffer = new StringBuilder();
+        const int MaxBufferSize = 1024 * 1024;
+
+        while (!token.IsCancellationRequested)
+        {
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+            if (bytesRead <= 0) break;
+
+            clientData.portData.TotalReceivedBytes += bytesRead;
+
+            string chunk;
+            try { chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead); }
+            catch { chunk = Encoding.GetEncoding("UTF-8", EncoderFallback.ReplacementFallback, DecoderFallback.ReplacementFallback).GetString(buffer, 0, bytesRead); }
+
+            if (lineBuffer.Length + chunk.Length > MaxBufferSize) lineBuffer.Clear();
+            lineBuffer.Append(chunk);
+
+            string current  = lineBuffer.ToString();
+            int lastNewline = current.LastIndexOf('\n');
+            if (lastNewline < 0) continue;
+
+            string processable = current[..lastNewline];
+            string remaining   = current[(lastNewline + 1)..];
+            lineBuffer.Clear();
+            lineBuffer.Append(remaining);
+
+            foreach (var rawLine in processable.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                byte[] lineBytes = Encoding.UTF8.GetBytes(line);
+                await NetworkMessageRouter.Instance.RouteResponseAsync(clientData, lineBytes, line);
+            }
+        }
+    }
+
+    // 二進位收包:BinaryStreamFramer 依 spec 把串流切成一包包完整封包,原始 bytes 直接交給
+    // Router —— 解碼刻意留給 RouteResponseAsync 裡的 MaskProcessor(用的是同一個 binary
+    // mask)。若在這裡先解成 KV,Router 會拿已解好的 KV 再套一次 binary mask,整包必然被丟掉。
+    // 傳給 Router 的 text 帶 hex:監控頁顯示的字串可直接貼進 Mask 的二進位預覽重現解碼。
+    private async Task ReceiveBinaryLoopAsync(TCPClientData clientData, NetworkStream stream,
+        BinarySpec spec, CancellationToken token)
+    {
+        var portData  = clientData.portData;
+        var framer    = new BinaryStreamFramer(spec);
+        byte[] buffer = new byte[4096];
+
+        while (!token.IsCancellationRequested)
+        {
+            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
+            if (bytesRead <= 0) break;
+
+            portData.TotalReceivedBytes += bytesRead;
+
+            framer.Append(buffer.AsSpan(0, bytesRead));
+            byte[]? packet;
+            while ((packet = framer.Next()) != null)
+            {
+                // hex 字串只有監控頁在看,不是每包都要付這個配置成本
+                // (83 bytes 的狀態包 ~100Hz → 每秒十幾 KB 的純垃圾字串)
+                string text = MonitorManager.Instance.IsMonitoring(portData, MonitorTargetType.TCPClient)
+                    ? Convert.ToHexString(packet)
+                    : "";
+                try
+                {
+                    await NetworkMessageRouter.Instance.RouteResponseAsync(clientData, packet, text);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    // 設定錯誤(離譜的 offset、整數型別填了 "X2" 之類的格式字串)不該讓整條連線的
+                    // 收包迴圈結束 —— 否則這個埠從此不再收資料,而 socket 還連著、心跳也不會觸發重連。
+                    LogHelper.LogToConsole(
+                        $"{LogHelper.Tag("TCP Client", portData)} 二進位解碼失敗(已丟棄該封包,請檢查 Mask 設定): {ex.Message}",
+                        isError: true);
+                }
+            }
         }
     }
 
@@ -396,7 +463,7 @@ public class TCPClientConnector : NetworkConnectorBase
                 try
                 {
                     await stream.WriteAsync(slot.Data, 0, slot.Data.Length, token);
-                    RouterLogHelper.LogSend(portData, MonitorTargetType.TCPClient, Encoding.UTF8.GetString(slot.Data));
+                    RouterLogHelper.LogSend(portData, MonitorTargetType.TCPClient, NetworkMessageRouter.DescribeOutbound(portData, slot.Data));
                 }
                 catch (Exception ex)
                 {
@@ -437,7 +504,7 @@ public class TCPClientConnector : NetworkConnectorBase
                 try
                 {
                     await stream.WriteAsync(data, 0, data.Length, token);
-                    RouterLogHelper.LogSend(portData, MonitorTargetType.TCPClient, Encoding.UTF8.GetString(data));
+                    RouterLogHelper.LogSend(portData, MonitorTargetType.TCPClient, NetworkMessageRouter.DescribeOutbound(portData, data));
                 }
                 catch (Exception ex)
                 {

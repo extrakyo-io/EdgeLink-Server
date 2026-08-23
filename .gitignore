@@ -147,7 +147,12 @@ simulate_firmware.py
 __pycache__/
 *.py[cod]
 docs/*.mask.json
+# 平台 TCP 鏈路的 mask 是整條鏈路的核心設定,要進版控
+!docs/PlatformTcp.mask.json
 
 # Test run output
 TestResults/
 **/TestResults/
+
+# 測試總跑的輸出(trx / unity results / unity log)
+docs/_testout/
