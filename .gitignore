@@ -156,3 +156,7 @@ TestResults/
 
 # 測試總跑的輸出(trx / unity results / unity log)
 docs/_testout/
+
+# Python 打包產物
+*.egg-info/
+__pycache__/
