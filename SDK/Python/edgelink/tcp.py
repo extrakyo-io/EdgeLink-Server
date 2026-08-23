@@ -4,6 +4,10 @@ from typing import Callable
 
 from ._dispatch import fire
 
+# 行緩衝上限。對端若一直不送換行,緩衝會無限成長 —— 二進位 mask 的 payload 本來就
+# 可能長時間不含 0x0A,不需要惡意對端也踩得到。與 C# 版的 MaxLineBufferChars 對齊。
+_MAX_LINE_BUFFER = 64 * 1024
+
 
 class EdgeLinkClient:
     """TCP client — connects to EdgeLink Server, handles PING/PONG, fires callbacks on messages."""
@@ -102,6 +106,11 @@ class EdgeLinkClient:
                     if not chunk:
                         break
                     buf += chunk
+                    if len(buf) > _MAX_LINE_BUFFER:
+                        buf = b""
+                        fire(self._on_error, ValueError(
+                            f"行緩衝超過 {_MAX_LINE_BUFFER} bytes 仍未出現換行 —— 已丟棄"))
+                        continue
                     while b"\n" in buf:
                         line_bytes, buf = buf.split(b"\n", 1)
                         line = line_bytes.decode(errors="replace").strip()
@@ -189,6 +198,11 @@ class EdgeLinkTcpListener:
         self._on_device_status.append(cb)
 
     async def start(self) -> None:
+        # 重入保護。沒有這一段,呼叫兩次會用第二個 server 覆蓋 self._server ——
+        # 第一個仍綁著同一個埠卻再也拿不到參考,stop() 關掉的是第二個,
+        # 埠永遠釋放不掉。C# 版一直有這個守衛。
+        if self._server is not None:
+            return
         self._server  = await asyncio.start_server(self._handle_client, "0.0.0.0", self.local_port)
         self.is_running = True
         await self._server.start_serving()
@@ -212,6 +226,7 @@ class EdgeLinkTcpListener:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+            self._server = None          # 不清掉的話 start() 的重入保護會讓重啟變成 no-op
 
         self.is_running = False
 
@@ -253,11 +268,18 @@ class EdgeLinkTcpListener:
         if not targets:
             return False
 
+        # 回傳值代表「至少一條**真的**寫出去了」,與 C# 版的 `return any` 一致。
+        # 只看 targets 非空是不夠的:對端 RST 之後 writer.write() 不會拋例外,
+        # 它只是靜靜把資料丟掉,錯誤要到 drain() 才浮出來 —— 那時 targets 早就
+        # 記上一筆了。回傳 True 會讓呼叫端把一筆從沒送達的控制指令當成成功。
+        ok = 0
         for result in await asyncio.gather(*(w.drain() for w in targets),
                                            return_exceptions=True):
             if isinstance(result, BaseException):
                 fire(self._on_error, result)
-        return True
+            else:
+                ok += 1
+        return ok > 0
 
     def try_dequeue(self) -> str | None:
         return self._queue.popleft() if self._queue else None
@@ -273,6 +295,11 @@ class EdgeLinkTcpListener:
                 if not chunk:
                     break
                 buf += chunk
+                if len(buf) > _MAX_LINE_BUFFER:
+                    buf = b""
+                    fire(self._on_error, ValueError(
+                        f"行緩衝超過 {_MAX_LINE_BUFFER} bytes 仍未出現換行 —— 已丟棄"))
+                    continue
                 while b"\n" in buf:
                     line_bytes, buf = buf.split(b"\n", 1)
                     line = line_bytes.decode(errors="replace").strip()

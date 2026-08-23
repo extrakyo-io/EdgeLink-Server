@@ -92,6 +92,13 @@ public class EdgeLinkTcpListenerTests : IDisposable
             $"只追蹤到 {listener.ConnectionCount} 條連線");
 
         listener.Stop();
+
+        // 同步檢查。Stop() 會先 cts.Cancel(),而那會讓 ReadLoop 走進 finally ——
+        // 那裡也會 Dispose client 並觸發 OnDisconnected。若只等 disconnected == 3,
+        // 測到的是 ReadLoop 的 finally,不是 Stop() 自己那段主動關閉:實測把
+        // Stop() 裡的 foreach + accepted.Clear() 整段刪掉,這條測試照樣通過。
+        Assert.Equal(0, listener.ConnectionCount);
+
         Assert.True(await WaitUntil(() => disconnected == 3), $"OnDisconnected 只觸發 {disconnected} 次");
 
         // 對端讀到 0 bytes 或例外 = server 真的把連線關了
@@ -144,24 +151,32 @@ public class EdgeLinkTcpListenerTests : IDisposable
     }
 
     /// <summary>
-    /// 最重要的一條:PONG 與呼叫端的送出必須共用同一把寫入鎖。
+    /// 併發送出 + 持續 PING 的整合檢查:8 條執行緒各送 PerSender 筆 PayloadBytes 大的
+    /// 訊息,全部必須原封不動抵達,且不與 PONG 互相切開。
     ///
-    /// NetworkStream 不允許併發寫入 —— 交錯會**同時**毀掉 PONG 的 token
+    /// **這條測試在 Windows 上證明不了寫入鎖是必要的。** 實測:把 WriteLock 整組
+    /// 刪掉,它照樣通過 —— Winsock 對同一個 socket 的單次 WSASend 本身就是序列化的,
+    /// 所以無論送多大、對端讀多慢,內容都不會被切開。這條測試最早那版每筆只有
+    /// 13 bytes,同樣抓不到,只是理由更淺(連分段都不會發生)。
+    ///
+    /// 保留大 payload 的理由是它在 **Unix** 上有意義:.NET 在那邊會對大緩衝做部分
+    /// 寫入並重試,沒有鎖就真的會交錯。CI 若有 Linux runner,這條就會變成有效的守護。
+    ///
+    /// 鎖本身的依據不是這條測試,而是 NetworkStream 的契約:它明文只支援一個並行讀
+    /// 加一個並行寫。PONG 走同一把鎖也是同一個理由 —— 交錯會**同時**毀掉心跳 token
     /// (伺服器連續 3 次收不到就主動斷線)與使用者的訊息。
-    ///
-    /// PING 與 Send 必須走**同一條**連線才測得到:先前的驗證把 PING 灌給一條、
-    /// 卻去讀另一條,那條沒有 PONG 流量,等於完全避開了要驗的情境。
     /// </summary>
     [Fact]
     public async Task 送出與PONG在同一條連線上不會交錯()
     {
-        const int Senders = 8, PerSender = 60;
+        const int Senders = 8, PerSender = 3, PayloadBytes = 64 * 1024;
 
         int port = PortPool.Next();
         var listener = Listener(port);
         listener.Start();
 
         var peer = Connect(port);
+        peer.ReceiveBufferSize = 4096;      // 小接收緩衝 = 送出端一定會被迫分段
         Assert.True(await WaitUntil(() => listener.ConnectionCount == 1));
         var stream = peer.GetStream();
 
@@ -177,43 +192,114 @@ public class EdgeLinkTcpListenerTests : IDisposable
             }
         });
 
-        await Task.WhenAll(Enumerable.Range(0, Senders).Select(id => Task.Run(async () =>
-        {
-            for (int k = 0; k < PerSender; k++) await listener.SendAsync($"cmd:m{id}_{k}");
-        })));
-
-        stop.Cancel();
-        try { await pinger; } catch (Exception) { }
-        await Task.Delay(400);
-
+        // 對端一邊慢慢讀,一邊讓送出端持續被背壓卡住 —— 這才會出現部分寫入
         var sb = new StringBuilder();
-        peer.ReceiveTimeout = 1500;
-        try
+        var reading = Task.Run(async () =>
         {
-            var buf = new byte[65536];
-            while (true)
+            var buf = new byte[8192];
+            while (!stop.IsCancellationRequested)
             {
-                int n = peer.Client.Receive(buf);
-                if (n <= 0) break;
-                sb.Append(Encoding.UTF8.GetString(buf, 0, n));
+                int n;
+                try { n = await peer.GetStream().ReadAsync(buf, CancellationToken.None); }
+                catch (Exception) { return; }
+                if (n <= 0) return;
+                lock (sb) sb.Append(Encoding.UTF8.GetString(buf, 0, n));
             }
+        });
+
+        var senders = Enumerable.Range(0, Senders).Select(id => Task.Run(async () =>
+        {
+            for (int k = 0; k < PerSender; k++)
+            {
+                // 每行:cmd:m{id}_{k}: 後面接固定長度的填充,最後 #。任何交錯都會破壞這個結構。
+                string head = $"cmd:m{id}_{k}:";
+                var line = new StringBuilder(head, PayloadBytes + 2);
+                line.Append(new string((char)('a' + id), PayloadBytes - head.Length - 1));
+                line.Append('#');
+                await listener.SendAsync(line.ToString());
+            }
+        })).ToArray();
+
+        // 沒有寫入鎖的時候,併發 WriteAsync 不只會切爛內容 —— 它會把 stream 整個卡住
+        // (實測:拿掉鎖之後這一段永遠不返回)。掛住是很糟的失敗模式,轉成明確的失敗。
+        var sending = Task.WhenAll(senders);
+        if (await Task.WhenAny(sending, Task.Delay(TimeSpan.FromSeconds(60))) != sending)
+        {
+            stop.Cancel();
+            Assert.Fail("送出在 60 秒內沒有完成 —— 併發寫入把 stream 卡住了");
         }
-        catch (SocketException) { }
+        await sending;
+
+        // 等到收足預期位元組數為止,不要用固定 sleep:機器忙的時候固定等待會變成
+        // 隨機失敗,閒的時候又白等。
+        int expectedChars = Senders * PerSender * (PayloadBytes + 1);   // +1 = 換行
+        await WaitUntil(() => { lock (sb) return sb.Length >= expectedChars; }, 30000);
+        stop.Cancel();
+        try { await pinger; }  catch (Exception) { }
+        try { await reading; } catch (Exception) { }
 
         int cmds = 0, pongs = 0;
         var corrupt = new List<string>();
-        foreach (var raw in sb.ToString().Split('\n'))
+        string all;
+        lock (sb) all = sb.ToString();
+        foreach (var raw in all.Split('\n'))
         {
             string l = raw.Trim();
             if (l.Length == 0) continue;
-            if (Regex.IsMatch(l, @"^cmd:m[0-7]_\d+$"))                 cmds++;
+            var m = Regex.Match(l, @"^cmd:m([0-7])_\d+:(.+)#$", RegexOptions.Singleline);
+            if (m.Success)
+            {
+                // 填充字元必須整段都是同一個 sender 的字母,且長度分毫不差
+                char expected = (char)('a' + int.Parse(m.Groups[1].Value));
+                string pad    = m.Groups[2].Value;
+                if (l.Length == PayloadBytes && pad.All(c => c == expected)) cmds++;
+                else corrupt.Add($"長度 {l.Length}(應為 {PayloadBytes})開頭 '{l[..Math.Min(40, l.Length)]}'");
+            }
             else if (Regex.IsMatch(l, @"^EDGELINK_PONG:[0-9a-f]{8}$")) pongs++;
-            else corrupt.Add(l);
+            else corrupt.Add(l[..Math.Min(80, l.Length)]);
         }
 
-        Assert.Equal(Senders * PerSender, cmds);
         Assert.True(corrupt.Count == 0,
-            $"有 {corrupt.Count} 行被切爛,例如 '{corrupt.FirstOrDefault()}'(PONG {pongs} 筆)");
+            $"有 {corrupt.Count} 行被切爛,例如 '{corrupt.FirstOrDefault()}'(完整 {cmds} 筆、PONG {pongs} 筆)");
+        Assert.Equal(Senders * PerSender, cmds);
+    }
+
+    /// <summary>
+    /// PING 必須回 PONG,且 token 要原樣帶回。
+    ///
+    /// 先前的併發測試只是把 PONG 數進一個變數、從頭到尾沒有斷言 —— 實測把回 PONG
+    /// 那一行刪掉,12/12 照樣全過。而 SDK 文件寫明「連續 3 次沒回 PONG(約 15 秒)
+    /// 就會被伺服器主動斷線」:現場每 15 秒被踢一次的迴歸,測試完全攔不住。
+    /// </summary>
+    [Fact]
+    public async Task PING會被回以相同token的PONG()
+    {
+        int port = PortPool.Next();
+        var listener = Listener(port);
+        var messages = new List<string>();
+        listener.OnMessage += m => { lock (messages) messages.Add(m); };
+        listener.Start();
+
+        var peer = Connect(port);
+        Assert.True(await WaitUntil(() => listener.ConnectionCount == 1));
+
+        var stream = peer.GetStream();
+        var ping = Encoding.UTF8.GetBytes("EDGELINK_PING:deadbeef\n");
+        await stream.WriteAsync(ping);
+
+        peer.ReceiveTimeout = 3000;
+        var buf = new byte[256];
+        int n;
+        try { n = peer.Client.Receive(buf); }
+        catch (SocketException ex)
+        {
+            Assert.Fail($"送出 PING 之後 3 秒內沒有收到任何回應 —— 心跳沒有被回應 ({ex.SocketErrorCode})");
+            return;
+        }
+        Assert.Equal("EDGELINK_PONG:deadbeef", Encoding.UTF8.GetString(buf, 0, n).Trim());
+
+        // 協定訊息不該外流給消費端
+        lock (messages) Assert.Empty(messages);
     }
 
     /// <summary>

@@ -168,4 +168,6 @@ docs/_testout/
 
 # Python 打包產物
 *.egg-info/
+SDK/Python/build/
+SDK/Python/dist/
 __pycache__/

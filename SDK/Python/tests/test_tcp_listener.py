@@ -131,6 +131,72 @@ class TcpListenerTests(unittest.IsolatedAsyncioTestCase):
         data = await asyncio.wait_for(reader.read(16), timeout=3)
         self.assertEqual(b"\xaa\xbb\x01\x02", data)
 
+    async def test_每一條寫出都失敗時送出要回false(self):
+        """回傳值必須代表「至少一條**真的**寫出去了」,與 C# 版的 `return any` 一致。
+
+        對端送 RST 之後 `StreamWriter.write()` **不會拋例外** —— 它只是靜靜把資料
+        丟掉,錯誤要到 `drain()` 才浮出來。只看「有沒有對象可寫」就回 True 的話,
+        呼叫端會把一筆從沒送達的控制指令當成成功:不重送、不告警。
+
+        這裡用假的 writer 而不是真的 RST 一條 socket:在 Windows 上 reader 會立刻
+        收到 ConnectionResetError,handler 的 finally 搶在送出之前就把 writer 移除了
+        —— 那樣測出來的 False 是「沒有對象」造成的,換掉回傳值也照樣通過,
+        等於什麼都沒測(這條測試的第一版就是這樣寫的)。
+        """
+        class FailingWriter:
+            def __init__(self) -> None:
+                self.written: list[bytes] = []
+
+            def write(self, data: bytes) -> None:
+                self.written.append(data)          # 與真實行為一致:不拋例外
+
+            async def drain(self) -> None:
+                raise ConnectionResetError("模擬對端 RST")
+
+            def close(self) -> None:
+                pass
+
+        errors: list[Exception] = []
+        self.listener.on_error(errors.append)
+        await self.listener.start()
+
+        writer = FailingWriter()
+        self.listener._writers.add(writer)         # type: ignore[arg-type]
+        try:
+            self.assertEqual(1, self.listener.connection_count)
+            result = await self.listener.send("cmd:estop")
+            self.assertIs(False, result, "每一條寫出都失敗,送出卻回報成功")
+            self.assertTrue(writer.written, "資料根本沒交給 writer")
+            self.assertTrue(any(isinstance(e, ConnectionResetError) for e in errors),
+                            "寫出失敗沒有轉交給 on_error")
+        finally:
+            self.listener._writers.discard(writer)  # type: ignore[arg-type]
+
+    async def test_部分對端失敗時送出仍回true(self):
+        """一條壞掉不代表整批失敗 —— 只要還有人收得到就是 True。"""
+        class FailingWriter:
+            def write(self, data: bytes) -> None:
+                pass
+
+            async def drain(self) -> None:
+                raise ConnectionResetError("模擬對端 RST")
+
+            def close(self) -> None:
+                pass
+
+        await self.listener.start()
+        reader, _ = await self.peer()
+        await asyncio.sleep(0.2)
+
+        broken = FailingWriter()
+        self.listener._writers.add(broken)          # type: ignore[arg-type]
+        try:
+            self.assertIs(True, await self.listener.send("cmd:start"))
+            data = await asyncio.wait_for(reader.read(256), timeout=3)
+            self.assertIn("cmd:start", data.decode())
+        finally:
+            self.listener._writers.discard(broken)  # type: ignore[arg-type]
+
     async def test_async回呼會真的執行(self):
         """`async def` 的 on_connected 回呼先前**一行都不會跑**。
 

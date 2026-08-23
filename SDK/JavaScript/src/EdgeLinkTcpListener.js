@@ -27,6 +27,13 @@ class EdgeLinkTcpListener extends EventEmitter {
         this._sockets   = new Set();
     }
 
+    /**
+     * 行緩衝上限。對端若一直不送換行,緩衝會無限成長 —— 二進位 mask 的 payload
+     * 本來就可能長時間不含 0x0A,不需要惡意對端也踩得到。與 C# 版的
+     * MaxLineBufferChars 對齊。
+     */
+    static get MAX_LINE_BUFFER() { return 64 * 1024; }
+
     /** 目前連進來的對端數(通常只有 EdgeLink 一條)。 */
     get connectionCount() {
         return this._sockets.size;
@@ -71,16 +78,31 @@ class EdgeLinkTcpListener extends EventEmitter {
     }
 
     start() {
+        // 重入保護。先前沒有這一段:呼叫兩次會用第二個 server 覆蓋 this._server,
+        // 第一個仍在監聽卻再也拿不到參考 —— stop() 關掉的是第二個,埠永遠釋放不掉,
+        // 而且已「停止」的 listener 還會繼續收訊息、觸發回呼。C# 版一直有這個守衛。
+        if (this._server) return;
+
         this._server = net.createServer((socket) => {
-            // 先登記再 emit —— 否則 "connected" 的處理器裡呼叫 send() 會漏掉這條連線
-            this._sockets.add(socket);
-            this.emit("connected");
             let lineBuf = "";
             const decoder = new StringDecoder("utf8");
 
+            // 監聽器必須掛在 emit("connected") **之前**。emit 是同步呼叫使用者的
+            // 處理器,一旦它拋例外,下面的 on(...) 全部不會執行 —— socket 永遠留在
+            // _sockets、資料永遠不會被讀(stream 保持 paused,連 FIN 都觀察不到)、
+            // "disconnected" 永不觸發,而且沒有 'error' 監聽器的 socket 之後任何
+            // 錯誤都會變成未捕捉例外直接打死行程。
             socket.on("data", (chunk) => {
                 // 見 EdgeLinkClient:必須用有狀態的 decoder,否則被切開的多位元組字元會壞掉
                 lineBuf += decoder.write(chunk);
+
+                if (lineBuf.length > EdgeLinkTcpListener.MAX_LINE_BUFFER) {
+                    lineBuf = "";
+                    this._emitError(new Error(
+                        `行緩衝超過 ${EdgeLinkTcpListener.MAX_LINE_BUFFER} 字元仍未出現換行 —— 已丟棄`));
+                    return;
+                }
+
                 let idx;
                 while ((idx = lineBuf.indexOf("\n")) !== -1) {
                     const line = lineBuf.slice(0, idx).trim();
@@ -93,13 +115,29 @@ class EdgeLinkTcpListener extends EventEmitter {
                 this._sockets.delete(socket);
                 this.emit("disconnected");
             });
-            socket.on("error", (err) => this.emit("error", err));
+            socket.on("error", (err) => this._emitError(err));
+
+            // 登記要早於 emit —— 否則 "connected" 的處理器裡呼叫 send() 會漏掉這條連線
+            this._sockets.add(socket);
+            try {
+                this.emit("connected");
+            } catch (err) {
+                this._emitError(err);
+            }
         });
 
         this._server.on("error", (err) => this.emit("error", err));
         this._server.listen(this.localPort, () => {
             this.isRunning = true;
         });
+    }
+
+    /**
+     * 轉發錯誤。EventEmitter 在沒有 "error" 監聽器時 emit("error") 會直接 throw ——
+     * 在連線處理流程裡那正是要避免的事,所以先確認有人在聽。
+     */
+    _emitError(err) {
+        if (this.listenerCount("error") > 0) this.emit("error", err);
     }
 
     stop() {

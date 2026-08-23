@@ -213,14 +213,18 @@ namespace EdgeLink
         /// <summary>所有寫入都走這裡,確保接收迴圈的 PONG 不會與呼叫端的送出交錯。</summary>
         private async Task WriteLockedAsync(byte[] bytes)
         {
-            await writeLock.WaitAsync();
+            // ConfigureAwait(false):Unity 主執行緒上有 UnitySynchronizationContext,
+            // 不加的話每個 await 都要排回主執行緒才能繼續 —— 等於「握著寫入鎖等下一幀」,
+            // 而 PONG 正好也要搶這把鎖,心跳會被使用者的送出餓死。
+            try { await writeLock.WaitAsync().ConfigureAwait(false); }
+            catch (ObjectDisposedException) { return; }      // 已經 Dispose 了
             try
             {
                 var s = stream;
                 if (s == null) return;
-                await s.WriteAsync(bytes, 0, bytes.Length);
+                await s.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
             }
-            finally { writeLock.Release(); }
+            finally { try { writeLock.Release(); } catch (ObjectDisposedException) { } }
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -240,7 +244,11 @@ namespace EdgeLink
             disposed = true;
             Disconnect();
             try { cts.Dispose(); } catch { }
-            try { writeLock.Dispose(); } catch { }
+            // 這裡刻意不 Dispose writeLock —— 與 EdgeLinkTcpListener 同一個理由:
+            // SemaphoreSlim.Dispose 不是 thread-safe,而且不會讓已排隊的 WaitAsync
+            // 完成或拋例外。Dispose 當下若有寫入在飛,那個 Task 會永遠停在未完成,
+            // 呼叫端的 await 就再也不會回來。沒碰過 AvailableWaitHandle 的
+            // SemaphoreSlim 不持有非托管資源,交給 GC 即可。
         }
     }
 }
