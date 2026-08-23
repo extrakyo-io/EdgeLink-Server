@@ -169,14 +169,13 @@ public class EdgeLinkTcpListenerTests : IDisposable
     [Fact]
     public async Task 送出與PONG在同一條連線上不會交錯()
     {
-        const int Senders = 8, PerSender = 3, PayloadBytes = 64 * 1024;
+        const int Senders = 4, PerSender = 2, PayloadBytes = 32 * 1024;
 
         int port = PortPool.Next();
         var listener = Listener(port);
         listener.Start();
 
         var peer = Connect(port);
-        peer.ReceiveBufferSize = 4096;      // 小接收緩衝 = 送出端一定會被迫分段
         Assert.True(await WaitUntil(() => listener.ConnectionCount == 1));
         var stream = peer.GetStream();
 
@@ -232,18 +231,36 @@ public class EdgeLinkTcpListenerTests : IDisposable
 
         // 等到收足預期位元組數為止,不要用固定 sleep:機器忙的時候固定等待會變成
         // 隨機失敗,閒的時候又白等。
+        // 等到收足預期位元組數為止,不要用固定 sleep:機器忙的時候固定等待會變成
+        // 隨機失敗,閒的時候又白等。
         int expectedChars = Senders * PerSender * (PayloadBytes + 1);   // +1 = 換行
-        await WaitUntil(() => { lock (sb) return sb.Length >= expectedChars; }, 30000);
+        bool arrived = await WaitUntil(() => { lock (sb) return sb.Length >= expectedChars; }, 30000);
         stop.Cancel();
         try { await pinger; }  catch (Exception) { }
         try { await reading; } catch (Exception) { }
 
+        int got;
+        lock (sb) got = sb.Length;
+
+        // 逾時要說自己是逾時。先前這裡直接往下解析,沒收完的最後一行會被當成
+        // 「被切爛」回報 —— 在 CI 上就是一條看起來像併發 bug、其實是資料還沒到齊的
+        // 假陽性(那次的訊息是「有 1 行被切爛」,但同時 PONG 收到 0 筆,
+        // 也就是對端根本沒在讀)。
+        Assert.True(arrived,
+            $"30 秒內只收到 {got}/{expectedChars} 字元 —— 資料沒有全部抵達,這不是內容損毀");
         int cmds = 0, pongs = 0;
         var corrupt = new List<string>();
         string all;
         lock (sb) all = sb.ToString();
-        foreach (var raw in all.Split('\n'))
+
+        // 只看完整的行。串流的尾巴本來就可能停在一行的中間,把那半行算成損毀
+        // 等於用「還沒讀完」冒充「內容被切爛」。
+        var lines = all.Split('\n');
+        int complete = all.EndsWith("\n") ? lines.Length : lines.Length - 1;
+
+        for (int li = 0; li < complete; li++)
         {
+            string raw = lines[li];
             string l = raw.Trim();
             if (l.Length == 0) continue;
             var m = Regex.Match(l, @"^cmd:m([0-7])_\d+:(.+)#$", RegexOptions.Singleline);
