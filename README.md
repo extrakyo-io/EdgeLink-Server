@@ -7,7 +7,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows)](https://github.com/extrakyo-io/EdgeLink-Server/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.4.3-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.4.3)
+[![Version](https://img.shields.io/badge/Version-2.5.0-informational)](https://github.com/extrakyo-io/EdgeLink-Server/releases/tag/v2.5.0)
 
 輕量級 .NET 8 伺服器：透過 TCP/UDP 橋接 IoT 裝置，以自訂 Mask 定義轉換協定資料，並提供瀏覽器端管理介面。
 
@@ -28,7 +28,7 @@
 | **裝置識別** | TCP Server 與 UDP 上逐連線的裝置 ID 追蹤，於 WebUI 與 SDK 中呈現 |
 | **安全性** | PBKDF2 密碼雜湊、工作階段持久化、HttpOnly cookie |
 | **檔案日誌** | 每日輪替日誌檔，保留 7 天 |
-| **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js） |
+| **用戶端 SDK** | Unity（UPM，POCO + MonoBehaviour）、Arduino、C#（.NET 6）、Python（asyncio）、JavaScript（Node.js）。**送出能力目前只有 Unity 與 C#**（見下表） |
 
 ---
 
@@ -154,20 +154,87 @@ python modbus_slave_sim.py
 
 ---
 
-## Binary Mask — 解碼原始二進位協定
+## Binary Mask — 二進位協定的雙向轉換
 
-**Binary Mask** 會即時把裝置的原始二進位協定解碼成 EdgeLink 的 KV 文字，下游消費端（Unity／儀表板）收到的是純 `key:value`，完全看不到二進位。解碼發生在**來源埠**；轉發／輸出埠請設 `OriginalData`，原樣把解碼後的 KV 送出。
+**Binary Mask** 在裝置的原始二進位協定與 EdgeLink 的 KV 文字之間**雙向**轉換。下游消費端（Unity／儀表板）只看得到純 `key:value`，完全不用碰二進位。
 
-當 mask 定義帶有 `binary` 區塊（`BinarySpec`）時即為二進位 mask：一個位元組版面，用 `discriminator` 依某欄位值（如訊息型別位元組）挑選 `variant`，每個 variant 宣告自己的 `length`、輸出 `template`、以及具型別的 `fields` —— `u8/u16/u32/u64/i8/i16/i32/i64/f32/f64/bit/bitrange/const`，可帶 `scale`/`offset`/`format`。
+**同一份 `BinarySpec` 兩個方向都能用，方向由它掛在哪裡決定，不是由 mask 決定：**
+
+| 掛在 | 方向 | 做什麼 |
+|---|---|---|
+| 來源埠的 `maskType` | 入站 | 解碼 wire → KV |
+| TCP Client 埠的 `responseMaskType` | 入站 | 解碼對端推來的封包 |
+| TCP Client 埠的 `maskType` | 出站 | 把下游送來的 KV **編碼**成封包 |
+
+所以一個 mask 就能同時掛在同一個埠的兩側，對應「收發共用同一條連線」的協定。
+轉發／輸出埠請設 `OriginalData`，原樣把解碼後的 KV 送出。
+
+當 mask 定義帶有 `binary` 區塊（`BinarySpec`）時即為二進位 mask：一個位元組版面，用 `discriminator` 依某欄位值（如訊息型別位元組）挑選 `variant`，每個 variant 宣告自己的 `length`、輸出 `template`、以及具型別的 `fields` —— `u8/u16/u32/u64/i8/i16/i32/i64/f32/f64/bit/bitrange/const`，可帶 `scale`/`add`/`format`。
 
 ### UDP vs TCP
 
 | 傳輸 | 分包 | 心跳 |
 |---|---|---|
-| **UDP** | 每個 datagram **就是**一包 — 不需要 `sync` | 無（以逾時判斷 stale） |
+| **UDP** | 每個 datagram **就是**一包 — 不需要 `sync` 分包，但**建議還是設**（見下方） | 無（以逾時判斷 stale） |
 | **TCP** | 串流沒有封包邊界 → 設 `binary.sync` 為封包 magic（hex，如 `"4f4b"`=`OK`）讓 EdgeLink 對齊/重新同步；長度由 discriminator → variant `length` 決定 | 二進位埠**不送 app 層 PING/PONG**，改靠 TCP keep-alive（閒置 10s／探測 1s）。二進位來源**不需要**回 PONG。 |
 
 同一個 TCP Server 埠可以收 **KV 文字或二進位**，依該埠的 mask 決定（binary mask → 二進位分包；其他 mask → 換行分隔 KV 文字 + PING/PONG）。
+
+> **UDP 也該設 `sync`。** 它不只用來分包，解碼前也會拿它驗證封包開頭。UDP 沒有分包
+> 步驟，整個 datagram 直接進解碼器——不設 `sync` 的話，任何長度湊巧相同、
+> discriminator 位址湊巧對上的雜訊都會被解成合法資料轉發下去。
+> 把版本號一起放進 `sync`（例如 `"4f4b01"` = magic `OK` + version 1）還能順便
+> 實作「版本不符即丟棄」。
+
+### 出站編碼
+
+出站方向的欄位值來自下游送進來的 KV，但**標頭通常不該由下游填**——序號要有狀態、
+時間戳要當下產生、長度是版面決定的。這幾個用 `auto` 標記，由編碼器自己產生：
+
+| `auto` | 產生什麼 |
+|---|---|
+| `seq` | 每個 `discriminator` 值各一條 counter，首筆為 1（0 保留給「從未發送」），**連線重建時歸零** |
+| `timeMs` | 當下的 Unix epoch UTC 毫秒 |
+| `frameLength` | 該 variant 的封包長度 |
+
+`sync` 與 `discriminator` 也由編碼器自己寫——那兩者的值是版面決定的，讓使用者從 KV
+傳進來只會多一個填錯的機會。沒有宣告的位元組維持 0，正好對應多數協定的「保留欄位填 0」。
+
+**缺欄位預設整包丟棄，而不是填 0。** 送出一筆被靜默歸零的命令，遠比沒送出去危險——
+例如「三軸位置」欄位缺漏時填 0，對運動平台來說不是 no-op 而是一筆合法的移動命令。
+真的允許留白的欄位要明確標 `"optional": true`（例如協定上「0 = 沿用預設值」的參數）。
+數值塞不進目標型別時同樣丟棄：解碼越界只是丟包，編碼截斷卻會送出**數值錯誤**的命令。
+
+### 具名查表
+
+錯誤碼、狀態列舉這類「數字要給人看」的欄位，可以用 `maps` + `mapRef` 轉成文字。
+表放在 spec 這一層而不是欄位內嵌——多個欄位（例如三支軸的異警碼）才能共用同一份表，
+內嵌會變成多份各自走鐘的副本。
+
+```json
+{
+  "maps": {
+    "driveErr": {
+      "0":             "NONE",
+      "0x0207-0x0249": "PR_PARAM",
+      "0x8611":        "FOLLOWING_ERROR"
+    }
+  },
+  "variants": [{
+    "fields": [
+      { "name": "err",    "offset": 29, "type": "u16" },
+      { "name": "errtxt", "offset": 29, "type": "u16",
+        "mapRef": "driveErr", "mapDefault": "UNKNOWN" }
+    ]
+  }]
+}
+```
+
+key 支援十進位、十六進位與**範圍**。查的是 wire 上的原始值（套 `scale` 之前）——
+這種表描述的是線上的代碼，不是工程值。同一個位址同時宣告原始欄位與查表欄位，
+就能兩者都輸出：文字給人看、原始碼用來對設備面板。
+
+查表欄位在**編碼時會被跳過**：多對一的表反查不回去，而同位址的原始欄位已經寫過那些位元組。
 
 ### 設定範例
 
@@ -193,7 +260,11 @@ python modbus_slave_sim.py
 }
 ```
 
-可在 **WebUI → Mask 編輯器**建立（附 hex 解碼預覽），或用 **Settings → Import** 匯入。
+可在 **WebUI → Mask 編輯器**建立，或用 **Settings → Import** 匯入。
+
+編輯器的預覽框是**雙向**的，依你貼進去的內容自動判斷：貼純 hex 就解碼成 KV，
+貼 KV 就編碼成 hex。編碼預覽跑的是出站方向真正在用的那個編碼器，所以看到的 hex
+就是實際會上線的位元組（`seq` 例外——預覽沒有連線可綁，一律給 1）。
 
 ### C# 來源端 SDK
 
@@ -232,6 +303,24 @@ Base URL：`http://<host>:8081`
 
 ---
 
+## SDK 能力對照
+
+五套 SDK 都能**接收**，但把資料**送回 EdgeLink** 的能力目前不對等：
+
+| SDK | 收 | 送（Client 連出） | 送（Listener 回應） | 送（UDP） |
+|---|:--:|:--:|:--:|:--:|
+| **Unity** | ✔ | ✔ | ✔ | ✔ |
+| **C#** | ✔ | ✔ | ✔ | ✔ |
+| Python | ✔ | ✔ | — | ✔ |
+| JavaScript | ✔ | ✔ | — | ✔ |
+| Arduino | ✔ | ✔ | 不適用 | ✔ |
+
+「Listener 回應」是指 EdgeLink 的 TCP Client 埠連進來時，用戶端寫回那條連線。
+Python / JavaScript 的 `EdgeLinkTcpListener` 目前只會回 `EDGELINK_PONG` 心跳，
+沒有對外的送出 API。
+
+---
+
 ## Unity SDK
 
 EdgeLink Unity SDK 讓 Unity 應用程式接收 EdgeLink Server 轉發的資料。支援 TCP、TCP Listener 與 UDP 三種連線模式，並在執行期自動取得 Mask。
@@ -244,7 +333,16 @@ EdgeLink Unity SDK 讓 Unity 應用程式接收 EdgeLink Server 轉發的資料�
 https://github.com/extrakyo-io/EdgeLink-Server.git?path=SDK/Unity/Package
 ```
 
-接著透過 Package Manager → EdgeLink SDK → Samples 匯入 **Basic Example** 範例。
+需要 Unity **2021.2** 以上（`package.json` 的 `unity` 欄位）。
+
+接著透過 Package Manager → EdgeLink SDK → Samples 匯入範例，共四個：
+
+| 範例 | 內容 |
+|---|---|
+| TCP Listener | 最簡單的用法：收到訊息就讀欄位 |
+| TCP Listener（含斷線偵測） | 多設備追蹤 + 兩種斷線偵測機制 |
+| 純程式碼建構 (POCO) | 用 `EdgeLinkBridge` 建構子，不需要把 `EdgeLinkManager` 拖到場景 |
+| 雙向（收狀態 + 送命令） | 收對端推來的狀態，並把命令送回 EdgeLink |
 
 ### 用法 — 兩種風格
 
@@ -342,6 +440,58 @@ public class Example : MonoBehaviour
 |--------|------|------|
 | `Raw` | `string` | 最新的原始訊息字串（未解析） |
 | `Get(key)` | `string` | 依欄位名取得最新解析值，找不到則為 `null` |
+| `Bridge` | `EdgeLinkBridge` | 底層 bridge，想要更細部控制時用 |
+
+### 送出資料
+
+三種 `Protocol` 都能把資料寫回 EdgeLink，差別在對象：
+
+| Protocol | 送到哪 | `CanSend` 何時為真 |
+|---|---|---|
+| `TCP` | 那條對外連線 | 已連上 |
+| `TCPListener` | 所有連進來的對端（通常只有 EdgeLink 一條） | 有對端連進來 |
+| `UDP` | `Udp Target Host` : `Udp Target Port` | 已設定目的地 |
+
+> **UDP 的目的地與收資料的埠不是同一個。** EdgeLink 的 UDP 埠是「聽 `remotePort`、
+> 轉發到 `localPort`」——你收在轉發埠，要送就得打它的監聽埠。所以 Inspector 上是
+> 兩組獨立欄位。
+
+```csharp
+void FireCommand()
+{
+    if (!edgeLink.CanSend) return;          // 連線可能還沒建立或已中斷
+
+    edgeLink.Send("cmd:start");             // 送一整行
+
+    edgeLink.Send(                          // 或給欄位，分隔符用 Inspector 設定的那組
+        ("cmd", "move"),
+        ("x", EdgeLinkManager.Num(transform.position.x)),
+        ("y", EdgeLinkManager.Num(transform.position.y)));
+}
+
+async void FireCritical()                   // 要自己處理失敗就用 async 版本
+{
+    try   { await edgeLink.SendAsync("cmd:estop"); }
+    catch (System.Exception ex) { Debug.LogError($"送不出去：{ex.Message}"); }
+}
+```
+
+| 成員 | 型別 | 說明 |
+|--------|------|------|
+| `CanSend` | `bool` | 現在送得出去嗎（各 Protocol 判斷不同，見上表） |
+| `Send(kvLine)` | `void` | 送一行，失敗只記 log — MonoBehaviour 裡多半不想為了送資料改成 `async`，而 `async void` 會**吞掉例外** |
+| `Send(params (key, value)[])` | `void` | 送一組欄位，分隔符用 Inspector 設定的那組 |
+| `SendAsync(kvLine)` | `Task` | 同上，但失敗會丟例外由你處理 |
+| `Num(float / double / long)` | `static string` | 數值轉字串，固定 `InvariantCulture` |
+
+**兩個一定要走 `Num()` 與 `Send(欄位)` 的理由：**
+
+- 系統地區設定會把小數點變成逗號（德文環境的 `1,5`）。逗號在 KV 裡沒有特殊意義，
+  EdgeLink 會把整包丟掉——而這只在特定地區的機器上發生，自己電腦上永遠測不到。
+  `Num()` 同時會擋掉 `NaN` / `Infinity`（KV 沒有表示它們的方式）。
+- 值裡若混進分隔符或換行，等於多送了幾個欄位，收端會當成正常資料。
+  `Send(欄位)` 會在組行時就擋下來——KV 沒有跳脫機制，這種錯產生的是
+  「一行看起來正常、意思卻不同」的訊息，最難查。
 
 ### 裝置連線 / 斷線偵測
 
@@ -353,7 +503,7 @@ void Start()
     edgeLink = GetComponent<EdgeLinkManager>();
 
     // 當 EdgeLink Server 偵測到 TCP 連線開啟/關閉時觸發（斷電約需 15 秒）
-    edgeLink.OnDeviceStatus += (connected, endpoint) =>
+    edgeLink.OnDeviceStatus += (connected, endpoint, deviceId) =>
         Debug.Log(connected ? $"Online: {endpoint}" : $"Offline: {endpoint}");
 
     // 當某個裝置 ID 超過 Device Timeout 秒未送資料時觸發
@@ -476,6 +626,13 @@ void loop() {
 | | `loop()` | 必須在 `loop()` 中呼叫 — 接收封包 |
 | | `send(host, port, msg)` | 送出 UDP 封包到 EdgeLink |
 | | `onMessage(cb)` | 回呼帶 `(msg, remoteIP, remotePort)` |
+| `EdgeLinkAsyncUDP` | `begin(localPort = 0)` | 非同步 UDP：ESP32 內建 `<AsyncUDP.h>` 或 ESP8266 的 ESPAsyncUDP |
+| | `onMessage(cb)` / `onDeviceStatus(cb)` | 回呼 |
+| | `close()` | 關閉 |
+
+> `EdgeLinkAsyncUDP` **只在對應的 async UDP 標頭存在時才會編譯**
+> （ESP32 內建 `<AsyncUDP.h>`；ESP8266 需另裝 ESPAsyncUDP 函式庫）。
+> 沒有那個標頭時整個類別不存在，用一般的 `EdgeLinkUDP` 即可。
 
 ---
 
@@ -516,14 +673,25 @@ await client.SendAsync("id:DOTNET_01;temp:25.3;humidity:60.0");
 | | `OnMessage / OnConnected / OnDisconnected / OnError` | 事件 |
 | | `TryDequeue(out msg)` | 以輪詢取代事件的替代方式 |
 | `EdgeLinkTcpListener` | `Start()` | 接受進來的 TCP 連線 |
-| | `Stop()` | 停止監聽器 |
+| | `Stop()` | 停止監聽器並主動關閉所有已接受的連線 |
+| | `SendAsync(msg)` | 送一行 KV 給**所有**已連線的對端（自動補換行）。沒有任何連線時回 `false` |
+| | `SendAsync(byte[] data)` | 送原始位元組給所有已連線的對端 |
+| | `ConnectionCount` | 目前連進來的對端數 |
+| | `IsRunning` | 是否正在監聽 |
 | | `OnMessage / OnConnected / OnDisconnected / OnError` | 事件 |
 | `EdgeLinkUdpClient` | `Start()` | 綁定本機埠並接收封包 |
+| | `IsRunning` | 是否正在接收 |
 | | `OnMessage / OnError` | 事件 |
-| `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | 送出 UDP 封包 |
+| `EdgeLinkUdpSender` | `SendAsync(host, port, msg)` | 送出 UDP 封包（端點會快取，避免每次同步 DNS 解析） |
+| | `SendAsync(IPEndPoint, msg)` | 同上，直接給端點 |
 | `EdgeLinkSourceClient` | `Start()` | **來源端**：連上 EdgeLink，背景自動回應 `EDGELINK_PONG` 心跳並斷線自動重連 |
 | | `SendLineAsync(kv)` | 送一行 KV 文字（自動補換行） |
 | | `SendRawAsync(bytes)` | 送原始位元組（給 binary mask 埠） |
+| | `Num(float)` / `Num(double)` | 數值轉字串，固定 `InvariantCulture`（見下方提醒） |
+
+> **送出浮點一律走 `Num()`。** 系統地區設定會把小數點變成逗號（德文環境的 `1,5`），
+> 而逗號在 KV 裡沒有特殊意義 —— EdgeLink 會把那樣的值當成不合法而**丟掉整包**。
+> 這種 bug 只在特定地區的機器上出現，在自己電腦上永遠測不到。
 
 ---
 
@@ -589,8 +757,11 @@ EdgeLink JavaScript SDK 以 **Node.js 18+** 為目標，僅使用內建模組（
 ### 安裝
 
 ```bash
-# 將 SDK/JavaScript/ 複製進你的專案，然後：
+# 把 SDK/JavaScript/ 複製進你的專案並命名為 edgelink/，然後：
 const { EdgeLinkClient } = require("./edgelink/src");
+
+# 資料夾維持原名的話,路徑要跟著改:
+# const { EdgeLinkClient } = require("./SDK/JavaScript/src");
 ```
 
 ### TCP 範例
