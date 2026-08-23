@@ -138,13 +138,13 @@ public class EdgeLinkManagerEditor : Editor
             CookieContainer = new CookieContainer(),
             UseCookies      = true,
         };
-        // Unity Mono 的 HttpClientHandler.ServerCertificateCustomValidationCallback setter
-        // 會丟 NotImplementedException；用全域 ServicePointManager 當 fallback。
-        try { handler.ServerCertificateCustomValidationCallback = (msg, cert, chain, errors) => true; }
-        catch (NotImplementedException)
-        {
-            System.Net.ServicePointManager.ServerCertificateValidationCallback = (s, c, ch, e) => true;
-        }
+        // 這裡刻意不裝任何憑證驗證回呼 —— 用系統預設的驗證。
+        //
+        // 先前是 `=> true`(接受任何憑證),而 Mono 的 fallback 走的是
+        // ServicePointManager.ServerCertificateValidationCallback,那是**行程全域**的：
+        // 等於關掉整個 Unity Editor 的憑證驗證,不只這一個 HttpClient。
+        // 這個編輯器面板會帶著管理密碼登入,搭配 HTTPS 反向代理時形同對中間人無防禦。
+        // v2.4.3 的變更紀錄宣稱已移除,但只改到 Runtime,Editor 這支被漏掉了。
         return new HttpClient(handler);
     }
 
