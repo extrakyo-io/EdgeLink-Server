@@ -123,6 +123,33 @@ mt:19;seq:52343;estop:0;plc:2;plctxt:CONNECTED;pa:210.0;pb:210.0;pc:210.0
 
 > 故障時角度請**保留最後有效值**，不要歸零 —— 0 度是一個真實方位。
 
+### 3.5 值域一覽
+
+設備側每個欄位的完整取值。**沒列在這裡的值不會出現** —— 出現了代表封包有問題。
+
+| 欄位 | 可能的值 |
+|---|---|
+| `id` | `rig1`（固定字串） |
+| `seq` | 0 ~ 4294967295（首包 1，mod 2³² 回繞） |
+| `ts` | Unix epoch UTC 毫秒 |
+| `conn` | `0` / `1` / `2` / `3` / `255` |
+| `units` | `0` / `1` / `2` |
+| `jlx` `jly` `jrx` `jry` | −1.0 ~ 1.0（故障軸強制 0） |
+| `jlf` `jrf` | `0` 正常、`1` X 軸冗餘故障、`2` Y 軸、`3` 兩軸都故障 |
+| `jlst` `jrst` | `0` / `1` |
+| `jlraw` `jrraw` | `0` 已平滑 / `1` 未濾波 |
+| `bl1` `bl2` `bl3` `br1` `br2` `br3` | `0` 放開 / `1` 按下 |
+| `estopl` `estopr` `estopl2` `estopr2` | `OK` / `ESTOP`（只有這兩個字串） |
+| `pedal` `pedal2` | `0` 沒踩 / `1` 踩下 |
+| `blst` `brst` | `0` / `1` |
+| `e1p` `e2p` | 0 ~ 255 |
+| `e1deg` `e2deg` | 0.0 ~ 360.0（順時針） |
+| `e1gm` `e2gm` | `0` / `1`（GrayMismatch） |
+| `e1st` `e2st` | `0` / `1`（Stale） |
+
+設備側是**單向的** —— 你只會收到，沒有任何命令可以送回設備。要控制平台請用
+`mt:16` / `mt:17`。
+
 ---
 
 ## 4. 平台（TCP，V1，雙向）
@@ -133,15 +160,57 @@ mt:19;seq:52343;estop:0;plc:2;plctxt:CONNECTED;pa:210.0;pb:210.0;pc:210.0
 mt:16;mode:1;rqx:0;rqy:0;rqz:0;rqw:0;rhv:0;rqa:210;rqb:210;rqc:210;vel:50;acc:50;jrk:50
 ```
 
-| 欄位 | 意義 |
-|---|---|
-| `mode` | 命令模式 |
-| `rqx` `rqy` `rqz` `rqw` | 目標姿態四元數 |
-| `rhv` | 目標 heave (mm) |
-| `rqa` `rqb` `rqc` | 三軸目標位置 (mm) |
-| `vel` `acc` `jrk` | 速度／加速度／加加速度 |
+**`mode` 決定哪一組欄位有效**，另一組必須明確送 0：
 
-**用不到的那一組也要明確送 0。** `seq`、`ts`、`len` 由 EdgeLink 自動填，不要自己送。
+| mode | 意義 | 有效欄位 | 要送 0 的 |
+|---|---|---|---|
+| `0` | 給平台四元數，**對端解 IK** | `rqx` `rqy` `rqz` `rqw` `rhv` | `rqa` `rqb` `rqc` |
+| `1` | 直接指定三軸絕對位置 | `rqa` `rqb` `rqc` | `rqx` `rqy` `rqz` `rqw` `rhv` |
+
+| 欄位 | 值域 | 意義 |
+|---|---|---|
+| `mode` | `0` / `1` | 見上表 |
+| `rqx` `rqy` `rqz` `rqw` | float | 目標姿態四元數（mode 0 有效） |
+| `rhv` | float, mm | 目標 heave（mode 0 有效） |
+| `rqa` `rqb` `rqc` | float, mm | A/B/C 三軸絕對位置（mode 1 有效） |
+| `vel` | float | S Curve 速度。**0 = 沿用對端預設** |
+| `acc` | float | S Curve 加／減速度。**0 = 沿用預設** |
+| `jrk` | float | S Curve Jerk。**0 = 沿用預設** |
+
+`seq`、`ts`、`len` 由 EdgeLink 自動填，**不要自己送**。缺欄位整包會被丟掉 —— EdgeLink 不會替你補 0。
+
+mode 1（直接指定三軸）：
+
+```
+mt:16;mode:1;rqx:0;rqy:0;rqz:0;rqw:0;rhv:0;rqa:210;rqb:210;rqc:210;vel:0;acc:0;jrk:0
+```
+
+mode 0（給姿態＋高度，對端解 IK）：
+
+```
+mt:16;mode:0;rqx:0.0436;rqy:0;rqz:0;rqw:0.999;rhv:210;rqa:0;rqb:0;rqc:0;vel:0;acc:0;jrk:0
+```
+
+Unity SDK：
+
+```csharp
+// mode 1 —— 三軸絕對位置
+_link.Send(("mt", "16"), ("mode", "1"),
+           ("rqx", "0"), ("rqy", "0"), ("rqz", "0"), ("rqw", "0"), ("rhv", "0"),
+           ("rqa", EdgeLinkManager.Num(210f)),
+           ("rqb", EdgeLinkManager.Num(210f)),
+           ("rqc", EdgeLinkManager.Num(210f)),
+           ("vel", "0"), ("acc", "0"), ("jrk", "0"));
+
+// mode 0 —— 姿態 + 高度
+Quaternion q = Quaternion.Euler(5f, 0f, 0f);
+_link.Send(("mt", "16"), ("mode", "0"),
+           ("rqx", EdgeLinkManager.Num(q.x)), ("rqy", EdgeLinkManager.Num(q.y)),
+           ("rqz", EdgeLinkManager.Num(q.z)), ("rqw", EdgeLinkManager.Num(q.w)),
+           ("rhv", EdgeLinkManager.Num(210f)),
+           ("rqa", "0"), ("rqb", "0"), ("rqc", "0"),
+           ("vel", "0"), ("acc", "0"), ("jrk", "0"));
+```
 
 ### 4.2 你送出：`mt:17` 管理命令
 
@@ -149,9 +218,28 @@ mt:16;mode:1;rqx:0;rqy:0;rqz:0;rqw:0;rhv:0;rqa:210;rqb:210;rqc:210;vel:50;acc:50
 mt:17;act:1
 ```
 
-| 欄位 | 值 |
-|---|---|
-| `act` | `1` 急停 ON、`2` 急停 OFF、`3` 伺服切換、`4` Reset |
+| act | 名稱 | 作用 |
+|---|---|---|
+| `1` | `EStopOn` | 軟體急停 ON |
+| `2` | `EStopOff` | 軟體急停 OFF |
+| `3` | `ServoToggle` | **切換**伺服馬達 On/Off —— 不是設定 |
+| `4` | `Reset` | 軟體 Reset，清除異常 |
+
+```
+mt:17;act:1     急停 ON
+mt:17;act:2     急停 OFF
+mt:17;act:3     伺服切換
+mt:17;act:4     Reset
+```
+
+```csharp
+_link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
+```
+
+> **`act:3` 是切換不是設定。** 按下去之前要先看 `gsttxt` 現在是不是 `DISABLED`，
+> 否則你可能把伺服關掉而不是打開。
+>
+> 伺服關著時所有 `mt:16` 都會被回 **`rc:5` 該模式不允許 Move**。
 
 ### 4.3 你收到：`mt:18` 命令執行結果
 
@@ -162,7 +250,7 @@ mt:17;act:1
 | `ackseq` `ackmt` | **回應的是哪一筆命令** — 用這兩個配對，不要靠順序 |
 | `res` / `restxt` | `0` `ACCEPT` / `1` `REJECT` |
 | `rc` / `rctxt` | 被拒原因，見下 |
-| `axis` / `axistxt` | 是哪一支軸出問題：`NA` / `A` / `B` / `C` |
+| `axis` / `axistxt` | 哪一支軸出問題：`-1` NA、`0` A、`1` B、`2` C |
 | `test` | `1` = 對端收下了但沒有真的輸出（測試環境） |
 | `rpa` `rpb` `rpc` | 平台回報的三軸位置 |
 
@@ -190,9 +278,9 @@ mt:17;act:1
 | `ack` | 最後被採納的移動命令 seq |
 | `estop` | 0/1，**平台自己的急停**（與搖桿急停是兩回事） |
 | `out` | 0/1，`0` = 沒有真的輸出 |
-| `plc` / `plctxt` | `DISCONNECTED` / `CONNECTING` / `CONNECTED` / `RECONNECTING` |
-| `gst` / `gsttxt` | `DISABLED` / `STANDBY` / `MOVING` / `HOMING` / `STOPPING` / `ERRORSTOP` |
-| `ecerr` / `ecerrtxt` | EtherCAT 錯誤，`NO_ERROR` 以外都要處理（共 17 種） |
+| `plc` / `plctxt` | `0` DISCONNECTED、`1` CONNECTING、`2` CONNECTED、`3` RECONNECTING |
+| `gst` / `gsttxt` | `0` DISABLED、`1` STANDBY、`2` MOVING、`3` HOMING、`4` STOPPING、`5` ERRORSTOP |
+| `ecerr` / `ecerrtxt` | EtherCAT 錯誤，`0` NO_ERROR 以外都要處理（見下方完整表） |
 | `derra` `derrb` `derrc` + `derratxt` `derrbtxt` `derrctxt` | A/B/C 三軸驅動器異警，`NONE_OR_UNCODED` = 正常（共 40 種） |
 | `pa` `pb` `pc` | 三軸**實際**位置 (mm) |
 | `cpa` `cpb` `cpc` | 三軸**命令**位置 (mm) |
@@ -205,7 +293,54 @@ mt:17;act:1
 
 ---
 
-## 5. 建議的可用性判斷
+## 5. 錯誤碼完整表
+
+都來自 `PlatformTcp.mask.json` 的 `maps`，這裡列的是全部。
+
+### ecerr — EtherCAT（17 種）
+
+| 值 | 意義 | | 值 | 意義 |
+|---|---|---|---|---|
+| `0` | NO_ERROR | | `9` | PRODUCT_ID_WRONG |
+| `1` | NO_COMM | | `10` | NUMBER_DEVICE_MISMATCH |
+| `2` | WRONG_WORKING_COUNTER | | `11` | SDO_WRITE_ERROR |
+| `3` | DC_TIME_ZERO | | `12` | SDO_TIMEOUT |
+| `4` | OPEN_FIRSTADAPTER_FAILED | | `13` | EMERGENCY_RECEIVED |
+| `5` | OPEN_SECONDADAPTER_FAILED | | `14` | IDN_WRITE_ERROR |
+| `6` | ADAPTER_MISMATCH | | `15` | IDN_TIMEOUT |
+| `7` | NO_SLAVES_FOUND | | `16` | WATCHDDOG_ERROR |
+| `8` | VENDOR_ID_WRONG | | `` |  |
+
+### derra / derrb / derrc — 驅動器異警（40 種）
+
+三軸各一個。`0` = `NONE_OR_UNCODED` 代表正常。
+
+| 值 | 意義 | | 值 | 意義 |
+|---|---|---|---|---|
+| `0` | NONE_OR_UNCODED | | `0x6310` | OBJ_DICT_INIT |
+| `0x0207-0x0249` | PR_PARAM | | `0x6320` | GEAR_RATIO |
+| `0x2310` | OVERCURRENT | | `0x7036` | OA_OB_OUTPUT |
+| `0x3110` | OVERVOLTAGE | | `0x7121` | MOTOR_COLLISION |
+| `0x3120` | UNDERVOLTAGE | | `0x7122` | MOTOR_MISMATCH |
+| `0x3130` | MAIN_POWER | | `0x7305` | ENCODER_ABS |
+| `0x3210` | REGEN | | `0x7306` | OA_OB_OUTPUT |
+| `0x3230` | OVERLOAD | | `0x7520` | SERIAL_TIMEOUT |
+| `0x3231` | OVERLOAD_WARN | | `0x8100` | BUS_DATA |
+| `0x3300` | MOTOR_WIRING | | `0x8110` | PDO_OVERFLOW |
+| `0x4210` | IGBT_TEMP | | `0x8120` | BUS_HARDWARE |
+| `0x5330` | MEMORY | | `0x8130` | BUS_TIMEOUT |
+| `0x5441` | ESTOP | | `0x8200` | PDO_OBJ_ACCESS |
+| `0x5442` | LIMIT_POS_HW | | `0x8400` | SPEED_ERROR |
+| `0x5443` | LIMIT_NEG_HW | | `0x8600` | PULSE_CMD |
+| `0x5444` | LIMIT_POS_SW | | `0x8611` | FOLLOWING_ERROR |
+| `0x5445` | LIMIT_NEG_SW | | `0x9000` | STO |
+| `0x5500` | DSP_FIRMWARE | | `0xFF01` | ANALOG_VOLT_HIGH |
+| `0x6100` | DRIVE_FUNC_WARN | | `0xFF05` | INDEX_COORD |
+| `0x6200` | SYNC_COMM | | `0xFF07` | PR_FILTER |
+
+---
+
+## 6. 建議的可用性判斷
 
 ```
 設備數值可用  ⟺ conn == 2 && 對應的 st 旗標 == 0
@@ -223,7 +358,7 @@ mt:17;act:1
 
 ---
 
-## 6. 有現成 SDK
+## 7. 有現成 SDK
 
 不用自己刻 socket 與 PING/PONG。Unity 用 UPM 裝：
 
@@ -246,7 +381,7 @@ EdgeLink 會把那樣的值當成不合法而丟掉整包，而且**只在特定
 
 ---
 
-## 7. 這份文件的權威來源
+## 8. 這份文件的權威來源
 
 欄位定義來自這兩個檔案，**它們是唯一的真實來源**：
 
