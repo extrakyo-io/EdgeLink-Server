@@ -280,8 +280,8 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 | `out` | 0/1，`0` = 沒有真的輸出 |
 | `plc` / `plctxt` | `0` DISCONNECTED、`1` CONNECTING、`2` CONNECTED、`3` RECONNECTING |
 | `gst` / `gsttxt` | `0` DISABLED、`1` STANDBY、`2` MOVING、`3` HOMING、`4` STOPPING、`5` ERRORSTOP |
-| `ecerr` / `ecerrtxt` | EtherCAT 錯誤，`0` NO_ERROR 以外都要處理（見下方完整表） |
-| `derra` `derrb` `derrc` + `derratxt` `derrbtxt` `derrctxt` | A/B/C 三軸驅動器異警，`NONE_OR_UNCODED` = 正常（共 40 種） |
+| `ecerr` / `ecerrtxt` | EtherCAT 錯誤，`0`「正常」以外都要處理（見下方完整表） |
+| `derra` `derrb` `derrc` + `derratxt` `derrbtxt` `derrctxt` | A/B/C 三軸驅動器異警，`0` = 正常（共 40 種） |
 | `pa` `pb` `pc` | 三軸**實際**位置 (mm) |
 | `cpa` `cpb` `cpc` | 三軸**命令**位置 (mm) |
 | `qx` `qy` `qz` `qw` | 由實際位置反解的姿態四元數 |
@@ -301,42 +301,42 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 
 | 值 | 意義 | | 值 | 意義 |
 |---|---|---|---|---|
-| `0` | NO_ERROR | | `9` | PRODUCT_ID_WRONG |
-| `1` | NO_COMM | | `10` | NUMBER_DEVICE_MISMATCH |
-| `2` | WRONG_WORKING_COUNTER | | `11` | SDO_WRITE_ERROR |
-| `3` | DC_TIME_ZERO | | `12` | SDO_TIMEOUT |
-| `4` | OPEN_FIRSTADAPTER_FAILED | | `13` | EMERGENCY_RECEIVED |
-| `5` | OPEN_SECONDADAPTER_FAILED | | `14` | IDN_WRITE_ERROR |
-| `6` | ADAPTER_MISMATCH | | `15` | IDN_TIMEOUT |
-| `7` | NO_SLAVES_FOUND | | `16` | WATCHDDOG_ERROR |
-| `8` | VENDOR_ID_WRONG | | `` |  |
+| `0` | 正常 | | `9` | 產品 ID 不符 |
+| `1` | 無通訊 | | `10` | 裝置數量不符 |
+| `2` | 工作計數器不符 | | `11` | SDO 寫入錯誤 |
+| `3` | 分散式時脈為零 | | `12` | SDO 逾時 |
+| `4` | 主網卡開啟失敗 | | `13` | 收到緊急訊息 |
+| `5` | 備援網卡開啟失敗 | | `14` | IDN 寫入錯誤 |
+| `6` | 網卡不符 | | `15` | IDN 逾時 |
+| `7` | 找不到從站 | | `16` | 看門狗錯誤 |
+| `8` | 廠商 ID 不符 | | `` |  |
 
 ### derra / derrb / derrc — 驅動器異警（40 種）
 
-三軸各一個。`0` = `NONE_OR_UNCODED` 代表正常。
+三軸各一個。`0` = 「正常」。
 
 | 值 | 意義 | | 值 | 意義 |
 |---|---|---|---|---|
-| `0` | NONE_OR_UNCODED | | `0x6310` | OBJ_DICT_INIT |
-| `0x0207-0x0249` | PR_PARAM | | `0x6320` | GEAR_RATIO |
-| `0x2310` | OVERCURRENT | | `0x7036` | OA_OB_OUTPUT |
-| `0x3110` | OVERVOLTAGE | | `0x7121` | MOTOR_COLLISION |
-| `0x3120` | UNDERVOLTAGE | | `0x7122` | MOTOR_MISMATCH |
-| `0x3130` | MAIN_POWER | | `0x7305` | ENCODER_ABS |
-| `0x3210` | REGEN | | `0x7306` | OA_OB_OUTPUT |
-| `0x3230` | OVERLOAD | | `0x7520` | SERIAL_TIMEOUT |
-| `0x3231` | OVERLOAD_WARN | | `0x8100` | BUS_DATA |
-| `0x3300` | MOTOR_WIRING | | `0x8110` | PDO_OVERFLOW |
-| `0x4210` | IGBT_TEMP | | `0x8120` | BUS_HARDWARE |
-| `0x5330` | MEMORY | | `0x8130` | BUS_TIMEOUT |
-| `0x5441` | ESTOP | | `0x8200` | PDO_OBJ_ACCESS |
-| `0x5442` | LIMIT_POS_HW | | `0x8400` | SPEED_ERROR |
-| `0x5443` | LIMIT_NEG_HW | | `0x8600` | PULSE_CMD |
-| `0x5444` | LIMIT_POS_SW | | `0x8611` | FOLLOWING_ERROR |
-| `0x5445` | LIMIT_NEG_SW | | `0x9000` | STO |
-| `0x5500` | DSP_FIRMWARE | | `0xFF01` | ANALOG_VOLT_HIGH |
-| `0x6100` | DRIVE_FUNC_WARN | | `0xFF05` | INDEX_COORD |
-| `0x6200` | SYNC_COMM | | `0xFF07` | PR_FILTER |
+| `0` | 正常 | | `0x6310` | 物件字典初始化失敗 |
+| `0x0207-0x0249` | PR 參數錯誤 | | `0x6320` | 電子齒輪比錯誤 |
+| `0x2310` | 過電流 | | `0x7036` | OA／OB 輸出異常 |
+| `0x3110` | 過電壓 | | `0x7121` | 馬達碰撞 |
+| `0x3120` | 欠電壓 | | `0x7122` | 馬達型號不符 |
+| `0x3130` | 主電源異常 | | `0x7305` | 絕對式編碼器異常 |
+| `0x3210` | 回生電阻異常 | | `0x7306` | OA／OB 輸出異常 |
+| `0x3230` | 過載 | | `0x7520` | 串列通訊逾時 |
+| `0x3231` | 過載預警 | | `0x8100` | 匯流排資料錯誤 |
+| `0x3300` | 馬達配線錯誤 | | `0x8110` | PDO 溢位 |
+| `0x4210` | IGBT 過溫 | | `0x8120` | 匯流排硬體異常 |
+| `0x5330` | 記憶體異常 | | `0x8130` | 匯流排逾時 |
+| `0x5441` | 緊急停止 | | `0x8200` | PDO 物件存取錯誤 |
+| `0x5442` | 正向硬體極限 | | `0x8400` | 速度異常 |
+| `0x5443` | 負向硬體極限 | | `0x8600` | 脈波命令異常 |
+| `0x5444` | 正向軟體極限 | | `0x8611` | 追隨誤差過大 |
+| `0x5445` | 負向軟體極限 | | `0x9000` | 安全轉矩關斷 STO |
+| `0x5500` | DSP 韌體異常 | | `0xFF01` | 類比電壓過高 |
+| `0x6100` | 驅動器功能警告 | | `0xFF05` | 索引座標錯誤 |
+| `0x6200` | 同步通訊異常 | | `0xFF07` | PR 濾波器錯誤 |
 
 ---
 

@@ -14,20 +14,22 @@
       "binary": {
         "byteOrder": "little",
         "sync": "4f4b01",
-        "discriminator": { "offset": 3, "type": "u8" },
-
+        "discriminator": {
+          "offset": 3,
+          "type": "u8"
+        },
         "maps": {
           "reason": {
-            "0":  "無",
-            "1":  "超出行程界限(mm)",
-            "2":  "超出行程界限(場景單位)",
-            "3":  "水平偏移超過球頭範圍",
-            "4":  "尚未讀到PLC狀態",
-            "5":  "控制器不允許Move",
-            "6":  "E-Stop生效中",
-            "7":  "PLC錯誤(EtherCAT/驅動器/ErrorStop)",
-            "8":  "保留",
-            "9":  "WatchDog逾時",
+            "0": "無",
+            "1": "超出行程界限(mm)",
+            "2": "超出行程界限(場景單位)",
+            "3": "水平偏移超過球頭範圍",
+            "4": "尚未讀到PLC狀態",
+            "5": "控制器不允許Move",
+            "6": "E-Stop生效中",
+            "7": "PLC錯誤(EtherCAT/驅動器/ErrorStop)",
+            "8": "保留",
+            "9": "WatchDog逾時",
             "10": "seq倒退或重複",
             "11": "mode1已關閉",
             "12": "IK還原不出姿態",
@@ -35,84 +37,92 @@
             "14": "velocity/accel/jerk超上限",
             "15": "輸入來源未切External"
           },
-
-          "result": { "0": "ACCEPT", "1": "REJECT" },
-
-          "axis": { "-1": "NA", "0": "A", "1": "B", "2": "C" },
-
+          "result": {
+            "0": "ACCEPT",
+            "1": "REJECT"
+          },
+          "axis": {
+            "-1": "NA",
+            "0": "A",
+            "1": "B",
+            "2": "C"
+          },
           "plcConn": {
-            "0": "DISCONNECTED", "1": "CONNECTING", "2": "CONNECTED", "3": "RECONNECTING"
+            "0": "DISCONNECTED",
+            "1": "CONNECTING",
+            "2": "CONNECTED",
+            "3": "RECONNECTING"
           },
-
           "groupState": {
-            "0": "DISABLED", "1": "STANDBY", "2": "MOVING",
-            "3": "HOMING",   "4": "STOPPING", "5": "ERRORSTOP"
+            "0": "DISABLED",
+            "1": "STANDBY",
+            "2": "MOVING",
+            "3": "HOMING",
+            "4": "STOPPING",
+            "5": "ERRORSTOP"
           },
-
           "etherCat": {
-            "0":  "NO_ERROR",
-            "1":  "NO_COMM",
-            "2":  "WRONG_WORKING_COUNTER",
-            "3":  "DC_TIME_ZERO",
-            "4":  "OPEN_FIRSTADAPTER_FAILED",
-            "5":  "OPEN_SECONDADAPTER_FAILED",
-            "6":  "ADAPTER_MISMATCH",
-            "7":  "NO_SLAVES_FOUND",
-            "8":  "VENDOR_ID_WRONG",
-            "9":  "PRODUCT_ID_WRONG",
-            "10": "NUMBER_DEVICE_MISMATCH",
-            "11": "SDO_WRITE_ERROR",
-            "12": "SDO_TIMEOUT",
-            "13": "EMERGENCY_RECEIVED",
-            "14": "IDN_WRITE_ERROR",
-            "15": "IDN_TIMEOUT",
-            "16": "WATCHDDOG_ERROR"
+            "0": "正常",
+            "1": "無通訊",
+            "2": "工作計數器不符",
+            "3": "分散式時脈為零",
+            "4": "主網卡開啟失敗",
+            "5": "備援網卡開啟失敗",
+            "6": "網卡不符",
+            "7": "找不到從站",
+            "8": "廠商 ID 不符",
+            "9": "產品 ID 不符",
+            "10": "裝置數量不符",
+            "11": "SDO 寫入錯誤",
+            "12": "SDO 逾時",
+            "13": "收到緊急訊息",
+            "14": "IDN 寫入錯誤",
+            "15": "IDN 逾時",
+            "16": "看門狗錯誤"
           },
-
           "driveErr": {
-            "0":              "NONE_OR_UNCODED",
-            "0x0207-0x0249":  "PR_PARAM",
-            "0x2310":         "OVERCURRENT",
-            "0x3110":         "OVERVOLTAGE",
-            "0x3120":         "UNDERVOLTAGE",
-            "0x3130":         "MAIN_POWER",
-            "0x3210":         "REGEN",
-            "0x3230":         "OVERLOAD",
-            "0x3231":         "OVERLOAD_WARN",
-            "0x3300":         "MOTOR_WIRING",
-            "0x4210":         "IGBT_TEMP",
-            "0x5330":         "MEMORY",
-            "0x5441":         "ESTOP",
-            "0x5442":         "LIMIT_POS_HW",
-            "0x5443":         "LIMIT_NEG_HW",
-            "0x5444":         "LIMIT_POS_SW",
-            "0x5445":         "LIMIT_NEG_SW",
-            "0x5500":         "DSP_FIRMWARE",
-            "0x6100":         "DRIVE_FUNC_WARN",
-            "0x6200":         "SYNC_COMM",
-            "0x6310":         "OBJ_DICT_INIT",
-            "0x6320":         "GEAR_RATIO",
-            "0x7036":         "OA_OB_OUTPUT",
-            "0x7121":         "MOTOR_COLLISION",
-            "0x7122":         "MOTOR_MISMATCH",
-            "0x7305":         "ENCODER_ABS",
-            "0x7306":         "OA_OB_OUTPUT",
-            "0x7520":         "SERIAL_TIMEOUT",
-            "0x8100":         "BUS_DATA",
-            "0x8110":         "PDO_OVERFLOW",
-            "0x8120":         "BUS_HARDWARE",
-            "0x8130":         "BUS_TIMEOUT",
-            "0x8200":         "PDO_OBJ_ACCESS",
-            "0x8400":         "SPEED_ERROR",
-            "0x8600":         "PULSE_CMD",
-            "0x8611":         "FOLLOWING_ERROR",
-            "0x9000":         "STO",
-            "0xFF01":         "ANALOG_VOLT_HIGH",
-            "0xFF05":         "INDEX_COORD",
-            "0xFF07":         "PR_FILTER"
+            "0": "正常",
+            "0x0207-0x0249": "PR 參數錯誤",
+            "0x2310": "過電流",
+            "0x3110": "過電壓",
+            "0x3120": "欠電壓",
+            "0x3130": "主電源異常",
+            "0x3210": "回生電阻異常",
+            "0x3230": "過載",
+            "0x3231": "過載預警",
+            "0x3300": "馬達配線錯誤",
+            "0x4210": "IGBT 過溫",
+            "0x5330": "記憶體異常",
+            "0x5441": "緊急停止",
+            "0x5442": "正向硬體極限",
+            "0x5443": "負向硬體極限",
+            "0x5444": "正向軟體極限",
+            "0x5445": "負向軟體極限",
+            "0x5500": "DSP 韌體異常",
+            "0x6100": "驅動器功能警告",
+            "0x6200": "同步通訊異常",
+            "0x6310": "物件字典初始化失敗",
+            "0x6320": "電子齒輪比錯誤",
+            "0x7036": "OA／OB 輸出異常",
+            "0x7121": "馬達碰撞",
+            "0x7122": "馬達型號不符",
+            "0x7305": "絕對式編碼器異常",
+            "0x7306": "OA／OB 輸出異常",
+            "0x7520": "串列通訊逾時",
+            "0x8100": "匯流排資料錯誤",
+            "0x8110": "PDO 溢位",
+            "0x8120": "匯流排硬體異常",
+            "0x8130": "匯流排逾時",
+            "0x8200": "PDO 物件存取錯誤",
+            "0x8400": "速度異常",
+            "0x8600": "脈波命令異常",
+            "0x8611": "追隨誤差過大",
+            "0x9000": "安全轉矩關斷 STO",
+            "0xFF01": "類比電壓過高",
+            "0xFF05": "索引座標錯誤",
+            "0xFF07": "PR 濾波器錯誤"
           }
         },
-
         "variants": [
           {
             "match": 16,
@@ -120,26 +130,109 @@
             "length": 67,
             "template": "id:{id};mt:{mt};seq:{seq};ts:{ts};mode:{mode};rqx:{rqx};rqy:{rqy};rqz:{rqz};rqw:{rqw};rhv:{rhv};rqa:{rqa};rqb:{rqb};rqc:{rqc};vel:{vel};acc:{acc};jrk:{jrk}",
             "fields": [
-              { "name": "id",   "offset": 0,  "type": "const", "value": "plat1" },
-              { "name": "mt",   "offset": 3,  "type": "u8" },
-              { "name": "len",  "offset": 5,  "type": "u16", "auto": "frameLength" },
-              { "name": "seq",  "offset": 7,  "type": "u32", "auto": "seq" },
-              { "name": "ts",   "offset": 11, "type": "u64", "auto": "timeMs" },
-              { "name": "mode", "offset": 19, "type": "u8" },
-
-              { "name": "rqx",  "offset": 23, "type": "f32", "format": "0.#####" },
-              { "name": "rqy",  "offset": 27, "type": "f32", "format": "0.#####" },
-              { "name": "rqz",  "offset": 31, "type": "f32", "format": "0.#####" },
-              { "name": "rqw",  "offset": 35, "type": "f32", "format": "0.#####" },
-              { "name": "rhv",  "offset": 39, "type": "f32", "format": "0.###" },
-
-              { "name": "rqa",  "offset": 43, "type": "f32", "format": "0.###" },
-              { "name": "rqb",  "offset": 47, "type": "f32", "format": "0.###" },
-              { "name": "rqc",  "offset": 51, "type": "f32", "format": "0.###" },
-
-              { "name": "vel",  "offset": 55, "type": "f32", "format": "0.###", "optional": true },
-              { "name": "acc",  "offset": 59, "type": "f32", "format": "0.###", "optional": true },
-              { "name": "jrk",  "offset": 63, "type": "f32", "format": "0.###", "optional": true }
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "plat1"
+              },
+              {
+                "name": "mt",
+                "offset": 3,
+                "type": "u8"
+              },
+              {
+                "name": "len",
+                "offset": 5,
+                "type": "u16",
+                "auto": "frameLength"
+              },
+              {
+                "name": "seq",
+                "offset": 7,
+                "type": "u32",
+                "auto": "seq"
+              },
+              {
+                "name": "ts",
+                "offset": 11,
+                "type": "u64",
+                "auto": "timeMs"
+              },
+              {
+                "name": "mode",
+                "offset": 19,
+                "type": "u8"
+              },
+              {
+                "name": "rqx",
+                "offset": 23,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "rqy",
+                "offset": 27,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "rqz",
+                "offset": 31,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "rqw",
+                "offset": 35,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "rhv",
+                "offset": 39,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "rqa",
+                "offset": 43,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "rqb",
+                "offset": 47,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "rqc",
+                "offset": 51,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "vel",
+                "offset": 55,
+                "type": "f32",
+                "format": "0.###",
+                "optional": true
+              },
+              {
+                "name": "acc",
+                "offset": 59,
+                "type": "f32",
+                "format": "0.###",
+                "optional": true
+              },
+              {
+                "name": "jrk",
+                "offset": 63,
+                "type": "f32",
+                "format": "0.###",
+                "optional": true
+              }
             ]
           },
           {
@@ -148,12 +241,40 @@
             "length": 21,
             "template": "id:{id};mt:{mt};seq:{seq};ts:{ts};act:{act}",
             "fields": [
-              { "name": "id",  "offset": 0,  "type": "const", "value": "plat1" },
-              { "name": "mt",  "offset": 3,  "type": "u8" },
-              { "name": "len", "offset": 5,  "type": "u16", "auto": "frameLength" },
-              { "name": "seq", "offset": 7,  "type": "u32", "auto": "seq" },
-              { "name": "ts",  "offset": 11, "type": "u64", "auto": "timeMs" },
-              { "name": "act", "offset": 19, "type": "u8" }
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "plat1"
+              },
+              {
+                "name": "mt",
+                "offset": 3,
+                "type": "u8"
+              },
+              {
+                "name": "len",
+                "offset": 5,
+                "type": "u16",
+                "auto": "frameLength"
+              },
+              {
+                "name": "seq",
+                "offset": 7,
+                "type": "u32",
+                "auto": "seq"
+              },
+              {
+                "name": "ts",
+                "offset": 11,
+                "type": "u64",
+                "auto": "timeMs"
+              },
+              {
+                "name": "act",
+                "offset": 19,
+                "type": "u8"
+              }
             ]
           },
           {
@@ -162,22 +283,97 @@
             "length": 40,
             "template": "id:{id};mt:{mt};seq:{seq};ts:{ts};ackseq:{ackseq};ackmt:{ackmt};res:{res};restxt:{restxt};rc:{rc};rctxt:{rctxt};axis:{axis};axistxt:{axistxt};test:{test};rpa:{rpa};rpb:{rpb};rpc:{rpc}",
             "fields": [
-              { "name": "id",      "offset": 0,  "type": "const", "value": "plat1" },
-              { "name": "mt",      "offset": 3,  "type": "u8" },
-              { "name": "seq",     "offset": 7,  "type": "u32" },
-              { "name": "ts",      "offset": 11, "type": "u64" },
-              { "name": "ackseq",  "offset": 19, "type": "u32" },
-              { "name": "ackmt",   "offset": 23, "type": "u8" },
-              { "name": "res",     "offset": 24, "type": "u8" },
-              { "name": "restxt",  "offset": 24, "type": "u8", "mapRef": "result", "mapDefault": "UNKNOWN" },
-              { "name": "rc",      "offset": 25, "type": "u8" },
-              { "name": "rctxt",   "offset": 25, "type": "u8", "mapRef": "reason", "mapDefault": "未知reasonCode" },
-              { "name": "axis",    "offset": 26, "type": "i8" },
-              { "name": "axistxt", "offset": 26, "type": "i8", "mapRef": "axis", "mapDefault": "NA" },
-              { "name": "test",    "offset": 27, "type": "bit", "bit": 0 },
-              { "name": "rpa",     "offset": 28, "type": "f32", "format": "0.###" },
-              { "name": "rpb",     "offset": 32, "type": "f32", "format": "0.###" },
-              { "name": "rpc",     "offset": 36, "type": "f32", "format": "0.###" }
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "plat1"
+              },
+              {
+                "name": "mt",
+                "offset": 3,
+                "type": "u8"
+              },
+              {
+                "name": "seq",
+                "offset": 7,
+                "type": "u32"
+              },
+              {
+                "name": "ts",
+                "offset": 11,
+                "type": "u64"
+              },
+              {
+                "name": "ackseq",
+                "offset": 19,
+                "type": "u32"
+              },
+              {
+                "name": "ackmt",
+                "offset": 23,
+                "type": "u8"
+              },
+              {
+                "name": "res",
+                "offset": 24,
+                "type": "u8"
+              },
+              {
+                "name": "restxt",
+                "offset": 24,
+                "type": "u8",
+                "mapRef": "result",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "rc",
+                "offset": 25,
+                "type": "u8"
+              },
+              {
+                "name": "rctxt",
+                "offset": 25,
+                "type": "u8",
+                "mapRef": "reason",
+                "mapDefault": "未知reasonCode"
+              },
+              {
+                "name": "axis",
+                "offset": 26,
+                "type": "i8"
+              },
+              {
+                "name": "axistxt",
+                "offset": 26,
+                "type": "i8",
+                "mapRef": "axis",
+                "mapDefault": "NA"
+              },
+              {
+                "name": "test",
+                "offset": 27,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "rpa",
+                "offset": 28,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "rpb",
+                "offset": 32,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "rpc",
+                "offset": 36,
+                "type": "f32",
+                "format": "0.###"
+              }
             ]
           },
           {
@@ -186,40 +382,188 @@
             "length": 83,
             "template": "id:{id};mt:{mt};seq:{seq};ts:{ts};ack:{ack};out:{out};estop:{estop};plc:{plc};plctxt:{plctxt};gst:{gst};gsttxt:{gsttxt};ecerr:{ecerr};ecerrtxt:{ecerrtxt};derra:{derra};derratxt:{derratxt};derrb:{derrb};derrbtxt:{derrbtxt};derrc:{derrc};derrctxt:{derrctxt};pa:{pa};pb:{pb};pc:{pc};cpa:{cpa};cpb:{cpb};cpc:{cpc};qx:{qx};qy:{qy};qz:{qz};qw:{qw};hv:{hv};resid:{resid}",
             "fields": [
-              { "name": "id",       "offset": 0,  "type": "const", "value": "plat1" },
-              { "name": "mt",       "offset": 3,  "type": "u8" },
-              { "name": "seq",      "offset": 7,  "type": "u32" },
-              { "name": "ts",       "offset": 11, "type": "u64" },
-              { "name": "ack",      "offset": 19, "type": "u32" },
-              { "name": "out",      "offset": 23, "type": "bit", "bit": 0 },
-              { "name": "estop",    "offset": 23, "type": "bit", "bit": 1 },
-
-              { "name": "plc",      "offset": 24, "type": "u8" },
-              { "name": "plctxt",   "offset": 24, "type": "u8",  "mapRef": "plcConn",    "mapDefault": "UNKNOWN" },
-              { "name": "gst",      "offset": 25, "type": "u16" },
-              { "name": "gsttxt",   "offset": 25, "type": "u16", "mapRef": "groupState", "mapDefault": "UNKNOWN" },
-              { "name": "ecerr",    "offset": 27, "type": "u16" },
-              { "name": "ecerrtxt", "offset": 27, "type": "u16", "mapRef": "etherCat",   "mapDefault": "UNKNOWN" },
-
-              { "name": "derra",    "offset": 29, "type": "u16" },
-              { "name": "derratxt", "offset": 29, "type": "u16", "mapRef": "driveErr", "mapDefault": "UNKNOWN" },
-              { "name": "derrb",    "offset": 31, "type": "u16" },
-              { "name": "derrbtxt", "offset": 31, "type": "u16", "mapRef": "driveErr", "mapDefault": "UNKNOWN" },
-              { "name": "derrc",    "offset": 33, "type": "u16" },
-              { "name": "derrctxt", "offset": 33, "type": "u16", "mapRef": "driveErr", "mapDefault": "UNKNOWN" },
-
-              { "name": "pa",       "offset": 35, "type": "f32", "format": "0.###" },
-              { "name": "pb",       "offset": 39, "type": "f32", "format": "0.###" },
-              { "name": "pc",       "offset": 43, "type": "f32", "format": "0.###" },
-              { "name": "cpa",      "offset": 47, "type": "f32", "format": "0.###" },
-              { "name": "cpb",      "offset": 51, "type": "f32", "format": "0.###" },
-              { "name": "cpc",      "offset": 55, "type": "f32", "format": "0.###" },
-              { "name": "qx",       "offset": 59, "type": "f32", "format": "0.#####" },
-              { "name": "qy",       "offset": 63, "type": "f32", "format": "0.#####" },
-              { "name": "qz",       "offset": 67, "type": "f32", "format": "0.#####" },
-              { "name": "qw",       "offset": 71, "type": "f32", "format": "0.#####" },
-              { "name": "hv",       "offset": 75, "type": "f32", "format": "0.###" },
-              { "name": "resid",    "offset": 79, "type": "f32", "format": "0.###" }
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "plat1"
+              },
+              {
+                "name": "mt",
+                "offset": 3,
+                "type": "u8"
+              },
+              {
+                "name": "seq",
+                "offset": 7,
+                "type": "u32"
+              },
+              {
+                "name": "ts",
+                "offset": 11,
+                "type": "u64"
+              },
+              {
+                "name": "ack",
+                "offset": 19,
+                "type": "u32"
+              },
+              {
+                "name": "out",
+                "offset": 23,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "estop",
+                "offset": 23,
+                "type": "bit",
+                "bit": 1
+              },
+              {
+                "name": "plc",
+                "offset": 24,
+                "type": "u8"
+              },
+              {
+                "name": "plctxt",
+                "offset": 24,
+                "type": "u8",
+                "mapRef": "plcConn",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "gst",
+                "offset": 25,
+                "type": "u16"
+              },
+              {
+                "name": "gsttxt",
+                "offset": 25,
+                "type": "u16",
+                "mapRef": "groupState",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "ecerr",
+                "offset": 27,
+                "type": "u16"
+              },
+              {
+                "name": "ecerrtxt",
+                "offset": 27,
+                "type": "u16",
+                "mapRef": "etherCat",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "derra",
+                "offset": 29,
+                "type": "u16"
+              },
+              {
+                "name": "derratxt",
+                "offset": 29,
+                "type": "u16",
+                "mapRef": "driveErr",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "derrb",
+                "offset": 31,
+                "type": "u16"
+              },
+              {
+                "name": "derrbtxt",
+                "offset": 31,
+                "type": "u16",
+                "mapRef": "driveErr",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "derrc",
+                "offset": 33,
+                "type": "u16"
+              },
+              {
+                "name": "derrctxt",
+                "offset": 33,
+                "type": "u16",
+                "mapRef": "driveErr",
+                "mapDefault": "UNKNOWN"
+              },
+              {
+                "name": "pa",
+                "offset": 35,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "pb",
+                "offset": 39,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "pc",
+                "offset": 43,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "cpa",
+                "offset": 47,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "cpb",
+                "offset": 51,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "cpc",
+                "offset": 55,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "qx",
+                "offset": 59,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "qy",
+                "offset": 63,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "qz",
+                "offset": 67,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "qw",
+                "offset": 71,
+                "type": "f32",
+                "format": "0.#####"
+              },
+              {
+                "name": "hv",
+                "offset": 75,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "resid",
+                "offset": 79,
+                "type": "f32",
+                "format": "0.###"
+              }
             ]
           }
         ]

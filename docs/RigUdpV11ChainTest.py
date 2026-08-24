@@ -86,7 +86,15 @@ def roundtrip(packet, want_key, timeout=3.0):
 
 rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-rx.bind(('0.0.0.0', DOWNSTREAM))
+try:
+    rx.bind(('0.0.0.0', DOWNSTREAM))
+except OSError as ex:
+    # 最常見的原因:Unity 正開著監看面板 / RigTelemetry,它綁著同一個埠。
+    # 讓訊息直接說出來,不要丟一個看不懂的 WinError。
+    print('無法綁定 UDP %d —— %s' % (DOWNSTREAM, ex))
+    print('這個埠被別的程式佔用了。最常見的是 Unity 正在 Play(RigTelemetry 綁著它),')
+    print('停掉 Play 再跑一次即可。')
+    sys.exit(2)
 tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 print('=== 設備 UDP → EdgeLink(%s:%d) → 下游 KV(:%d) ===' % (EDGELINK + (DOWNSTREAM,)))
