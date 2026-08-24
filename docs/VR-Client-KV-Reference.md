@@ -7,7 +7,7 @@
 
 | 鏈路 | 規格 | 方向 |
 |---|---|---|
-| 平台 | 消防訓練平台 TCP 資料格式 **V1** | **雙向** — 你送命令、也收狀態 |
+| 雲梯車籃架 | 消防訓練平台 TCP 資料格式 **V1** | **雙向** — 你送命令、也收狀態 |
 | 設備 | 搖桿-編碼器-踏板-按鈕 UDP 資料格式 **V1.1** | 單向 — 你只收 |
 
 ---
@@ -38,10 +38,10 @@ mt:19;seq:52343;estop:0;plc:2;plctxt:CONNECTED;pa:210.0;pb:210.0;pc:210.0
 
 | 鏈路 | 你要做什麼 | 位址 |
 |---|---|---|
-| 平台 TCP | 連到 EdgeLink，雙向讀寫 | `EdgeLink:47900` |
+| 雲梯車籃架 TCP | 連到 EdgeLink，雙向讀寫 | `EdgeLink:47900` |
 | 設備 UDP | 綁一個本機 UDP 埠等資料 | EdgeLink 轉發到 `你的IP:47811` |
 
-平台那條 EdgeLink 會**約每 5 秒**送一次心跳，你要把 token **原樣**回一筆 PONG：
+籃架那條 EdgeLink 會**約每 5 秒**送一次心跳，你要把 token **原樣**回一筆 PONG：
 
 ```
 收到  EDGELINK_PING:08DF01E2BF21A0A9
@@ -147,12 +147,12 @@ mt:19;seq:52343;estop:0;plc:2;plctxt:CONNECTED;pa:210.0;pb:210.0;pc:210.0
 | `e1gm` `e2gm` | `0` / `1`（GrayMismatch） |
 | `e1st` `e2st` | `0` / `1`（Stale） |
 
-設備側是**單向的** —— 你只會收到，沒有任何命令可以送回設備。要控制平台請用
+設備側是**單向的** —— 你只會收到，沒有任何命令可以送回設備。要控制籃架請用
 `mt:16` / `mt:17`。
 
 ---
 
-## 4. 平台（TCP，V1，雙向）
+## 4. 雲梯車籃架（TCP，V1，雙向）
 
 ### 4.1 你送出：`mt:16` 移動命令
 
@@ -164,7 +164,7 @@ mt:16;mode:1;rqx:0;rqy:0;rqz:0;rqw:0;rhv:0;rqa:210;rqb:210;rqc:210;vel:50;acc:50
 
 | mode | 意義 | 有效欄位 | 要送 0 的 |
 |---|---|---|---|
-| `0` | 給平台四元數，**對端解 IK** | `rqx` `rqy` `rqz` `rqw` `rhv` | `rqa` `rqb` `rqc` |
+| `0` | 給籃架四元數，**對端解 IK** | `rqx` `rqy` `rqz` `rqw` `rhv` | `rqa` `rqb` `rqc` |
 | `1` | 直接指定三軸絕對位置 | `rqa` `rqb` `rqc` | `rqx` `rqy` `rqz` `rqw` `rhv` |
 
 | 欄位 | 值域 | 意義 |
@@ -252,7 +252,7 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 | `rc` / `rctxt` | 被拒原因，見下 |
 | `axis` / `axistxt` | 哪一支軸出問題：`-1` NA、`0` A、`1` B、`2` C |
 | `test` | `1` = 對端收下了但沒有真的輸出（測試環境） |
-| `rpa` `rpb` `rpc` | 平台回報的三軸位置 |
+| `rpa` `rpb` `rpc` | 籃架回報的三軸位置 |
 
 `rc` 完整對照（來自 `PlatformTcp.mask.json` 的 `maps.reason`）：
 
@@ -269,14 +269,14 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 
 最常遇到的兩個：**`6` E-Stop 生效中**、**`5` 該模式不允許 Move**（伺服沒開）。速度參數超限是 **`14`**，不是 `3`。
 
-### 4.4 你收到：`mt:19` 平台狀態
+### 4.4 你收到：`mt:19` 籃架狀態
 
 約 50 Hz 推送。
 
 | 欄位 | 意義 |
 |---|---|
 | `ack` | 最後被採納的移動命令 seq |
-| `estop` | 0/1，**平台自己的急停**（與搖桿急停是兩回事） |
+| `estop` | 0/1，**籃架自己的急停**（與搖桿急停是兩回事） |
 | `out` | 0/1，`0` = 沒有真的輸出 |
 | `plc` / `plctxt` | `0` DISCONNECTED、`1` CONNECTING、`2` CONNECTED、`3` RECONNECTING |
 | `gst` / `gsttxt` | `0` DISABLED、`1` STANDBY、`2` MOVING、`3` HOMING、`4` STOPPING、`5` ERRORSTOP |
@@ -344,7 +344,7 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 
 ```
 設備數值可用  ⟺ conn == 2 && 對應的 st 旗標 == 0
-可以驅動平台  ⟺ 設備數值可用
+可以驅動籃架  ⟺ 設備數值可用
               && estopl == "OK" && estopr == "OK"
               && plctxt == "CONNECTED"
               && gsttxt != "ERRORSTOP"
@@ -354,7 +354,7 @@ _link.Send(("mt", "17"), ("act", "3"));    // 伺服切換
 兩個急停是**不同的東西**，都要看：
 
 - `estopl` / `estopr` — 操作者手上的實體急停鈕，走 **UDP**
-- `estop` — 平台自己的急停狀態，走 **TCP**
+- `estop` — 籃架自己的急停狀態，走 **TCP**
 
 ---
 
@@ -386,7 +386,7 @@ EdgeLink 會把那樣的值當成不合法而丟掉整包，而且**只在特定
 欄位定義來自這兩個檔案，**它們是唯一的真實來源**：
 
 - `docs/RigBinary.mask.json` — 設備 UDP V1.1
-- `docs/PlatformTcp.mask.json` — 平台 TCP V1
+- `docs/PlatformTcp.mask.json` — 雲梯車籃架 TCP V1
 
 `Server.Tests/Unit/RigUdpV11MaskTests.cs` 會直接讀第一個檔案，逐欄比對規格 —— mask 改壞了測試就會紅。
 要自己驗整條鏈路，跑 `docs/RigUdpV11ChainTest.py` 與 `docs/PlatformTcpChainTest.py`。
