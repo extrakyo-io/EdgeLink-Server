@@ -89,18 +89,30 @@ class TcpListenerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(b"", data)
         self.assertEqual(0, self.listener.connection_count)
 
-    async def test_stop之後埠已釋放(self):
+    async def test_stop之後可以再start(self):
+        """真正要保證的是「停掉之後還能重新啟動」。
+
+        先前這條是拿一個乾淨的 socket 去 bind 同一個埠來當證明,但那在 Linux 上會
+        撞 TIME_WAIT 而報 EADDRINUSE —— 被接受過的連線關閉後埠不會立刻可重綁,
+        除非設 SO_REUSEADDR,而 asyncio 的 start_server 本來就會設。
+        也就是說那個探測比真實情況嚴格,而且結果隨平台而異(Windows 過、Linux 紅)。
+        改成直接重啟並確認收得到連線。
+        """
         await self.listener.start()
         await self.peer()
         await asyncio.sleep(0.2)
         await asyncio.wait_for(self.listener.stop(), timeout=5)
-        await asyncio.sleep(0.2)
+        self.assertFalse(self.listener.is_running)
 
-        probe = socket.socket()
-        try:
-            probe.bind(("127.0.0.1", self.port))   # 綁得起來 = 舊 socket 收乾淨了
-        finally:
-            probe.close()
+        await self.listener.start()                # 埠沒放乾淨的話這裡就會炸
+        self.assertTrue(self.listener.is_running)
+
+        reader, _ = await self.peer()
+        await asyncio.sleep(0.2)
+        self.assertEqual(1, self.listener.connection_count)
+        self.assertTrue(await self.listener.send("cmd:after-restart"))
+        data = await asyncio.wait_for(reader.read(256), timeout=3)
+        self.assertIn("cmd:after-restart", data.decode())
 
     # ── 送出 ────────────────────────────────────────────────────────────────
 
