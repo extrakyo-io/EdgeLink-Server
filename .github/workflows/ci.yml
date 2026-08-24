@@ -25,5 +25,69 @@ jobs:
       - name: Build
         run: dotnet build EdgeLink-Server.sln -c Release --no-restore
 
-      - name: Test
+      # 兩個測試專案分開跑。先前這裡只有 Server.Tests,新增的 SDK/CSharp.Tests
+      # 雖然已經掛進 sln、本機跑得到,在 CI 卻從來不會被執行 —— 加測試專案的人
+      # 不會發現自己的測試沒在把關。
+      #
+      # 不用 `dotnet test EdgeLink-Server.sln` 一次跑完:實測單次執行把兩個組件
+      # 一起帶起來時會卡住(分開跑各自都是秒級)。分開跑也讓失敗的是哪一組一目了然。
+      - name: Test (Server)
         run: dotnet test Server.Tests/Server.Tests.csproj -c Release --no-build --verbosity normal
+
+      - name: Test (SDK)
+        run: dotnet test SDK/CSharp.Tests/EdgeLink.Sdk.Tests.csproj -c Release --no-build --verbosity normal
+
+      # SDK 測試只用標準函式庫 / 內建模組,不需要安裝任何東西。
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test (Python SDK)
+        working-directory: SDK/Python
+        run: python -m unittest discover -s tests -v
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test (JavaScript SDK)
+        working-directory: SDK/JavaScript
+        run: node --test
+
+  # Windows 的 Winsock 會把同一個 socket 的單次 WSASend 序列化,所以併發寫入的
+  # 交錯在 windows-latest 上**重現不出來**(實測:把 WriteLock 整組刪掉,測試照樣全過)。
+  # Unix 上 .NET 會對大緩衝做部分寫入並重試,沒有鎖就真的會交錯 —— 這個 job 才是
+  # SDK 併發測試真正有守護力的地方。
+  sdk-tests-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Test (SDK, Linux)
+        run: dotnet test SDK/CSharp.Tests/EdgeLink.Sdk.Tests.csproj -c Release --verbosity normal
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test (Python SDK, Linux)
+        working-directory: SDK/Python
+        run: python -m unittest discover -s tests -v
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test (JavaScript SDK, Linux)
+        working-directory: SDK/JavaScript
+        run: node --test

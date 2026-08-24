@@ -27,6 +27,30 @@ namespace EdgeLink
         private NetworkStream?          stream;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         /// <summary>序列化所有對 stream 的寫入。接收迴圈會在自己的執行緒上回 PONG,
         /// 同時呼叫端可能正在送資料;NetworkStream 不允許併發寫入,一旦交錯會同時毀掉
         /// PONG 的 token(伺服器連續 3 次收不到就主動斷線)與使用者的訊息。</summary>
@@ -61,7 +85,9 @@ namespace EdgeLink
             try { oldCts.Dispose(); } catch { }
             cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await ConnectCoreAsync(cts.Token);
-            _ = Task.Run(() => ReadLoopAsync(cts.Token), cts.Token);
+            // 同上:token 不傳給 Task.Run,否則取消時讀取迴圈不會啟動,
+            // OnDisconnected 與資源回收都不會發生。
+            _ = Task.Run(() => ReadLoopAsync(cts.Token));
         }
 
         private async Task ConnectCoreAsync(CancellationToken ct)
@@ -175,7 +201,7 @@ namespace EdgeLink
             }
             if (line.StartsWith("EDGELINK_", StringComparison.Ordinal)) return;
 
-            queue.Enqueue(line);
+            EnqueueBounded(line);
             OnMessage?.Invoke(line);   // 先前宣告了事件卻從不觸發,C# 版則有
         }
 
@@ -211,14 +237,18 @@ namespace EdgeLink
         /// <summary>所有寫入都走這裡,確保接收迴圈的 PONG 不會與呼叫端的送出交錯。</summary>
         private async Task WriteLockedAsync(byte[] bytes)
         {
-            await writeLock.WaitAsync();
+            // ConfigureAwait(false):Unity 主執行緒上有 UnitySynchronizationContext,
+            // 不加的話每個 await 都要排回主執行緒才能繼續 —— 等於「握著寫入鎖等下一幀」,
+            // 而 PONG 正好也要搶這把鎖,心跳會被使用者的送出餓死。
+            try { await writeLock.WaitAsync().ConfigureAwait(false); }
+            catch (ObjectDisposedException) { return; }      // 已經 Dispose 了
             try
             {
                 var s = stream;
                 if (s == null) return;
-                await s.WriteAsync(bytes, 0, bytes.Length);
+                await s.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
             }
-            finally { writeLock.Release(); }
+            finally { try { writeLock.Release(); } catch (ObjectDisposedException) { } }
         }
 
         public bool TryDequeue(out string message) => queue.TryDequeue(out message!);
@@ -238,7 +268,11 @@ namespace EdgeLink
             disposed = true;
             Disconnect();
             try { cts.Dispose(); } catch { }
-            try { writeLock.Dispose(); } catch { }
+            // 這裡刻意不 Dispose writeLock —— 與 EdgeLinkTcpListener 同一個理由:
+            // SemaphoreSlim.Dispose 不是 thread-safe,而且不會讓已排隊的 WaitAsync
+            // 完成或拋例外。Dispose 當下若有寫入在飛,那個 Task 會永遠停在未完成,
+            // 呼叫端的 await 就再也不會回來。沒碰過 AvailableWaitHandle 的
+            // SemaphoreSlim 不持有非托管資源,交給 GC 即可。
         }
     }
 }

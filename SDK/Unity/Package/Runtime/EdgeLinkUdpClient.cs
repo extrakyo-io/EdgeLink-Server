@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -25,6 +26,30 @@ namespace EdgeLink
         private UdpClient?              udp;
         private CancellationTokenSource cts = new CancellationTokenSource();
         private readonly ConcurrentQueue<string> queue = new ConcurrentQueue<string>();
+
+        /// <summary>
+        /// 佇列上限。0 = 不設限。
+        ///
+        /// 消費端沒有把訊息取走時(Unity 元件被 disable、場景載入、忘了呼叫 Tick),
+        /// 背景 socket 照收,佇列會一路長大到記憶體耗盡。滿了就丟**最舊的** ——
+        /// 這類串流的舊值本來就沒有價值,而丟新的等於讓消費端永遠停在過去。
+        /// </summary>
+        public int MaxQueuedMessages { get; set; } = 1000;
+
+        /// <summary>累計因為佇列滿而被丟掉的訊息數。丟棄不該是靜默的。</summary>
+        public long DroppedMessageCount => Interlocked.Read(ref droppedCount);
+
+        private long droppedCount;
+
+        /// <summary>入列並在超過上限時丟掉最舊的。</summary>
+        private void EnqueueBounded(string line)
+        {
+            queue.Enqueue(line);
+            int cap = MaxQueuedMessages;
+            if (cap <= 0) return;
+            while (queue.Count > cap && queue.TryDequeue(out _))
+                Interlocked.Increment(ref droppedCount);
+        }
         private bool disposed;
 
         public EdgeLinkUdpClient(int localPort)
@@ -80,7 +105,7 @@ namespace EdgeLink
                     }
                     if (msg.StartsWith("EDGELINK_", StringComparison.Ordinal)) continue;
 
-                    queue.Enqueue(msg);
+                    EnqueueBounded(msg);
                     OnMessage?.Invoke(msg);   // 先前宣告了事件卻從不觸發,C# 版則有
                 }
                 catch (OperationCanceledException) { MarkStopped(owner); return; }
@@ -103,4 +128,78 @@ namespace EdgeLink
             cts.Dispose();
         }
     }
+
+    /// <summary>UDP 送端 —— 只送不收,不綁本機埠。
+    /// <para>用來把資料打進 EdgeLink 的 UDP 監聽埠(該埠設定裡的 remotePort)。
+    /// UDP 無連線,所以沒有心跳、也沒有「連上了沒」可問。</para></summary>
+    public class EdgeLinkUdpSender : IDisposable
+    {
+        private readonly UdpClient udp = new UdpClient();
+        private bool disposed;
+
+        public Task SendAsync(string host, int port, string message)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpSender));
+            return SendAsync(Resolve(host, port), message);
+        }
+
+        // host 字串 → 解析過的端點。UdpClient.SendAsync(bytes,len,host,port) 內部會在
+        // 呼叫端的執行緒上同步做 Dns.GetHostAddresses;在 Unity 主執行緒上那是可見的卡頓,
+        // 而且每一筆送出都要付一次。解析結果快取起來,主機沒換就不用重解。
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (IPEndPoint Ep, DateTime At)> _resolved
+            = new System.Collections.Concurrent.ConcurrentDictionary<string, (IPEndPoint, DateTime)>();
+
+        /// <summary>解析結果的保留時間。設 0 表示每次都重新解析。
+        /// <para>沒有這個上限的話,對端換 IP(DHCP 續約、伺服器搬機)之後就會永遠打舊位址,
+        /// 直到整個程式重啟為止 —— 而且畫面上看不出任何異常,UDP 送出本來就沒有回報。</para></summary>
+        public TimeSpan ResolveCacheTtl { get; set; } = TimeSpan.FromMinutes(5);
+
+        private IPEndPoint Resolve(string host, int port)
+        {
+            string key = host + ":" + port;
+            if (_resolved.TryGetValue(key, out var hit) &&
+                ResolveCacheTtl > TimeSpan.Zero &&
+                DateTime.UtcNow - hit.At < ResolveCacheTtl)
+                return hit.Ep;
+
+            IPEndPoint ep;
+
+            IPAddress addr;
+            if (!IPAddress.TryParse(host, out addr))
+            {
+                var list = Dns.GetHostAddresses(host);
+                if (list == null || list.Length == 0)
+                    throw new SocketException((int)SocketError.HostNotFound);
+
+                // 必須挑與 socket 位址族相容的那一個。udp 是 new UdpClient() 建的,
+                // 也就是 IPv4;而 "localhost" 在雙協定的機器上會先解析出 IPv6 的 ::1 ——
+                // 拿它去送會直接丟 AddressFamilyNotSupported。
+                // 原本的 SendAsync(bytes, len, host, port) 多載內部有處理這件事,
+                // 改成自己快取端點之後就得自己挑。
+                var family = udp.Client.AddressFamily;
+                addr = Array.Find(list, a => a.AddressFamily == family);
+                if (addr == null)
+                    throw new SocketException((int)SocketError.AddressFamilyNotSupported);
+            }
+            ep = new IPEndPoint(addr, port);
+            _resolved[key] = (ep, DateTime.UtcNow);
+            return ep;
+        }
+
+
+        public Task SendAsync(IPEndPoint endpoint, string message)
+        {
+            if (disposed) throw new ObjectDisposedException(nameof(EdgeLinkUdpSender));
+            byte[] bytes = Encoding.UTF8.GetBytes(message);
+            return udp.SendAsync(bytes, bytes.Length, endpoint);
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            udp.Dispose();
+        }
+    }
+
 }

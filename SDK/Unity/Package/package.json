@@ -1,8 +1,8 @@
 {
   "name": "com.extrakyo.edgelink",
-  "version": "2.4.3",
+  "version": "2.6.0",
   "displayName": "EdgeLink SDK",
-  "description": "Unity SDK for EdgeLink Server — TCP/UDP data receiving with automatic PING/PONG keepalive and mask-based message parsing.",
+  "description": "Unity SDK for EdgeLink Server — TCP/UDP data receiving and command sending, with automatic PING/PONG keepalive and mask-based message parsing.",
   "unity": "2021.2",
   "author": {
     "name": "Extrakyo"
@@ -23,6 +23,11 @@
       "displayName": "純程式碼建構 (POCO)",
       "description": "用 EdgeLinkBridge 建構子帶 URL / Host / Port，不需要 EdgeLinkManager 拖到場景。",
       "path": "Samples~/CodeOnly"
+    },
+    {
+      "displayName": "雙向（收狀態 + 送命令）",
+      "description": "收對端推來的狀態，並把命令送回 EdgeLink；KV 進、KV 出，二進位由 Mask 處理。",
+      "path": "Samples~/TwoWay"
     }
   ]
 }

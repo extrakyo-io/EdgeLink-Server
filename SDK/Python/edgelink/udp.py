@@ -3,6 +3,8 @@ import socket
 from collections import deque
 from typing import Callable
 
+from ._dispatch import fire
+
 
 class _UdpReceiverProtocol(asyncio.DatagramProtocol):
     def __init__(self, on_receive: Callable[[bytes, tuple], None]) -> None:
@@ -68,15 +70,13 @@ class EdgeLinkUdpClient:
             dev_sep   = rest.rfind(":")
             endpoint  = rest[:dev_sep]      if dev_sep >= 0 else rest
             device_id = rest[dev_sep + 1:]  if dev_sep >= 0 else ""
-            for cb in self._on_device_status:
-                cb(connected, endpoint, device_id)
+            fire(self._on_device_status, connected, endpoint, device_id, on_error=self._on_error)
             return
         if msg.startswith("EDGELINK_"):
             return
 
         self._queue.append(msg)
-        for cb in self._on_message:
-            cb(msg)
+        fire(self._on_message, msg, on_error=self._on_error)
 
 
 class EdgeLinkUdpSender:

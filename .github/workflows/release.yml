@@ -21,8 +21,12 @@ jobs:
       - name: Restore
         run: dotnet restore EdgeLink-Server.sln
 
+      # 跑整個 sln —— 先前寫死 Server.Tests,SDK 測試在發版時完全不把關
       - name: Test
         run: dotnet test Server.Tests/Server.Tests.csproj -c Release --verbosity normal
+
+      - name: Test (SDK)
+        run: dotnet test SDK/CSharp.Tests/EdgeLink.Sdk.Tests.csproj -c Release --verbosity normal
 
       - name: Publish
         run: >

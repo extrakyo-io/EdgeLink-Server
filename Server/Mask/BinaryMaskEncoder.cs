@@ -14,6 +14,8 @@ namespace EdgeLink.Mask;
 ///   • 沒被宣告的位元組維持 0,正好對應協定文件裡「保留欄位填 0 即可」。
 ///
 /// 回傳 null = 這筆不送(對不到 variant、variant 沒有固定長度、必填欄位缺漏或值不合法)。
+/// 「對不到 variant」包含 discriminator 有值但不等於任何 variant 的 match —— 編碼方向
+/// 不會退回 default variant,那只是解碼方向「看不懂也盡量解」的策略。
 /// 缺欄位預設整包丟棄而不是靜默填 0:送出一筆被歸零的運動命令,遠比沒送出去危險。
 /// 真的允許留白的欄位請標 <see cref="BinaryField.optional"/>。
 /// </summary>
@@ -45,7 +47,9 @@ public static class BinaryMaskEncoder
             if (t == "const") continue;                 // 解碼專用的常數輸出,沒有對應的位元組
 
             // 查表欄位是解碼方向的衍生輸出,反查不回去(協定文件對驅動器異警表明講「不可反查」)。
-            // 同一個位址上的原始欄位已經寫過那幾個位元組,跳過不會留下空洞。
+            // 一律跳過,不當成必填欄位。沒有伴生原始欄位的話那幾個位元組就留 0 ——
+            // 這是刻意的,對應檔頭那句「沒被宣告的位元組維持 0」:同一份 spec 常常
+            // 只有入站方向會用到那些查表欄位,出站方向根本不產生那段內容。
             if (!string.IsNullOrEmpty(f.mapRef)) continue;
 
             if (!string.IsNullOrEmpty(f.auto))
@@ -65,7 +69,7 @@ public static class BinaryMaskEncoder
         return buf;
     }
 
-    /// <summary>依 KV 裡的 discriminator 欄位挑 variant。找不到對應值時退回 default variant。</summary>
+    /// <summary>依 KV 裡的 discriminator 欄位挑 variant。對不到任何 variant 就回 null(不送)。</summary>
     private static BinaryVariant? SelectVariant(IReadOnlyDictionary<string, string> fields, BinarySpec spec)
     {
         if (spec.discriminator == null)
@@ -85,7 +89,14 @@ public static class BinaryMaskEncoder
                 val == v.match)
                 return v;
         }
-        return spec.variants.FirstOrDefault(v => v.isDefault);
+
+        // 對不到就不送。編碼方向**不能**退回 default variant:呼叫端指名了一個
+        // msgType,我們產不出來,那就不該送。退回 default 會送出一筆「長度與版面
+        // 屬於別種訊息、msgType 欄位卻是呼叫端填的那個值」的封包(default variant
+        // 若宣告了同位址的欄位,它會把 discriminator 覆蓋掉),對端一定誤讀 ——
+        // 而且沒有任何錯誤訊號。解碼方向退回 default 是對的,那是「看不懂的封包
+        // 也盡量解」;編碼方向沒有這種寬容空間。
+        return null;
     }
 
     private static bool WriteAuto(byte[] buf, BinaryField f, string type, BinaryVariant variant,
@@ -100,6 +111,18 @@ public static class BinaryMaskEncoder
             _             => long.MinValue,
         };
         if (value == long.MinValue) return false;       // 不認得的 auto 種類
+
+        // seq 與 timeMs 是「只會一直長大」的量,塞不進欄位寬度時必須回捲而不是丟包:
+        // 循環序號的協定語意本來就是 mod 2^n,而毫秒時間戳的常見用法是取低位。
+        // 先前這兩者也走 WriteInteger 的 FitsIn 檢查,後果是 u16 的 seq 一過 65535、
+        // u32 的 timeMs 從第一筆開始,就每一筆都被丟掉,而且**永遠不會恢復**
+        // (counter 與時間只會繼續往上),呼叫端只看到 Encode 一直回 null。
+        //
+        // frameLength 不回捲:長度塞不進宣告的型別是版面本身寫錯,該讓它失敗。
+        if (f.auto.Equals("seq", StringComparison.OrdinalIgnoreCase) ||
+            f.auto.Equals("timeMs", StringComparison.OrdinalIgnoreCase))
+            value = WrapToType(type, value);
+
         return WriteInteger(buf, f.offset, type, value, big);
     }
 
@@ -197,6 +220,18 @@ public static class BinaryMaskEncoder
             default:    return false;
         }
     }
+
+    /// <summary>把值截到目標型別的寬度(捨去高位)。只給會回捲的 auto 欄位用。</summary>
+    private static long WrapToType(string type, long v) => type switch
+    {
+        "u8"  => unchecked((byte)v),
+        "i8"  => unchecked((sbyte)v),
+        "u16" => unchecked((ushort)v),
+        "i16" => unchecked((short)v),
+        "u32" => unchecked((uint)v),
+        "i32" => unchecked((int)v),
+        _     => v,      // u64 / i64 / 浮點:long 一定塞得下
+    };
 
     private static bool FitsIn(string type, long v) => type switch
     {
