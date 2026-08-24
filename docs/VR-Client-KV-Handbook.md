@@ -1,4 +1,6 @@
-# VR 端（Client）KV 對照表
+# 消防訓練平台 — VR 端 EdgeLink KV 介接手冊
+
+涵蓋：雲梯車籃架 TCP **V1**　·　設備 UDP **V1.1**
 
 給接 EdgeLink 的 VR／Client 開發者。**你只會看到 `key:value` 文字，不用碰任何二進位。**
 二進位的解析、位元拆解、查表、序號產生全部在 EdgeLink 裡完成。
