@@ -155,9 +155,12 @@ simulate_firmware.py
 # Python
 __pycache__/
 *.py[cod]
+# 這條原本是為了擋掉隨手匯出的 mask,但兩條鏈路的 mask 都是手寫維護的核心設定,
+# 不是產物 —— 而且 Server.Tests 會直接讀它們來驗證是否符合規格。少一個檔案,
+# 在全新 clone 或 CI 上就是測試直接紅,而本機因為檔案還在完全看不出來。
 docs/*.mask.json
-# 平台 TCP 鏈路的 mask 是整條鏈路的核心設定,要進版控
 !docs/PlatformTcp.mask.json
+!docs/RigBinary.mask.json
 
 # Test run output
 TestResults/

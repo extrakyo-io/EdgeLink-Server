@@ -1,0 +1,331 @@
+{
+  "_comment": "消防訓練平台 OK 二進位協定 → KV 的 Binary Mask。WebUI → Settings → Import 匯入。TCP 埠靠 sync 對齊分包;UDP 不需要 sync 但留著無妨。輸出/轉發埠 Mask 請設 OriginalData 原樣轉發解碼後的 KV。",
+  "masks": [
+    {
+      "maskId": "RigBinary",
+      "localizationKey": "RigBinary",
+      "description": "OK binary → KV (V1.1;msgType 1=搖桿 2=按鈕/急停/踏板 3=編碼器,各一條獨立 seq 流)",
+      "fieldDelimiter": ";",
+      "kvSeparator": ":",
+      "outputTemplate": "",
+      "sampleData": "",
+      "routeMode": "",
+      "correlationIdField": "",
+      "binary": {
+        "byteOrder": "little",
+        "sync": "4f4b01",
+        "discriminator": {
+          "offset": 3,
+          "type": "u8"
+        },
+        "variants": [
+          {
+            "match": 1,
+            "isDefault": false,
+            "length": 37,
+            "template": "id:{id};seq:{seq};conn:{conn};ts:{ts};jlx:{jlx};jly:{jly};jlf:{jlf};jlst:{jlst};jlraw:{jlraw};jrx:{jrx};jry:{jry};jrf:{jrf};jrst:{jrst};jrraw:{jrraw};units:{units}",
+            "fields": [
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "rig1"
+              },
+              {
+                "name": "seq",
+                "offset": 5,
+                "type": "u32"
+              },
+              {
+                "name": "units",
+                "offset": 18,
+                "type": "u8"
+              },
+              {
+                "name": "ts",
+                "offset": 9,
+                "type": "u64"
+              },
+              {
+                "name": "conn",
+                "offset": 17,
+                "type": "u8"
+              },
+              {
+                "name": "jlx",
+                "offset": 19,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "jly",
+                "offset": 23,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "jlf",
+                "offset": 27,
+                "type": "bitrange",
+                "bit": 0,
+                "count": 2
+              },
+              {
+                "name": "jlst",
+                "offset": 27,
+                "type": "bit",
+                "bit": 2
+              },
+              {
+                "name": "jlraw",
+                "offset": 27,
+                "type": "bit",
+                "bit": 3
+              },
+              {
+                "name": "jrx",
+                "offset": 28,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "jry",
+                "offset": 32,
+                "type": "f32",
+                "format": "0.###"
+              },
+              {
+                "name": "jrf",
+                "offset": 36,
+                "type": "bitrange",
+                "bit": 0,
+                "count": 2
+              },
+              {
+                "name": "jrst",
+                "offset": 36,
+                "type": "bit",
+                "bit": 2
+              },
+              {
+                "name": "jrraw",
+                "offset": 36,
+                "type": "bit",
+                "bit": 3
+              }
+            ]
+          },
+          {
+            "match": 2,
+            "isDefault": false,
+            "length": 23,
+            "template": "id:{id};seq:{seq};bl1:{bl1};bl2:{bl2};bl3:{bl3};blst:{blst};br1:{br1};br2:{br2};br3:{br3};brst:{brst};units:{units};conn:{conn};ts:{ts};estopl:{estopl};estopr:{estopr};pedal:{pedal};estopl2:{estopl2};estopr2:{estopr2};pedal2:{pedal2}",
+            "fields": [
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "rig1"
+              },
+              {
+                "name": "seq",
+                "offset": 5,
+                "type": "u32"
+              },
+              {
+                "name": "ts",
+                "offset": 9,
+                "type": "u64"
+              },
+              {
+                "name": "conn",
+                "offset": 17,
+                "type": "u8"
+              },
+              {
+                "name": "units",
+                "offset": 18,
+                "type": "u8"
+              },
+              {
+                "name": "bl1",
+                "offset": 19,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "bl2",
+                "offset": 19,
+                "type": "bit",
+                "bit": 1
+              },
+              {
+                "name": "bl3",
+                "offset": 19,
+                "type": "bit",
+                "bit": 2
+              },
+              {
+                "name": "estopl",
+                "offset": 19,
+                "type": "bit",
+                "bit": 3,
+                "mapRef": "estop"
+              },
+              {
+                "name": "estopr",
+                "offset": 19,
+                "type": "bit",
+                "bit": 4,
+                "mapRef": "estop"
+              },
+              {
+                "name": "pedal",
+                "offset": 19,
+                "type": "bit",
+                "bit": 5
+              },
+              {
+                "name": "blst",
+                "offset": 20,
+                "type": "bit",
+                "bit": 2
+              },
+              {
+                "name": "br1",
+                "offset": 21,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "br2",
+                "offset": 21,
+                "type": "bit",
+                "bit": 1
+              },
+              {
+                "name": "br3",
+                "offset": 21,
+                "type": "bit",
+                "bit": 2
+              },
+              {
+                "name": "estopl2",
+                "offset": 21,
+                "type": "bit",
+                "bit": 3,
+                "mapRef": "estop"
+              },
+              {
+                "name": "estopr2",
+                "offset": 21,
+                "type": "bit",
+                "bit": 4,
+                "mapRef": "estop"
+              },
+              {
+                "name": "pedal2",
+                "offset": 21,
+                "type": "bit",
+                "bit": 5
+              },
+              {
+                "name": "brst",
+                "offset": 22,
+                "type": "bit",
+                "bit": 2
+              }
+            ]
+          },
+          {
+            "match": 3,
+            "isDefault": false,
+            "length": 31,
+            "template": "id:{id};seq:{seq};e1p:{e1p};e1deg:{e1deg};e1gm:{e1gm};e1st:{e1st};e2p:{e2p};e2deg:{e2deg};e2gm:{e2gm};e2st:{e2st};units:{units};conn:{conn};ts:{ts}",
+            "fields": [
+              {
+                "name": "id",
+                "offset": 0,
+                "type": "const",
+                "value": "rig1"
+              },
+              {
+                "name": "seq",
+                "offset": 5,
+                "type": "u32"
+              },
+              {
+                "name": "ts",
+                "offset": 9,
+                "type": "u64"
+              },
+              {
+                "name": "conn",
+                "offset": 17,
+                "type": "u8"
+              },
+              {
+                "name": "units",
+                "offset": 18,
+                "type": "u8"
+              },
+              {
+                "name": "e1p",
+                "offset": 19,
+                "type": "u8"
+              },
+              {
+                "name": "e1gm",
+                "offset": 20,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "e1st",
+                "offset": 20,
+                "type": "bit",
+                "bit": 1
+              },
+              {
+                "name": "e1deg",
+                "offset": 21,
+                "type": "f32",
+                "format": "0.#"
+              },
+              {
+                "name": "e2p",
+                "offset": 25,
+                "type": "u8"
+              },
+              {
+                "name": "e2gm",
+                "offset": 26,
+                "type": "bit",
+                "bit": 0
+              },
+              {
+                "name": "e2st",
+                "offset": 26,
+                "type": "bit",
+                "bit": 1
+              },
+              {
+                "name": "e2deg",
+                "offset": 27,
+                "type": "f32",
+                "format": "0.#"
+              }
+            ]
+          }
+        ],
+        "maps": {
+          "estop": {
+            "0": "ESTOP",
+            "1": "OK"
+          }
+        }
+      }
+    }
+  ],
+  "ports": []
+}

@@ -9,10 +9,13 @@
 # 可以掛著跑、也能進自動化測試。封包版面兩者相同(對照 RigBinary.mask.json)。
 #
 # 用法:
-#   python RigUdpSimulator.py --target 127.0.0.1:47810            # 50 Hz 全量快照
+#   python RigUdpSimulator.py --target 127.0.0.1:47810            # V1.1 預設速率
 #   python RigUdpSimulator.py --target 127.0.0.1:47810 --hz 10 --verbose
 #   python RigUdpSimulator.py --stale-left --fault-right          # 注入故障旗標
+#   python RigUdpSimulator.py --estop-left --pedal                # V1.1:急停 / 踏板
 #   python RigUdpSimulator.py --recv 47811                        # 改當下游,收 KV 印出來
+#
+# 速率依 V1.1 §0/§2:搖桿與按鈕 100 Hz(10ms)、編碼器 50 Hz(20ms)。--hz 會等比覆寫。
 #
 # 需求:Python 3(只用標準函式庫)。
 
@@ -41,6 +44,27 @@ def now_ms():
 def joy_flags(fault_mask, stale, raw):
     """搖桿狀態位元組:bit0-1 = 冗餘故障(X/Y),bit2 = stale,bit3 = 未濾波。"""
     return (fault_mask & 0b11) | (0b100 if stale else 0) | (0b1000 if raw else 0)
+
+
+def button_byte(btn_bits, estop_left_pressed, estop_right_pressed, pedal_down):
+    """V1.1 §5.2 的按鈕位元組。
+
+    bit0..2 = BTN1..3(1 = 按下)
+    bit3    = 左搖桿急停、bit4 = 右搖桿急停 —— **反相:1 = 鬆開,0 = 按下**
+    bit5    = 踏板(1 = 踩下)
+    bit6..7 = 保留,恆 0
+
+    急停反相這件事很容易寫錯,而寫錯的方向剛好是最危險的那邊:V1.1 之前
+    這幾個 bit 一律送 0,用 V1.1 的讀法就是「兩個急停都被按下」。
+    """
+    v = btn_bits & 0b111
+    if not estop_left_pressed:
+        v |= 1 << 3                     # 鬆開才置 1
+    if not estop_right_pressed:
+        v |= 1 << 4
+    if pedal_down:
+        v |= 1 << 5
+    return v
 
 
 def enc_flags(gray_mismatch, stale):
@@ -91,8 +115,8 @@ class Rig:
     def btn_packet(self, t):
         a = self.args
         # 左三顆輪流亮、右三顆反方向 —— 一眼就看得出有沒有在動
-        left = 1 << (int(t) % 3)
-        right = 1 << (2 - int(t) % 3)
+        left = button_byte(1 << (int(t) % 3), a.estop_left, a.estop_right, a.pedal)
+        right = button_byte(1 << (2 - int(t) % 3), a.estop_left, a.estop_right, a.pedal)
         return struct.pack(
             FMT_BTN, MAGIC, VERSION, 2, 0, self.next_seq(2), now_ms(), a.conn, 2,
             left, 0b100 if a.stale_left else 0, right, 0b100 if a.stale_right else 0)
@@ -112,7 +136,14 @@ def send_loop(args):
     rig = Rig(args)
     period = 1.0 / args.hz
 
-    print(f"[設備] 送往 {dest[0]}:{dest[1]} — {args.hz:g} Hz 全量快照(搖桿/按鈕/編碼器各一包)",
+    # V1.1 §0:「搖桿輪詢改為 100Hz/10ms」;§2 表列編碼器為 50Hz/20ms。
+    # 全部擠在同一個速率會讓編碼器多送一倍,對下游的 seq 連續性檢查也不真實。
+    joy_hz = args.hz
+    enc_hz = args.hz / 2.0
+    joy_period = 1.0 / joy_hz
+    enc_period = 1.0 / enc_hz
+
+    print(f"[設備] 送往 {dest[0]}:{dest[1]} — 搖桿/按鈕 {joy_hz:g} Hz、編碼器 {enc_hz:g} Hz(V1.1)",
           flush=True)
     flags = [n for n, v in (('左桿故障', args.fault_left), ('右桿故障', args.fault_right),
                             ('左桿stale', args.stale_left), ('右桿stale', args.stale_right),
@@ -123,25 +154,44 @@ def send_loop(args):
     if args.conn != CONN_CONNECTED:
         print(f"[設備] conn = {args.conn}(非 2 = 資料無效)", flush=True)
 
-    next_tick = time.time()
+    estop = [n for n, v in (('左急停', args.estop_left), ('右急停', args.estop_right),
+                            ('踏板', args.pedal)) if v]
+    if estop:
+        print(f"[設備] V1.1:{'、'.join(estop)} 作動中", flush=True)
+
+    now = time.time()
+    next_joy, next_enc = now, now
     try:
         while True:
-            t = time.time() - rig.t0
+            now = time.time()
+            t = now - rig.t0
             jlx, jly, jrx, jry, e1p, e1deg, e2p, e2deg = rig.sample()
 
-            for pkt in (rig.joy_packet(jlx, jly, jrx, jry),
-                        rig.btn_packet(t),
-                        rig.enc_packet(e1p, e1deg, e2p, e2deg)):
-                sock.sendto(pkt, dest)
+            if now >= next_joy:
+                sock.sendto(rig.joy_packet(jlx, jly, jrx, jry), dest)
+                sock.sendto(rig.btn_packet(t), dest)
+                next_joy += joy_period
+                if args.verbose:
+                    print(f"  → seq={rig.seq[1]} jl=({jlx:+.2f},{jly:+.2f}) "
+                          f"jr=({jrx:+.2f},{jry:+.2f})", flush=True)
 
-            if args.verbose:
-                print(f"  → seq={rig.seq[1]} jl=({jlx:+.2f},{jly:+.2f}) jr=({jrx:+.2f},{jry:+.2f}) "
-                      f"e1={e1deg:.1f}° e2={e2deg:.1f}°", flush=True)
+            if now >= next_enc:
+                sock.sendto(rig.enc_packet(e1p, e1deg, e2p, e2deg), dest)
+                next_enc += enc_period
+                if args.verbose:
+                    print(f"  → seq={rig.seq[3]} e1={e1deg:.1f}° e2={e2deg:.1f}°", flush=True)
 
-            next_tick += period
-            time.sleep(max(0.0, next_tick - time.time()))
+            # 落後太多就重新對齊,不要追著補送(補送會在下游看到一陣爆量)
+            now = time.time()
+            if next_joy < now - joy_period:
+                next_joy = now
+            if next_enc < now - enc_period:
+                next_enc = now
+
+            time.sleep(max(0.0, min(next_joy, next_enc) - time.time()))
     except KeyboardInterrupt:
-        print(f"\n[設備] 結束(共送 {rig.seq[1]} 組)", flush=True)
+        print(f"\n[設備] 結束(搖桿 {rig.seq[1]} / 按鈕 {rig.seq[2]} / 編碼器 {rig.seq[3]})",
+              flush=True)
 
 
 def recv_loop(args):
@@ -196,7 +246,8 @@ def recv_loop(args):
 def main():
     p = argparse.ArgumentParser(description="消防 rig 操作者輸入側 — UDP 虛擬設備(headless)")
     p.add_argument('--target', default='127.0.0.1:47810', help="EdgeLink UDP 埠(host:port)")
-    p.add_argument('--hz', type=float, default=50.0, help="全量快照頻率")
+    p.add_argument('--hz', type=float, default=100.0,
+                   help="搖桿/按鈕頻率(V1.1 預設 100 Hz);編碼器自動取一半")
     p.add_argument('--verbose', action='store_true')
     p.add_argument('--recv', type=int, help="改當下游:在這個 UDP 埠收 KV")
     p.add_argument('--interval', type=float, default=1.0, help="--recv 模式的印出間隔(秒)")
@@ -211,6 +262,12 @@ def main():
     p.add_argument('--gray-mismatch', action='store_true', help="編碼器 1 gray 一致性失敗")
     p.add_argument('--raw-left', action='store_true', help="左桿值未經低通濾波")
     p.add_argument('--raw-right', action='store_true')
+
+    # V1.1 §5.2 新增。急停在線路上是反相的(1 = 鬆開),這裡的旗標是「按下」的語意,
+    # 反相由 button_byte() 統一處理 —— 不讓每個呼叫點各自去記那件事。
+    p.add_argument('--estop-left', action='store_true', help="左搖桿急停按下")
+    p.add_argument('--estop-right', action='store_true', help="右搖桿急停按下")
+    p.add_argument('--pedal', action='store_true', help="踏板踩下")
 
     args = p.parse_args()
     # fault 是位元遮罩(bit0=X 冗餘、bit1=Y 冗餘);這裡簡化成兩軸同時故障
