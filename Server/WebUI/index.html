@@ -185,11 +185,11 @@
     [data-theme="dark"] .b-off::before { background: var(--text-3); }
     [data-theme="dark"] .b-on          { background: var(--success-bg); color: #6ee7b7; }
     [data-theme="dark"] .b-on::before  { background: var(--success); }
-    [data-theme="dark"] .proto-server  { color: #fbbf24; }
-    [data-theme="dark"] .proto-client  { color: #67e8f9; }
-    [data-theme="dark"] .proto-udp     { color: #38bdf8; }
-    [data-theme="dark"] .mask-tag      { color: #67e8f9; }
-    [data-theme="dark"] .mode-tag      { color: #6ee7b7; }
+    [data-theme="dark"] .proto-server  { color: var(--text-2); }
+    [data-theme="dark"] .proto-client  { color: var(--text-2); }
+    [data-theme="dark"] .proto-udp     { color: var(--text-2); }
+    [data-theme="dark"] .mask-tag      { color: var(--text-2); }
+    [data-theme="dark"] .mode-tag      { color: var(--text-3); }
     [data-theme="dark"] .m-badge       { background: var(--success-bg); color: #6ee7b7; }
     [data-theme="dark"] .mask-item:hover { background: #0a2530; }
     [data-theme="dark"] .mask-item.sel  { background: #0a2530; border-color: #155e75; }
@@ -265,12 +265,32 @@
       border-bottom: 1px solid var(--border);
       text-align: left; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;
     }
-    .ptable td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    /* 名稱欄可能三行、連線欄兩行、狀態欄一行。vertical-align:middle 會讓短的
+       那些浮在高列的正中間,看起來像沒對齊 —— 一律靠上,基線才會成一條。 */
+    .ptable td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; line-height: 1.45; }
+    .ptable td.chk-col { vertical-align: middle; }
     .ptable tr:last-child td { border-bottom: none; }
     .ptable tbody tr { transition: background .12s; }
     .ptable tbody tr:hover td { background: rgba(34,211,238,.04); }
     .ptable td.chk-col, .ptable th.chk-col { width: 36px; padding: 8px 4px 8px 14px; }
-    .batch-bar { display:none; align-items:center; gap:10px; padding:8px 16px; background:var(--pri-light); border-bottom:1px solid var(--pri-border); font-size:13px; color:var(--text); }
+    /* 刪除跟其他四顆長得一模一樣,手滑的代價卻完全不同。用一條分隔線把它隔開,
+       平常再壓低存在感 —— 需要它的人找得到,不需要的人不會誤觸。 */
+    .ptable td.act-col { text-align: right; white-space: nowrap; }
+    .act-col .btn { margin-left: 4px; }
+    .act-sep { display: inline-block; width: 1px; height: 16px; margin: 0 4px 0 8px;
+               background: var(--border-2); vertical-align: middle; }
+    .act-col .btn-del { opacity: .5; }
+    .act-col .btn-del:hover { opacity: 1; }
+    .batch-bar { display:none; align-items:center; gap:10px; padding:9px 14px; background:var(--pri-light); border:1px solid var(--pri-border); border-radius: var(--r-sm); font-size:13px; color:var(--text); margin-bottom: 4px; }
+
+    /* 頁首:標題與主要動作直接放在畫布上。一個只裝著一列字的卡片,
+       只會讓人注意到它有多空。 */
+    .page-hd-wrap { display: flex; flex-direction: column; gap: 14px; }
+    .page-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .page-title { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+    /* 表單展開時自己帶外殼,不再靠父層卡片 */
+    .port-form { padding: 16px 18px; background: var(--card-2);
+                 border: 1px solid var(--border); border-radius: var(--r); }
     .batch-bar.show { display:flex; }
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
     .badge::before { content:''; width: 5px; height: 5px; border-radius: 50%; }
@@ -278,16 +298,23 @@
     .b-on::before  { background: var(--success); }
     .b-off { background: #f1f5f9; color: var(--text-3); }
     .b-off::before { background: var(--text-3); }
-    /* Plain colored text, not pills — a row already has a protocol badge,
-       a mask label and a status dot; bordering all three turns a data row
-       into a wall of chips. Color alone is enough to tell them apart. */
-    .proto { font-size: 12px; font-weight: 600; white-space: nowrap; }
-    .proto-client { color: var(--pri); }
-    .proto-server { color: #92400e; }
-    .proto-udp    { color: #075985; }
+    /* 協定是「三選一的類別」,不是狀態。用色相標它會跟真正的狀態色打架 ——
+       琥珀色的 TCP Server 擺在綠色連線燈旁邊,一眼看過去像是在示警,但它只是
+       在說「這是 TCP Server」。文字本身已經講清楚了,色相沒有多給資訊。
+       整頁只留一種有顏色的東西:健康狀態。 */
+    .proto {
+      display: inline-block; white-space: nowrap;
+      font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace;
+      font-size: 11px; font-weight: 600; letter-spacing: .03em;
+      color: var(--text-2); background: var(--card-2);
+      border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px;
+    }
+    /* 進得來的(Server/UDP 綁本機埠)用實心,打出去的(Client)用外框 ——
+       用填滿與否區分方向,黑白列印與色盲讀者都分得出來。 */
+    .proto-client { background: transparent; border-style: dashed; }
     .mono { font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; font-size: 12px; }
-    .mask-tag { color: var(--pri); font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
-    .mode-tag { color: #166534; font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+    .mask-tag { color: var(--text-2); font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
+    .mode-tag { color: var(--text-3); font-size: 12px; font-weight: 500; font-family: Consolas, 'Cascadia Code', 'SF Mono', Monaco, monospace; white-space: nowrap; }
 
     /* ── Port table toolbar ─────────────────────────────────── */
     .pc-disabled-note { display: inline-block; font-size: 10px; color: var(--danger); padding: 2px 6px; background: rgba(239,68,68,.08); border-radius: 4px; white-space: nowrap; }
@@ -664,9 +691,9 @@
 
 <!-- ── Port 管理 ── -->
 <div id="sec-port" class="layout-full" style="display:none">
-    <div class="card">
-      <div class="card-hd">
-        <span class="card-title" data-i18n="portStatus"></span>
+    <div class="page-hd-wrap">
+      <div class="page-hd">
+        <span class="page-title" data-i18n="portStatus"></span>
         <button class="btn btn-pri btn-sm" onclick="toggleAddPortForm()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -676,7 +703,7 @@
       </div>
 
       <!-- Add Port form -->
-      <div id="add-port-form" style="display:none;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--card-2)">
+      <div id="add-port-form" class="port-form" style="display:none">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
           <input id="ap-name"      type="text" data-i18n-ph="apName">
           <select id="ap-protocol" onchange="onAddPortProtocolChange()">
@@ -749,7 +776,7 @@
       </div>
 
       <!-- Edit Port form -->
-      <div id="edit-port-form" style="display:none;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--card-2)">
+      <div id="edit-port-form" class="port-form" style="display:none">
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px" data-i18n="editPortTitle"></div>
         <input type="hidden" id="ep-id">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -2026,14 +2053,14 @@ async function loadPorts() {
         ${statsLine}
       </td>
       <td>
-        <span style="display:inline-flex;align-items:center;gap:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
           <span class="dot${p.isConnected ? ' ok' : ''}"></span>
           <span style="font-size:12px;color:var(--text-2)">${p.isConnected ? t('connected') : t('disconnected')}</span>
         </span>
         ${!p.isEnabled ? `<div class="pc-disabled-note" style="margin-top:4px">${t('disablePort')}</div>` : ''}
       </td>
       <td style="white-space:nowrap">${maskTags}</td>
-      <td style="text-align:right;white-space:nowrap">${monBtn}${clientsBtn}${toggleBtn}${editBtn}${delBtn}</td>
+      <td class="act-col">${monBtn}${clientsBtn}${toggleBtn}${editBtn}<span class="act-sep"></span>${delBtn}</td>
     </tr>`;
   }).join('');
 
@@ -2048,7 +2075,7 @@ function updatePortSummary(ports) {
   const connected = ports.filter(p => p.isConnected).length;
   el.innerHTML = total > 0
     ? `<span><span class="pc-summary-num">${total}</span> ${t('totalPort') || 'Port'}</span>
-       <span class="pc-summary-on">●&nbsp;<span class="pc-summary-num">${connected}</span> ${t('connected')}</span>`
+       <span class="pc-summary-on"><span class="pc-summary-num">${connected}</span> ${t('connected')}</span>`
     : '';
 }
 
