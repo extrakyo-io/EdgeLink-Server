@@ -844,9 +844,12 @@ public class RoutingTests(ServerFixture fixture) : IAsyncLifetime
         Assert.Contains("mt:19",                     status);
         Assert.Contains("plctxt:CONNECTED",          status);
         Assert.Contains("gsttxt:ERRORSTOP",          status);
-        Assert.Contains("ecerrtxt:WRONG_WORKING_COUNTER", status);
-        Assert.Contains("derratxt:FOLLOWING_ERROR",  status);   // 精確
-        Assert.Contains("derrbtxt:PR_PARAM",         status);   // 範圍
+        // 查表值是**給人看的顯示文字**,已改成中文(先前是 WRONG_WORKING_COUNTER 這類
+        // 全大寫加底線的列舉名 —— 那是識別字不是文字)。判斷邏輯請用原始碼 ecerr/derra,
+        // 這裡比對文字是因為要驗查表本身有沒有生效。
+        Assert.Contains("ecerrtxt:工作計數器不符", status);
+        Assert.Contains("derratxt:追隨誤差過大", status);   // 精確
+        Assert.Contains("derrbtxt:PR 參數錯誤", status);   // 範圍 key
         Assert.Contains("derrctxt:UNKNOWN",          status);   // 落到 mapDefault
         Assert.Contains("derra:34321",               status);   // 原始碼要保留
         Assert.Contains("pa:120.5",                  status);
@@ -1187,20 +1190,30 @@ public sealed class TestTcpConnection(TcpClient tcp) : IDisposable
 
     public async Task<string?> ReadRawLineAsync(int timeout = 3000)
     {
+        // 逐**位元組**收集,收完整行才用 UTF-8 解碼。
+        //
+        // 先前是 `char c = (char)buf[0]` 逐位元組轉字元 —— 那等於 Latin-1 解碼:
+        // 每個 UTF-8 位元組各自變成一個字元,中文會被讀成「å·¥ä½...」這種亂碼。
+        // 只要 mask 的查表值全是 ASCII 就看不出來;一旦改成中文,測試就會用一個
+        // 看起來像「查表沒生效」的訊息失敗,而實際上 EdgeLink 送出的位元組完全正確。
         using var cts = new CancellationTokenSource(timeout);
-        var sb  = new StringBuilder();
+        var bytes = new List<byte>();
         var buf = new byte[1];
         try
         {
             while (true)
             {
                 int n = await _stream.ReadAsync(buf, cts.Token);
-                if (n == 0) return sb.Length > 0 ? sb.ToString().TrimEnd('\r') : null;
-                char c = (char)buf[0];
-                if (c == '\n') return sb.ToString().TrimEnd('\r');
-                sb.Append(c);
+                if (n == 0)
+                    return bytes.Count > 0
+                        ? Encoding.UTF8.GetString(bytes.ToArray()).TrimEnd('\r')
+                        : null;
+                if (buf[0] == (byte)'\n')
+                    return Encoding.UTF8.GetString(bytes.ToArray()).TrimEnd('\r');
+                bytes.Add(buf[0]);
             }
         }
+        
         catch (OperationCanceledException) { return null; }
         catch { return null; }
     }
