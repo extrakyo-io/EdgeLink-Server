@@ -94,9 +94,8 @@ public class TcpNetworkTests(ServerFixture fixture) : IAsyncLifetime
         using var tcp   = new TcpClient();
         await tcp.ConnectAsync("127.0.0.1", 19053);
         using var stream = tcp.GetStream();
-        stream.ReadTimeout = 8000;   // pings come within ~3–5 s
 
-        string? ping = await ReadLineAsync(stream, CancellationToken.None);
+        string? ping = await ReadLineAsync(stream, 8000);   // pings come within ~3–5 s
 
         Assert.NotNull(ping);
         Assert.StartsWith("EDGELINK_PING:", ping);
@@ -110,10 +109,9 @@ public class TcpNetworkTests(ServerFixture fixture) : IAsyncLifetime
         using var tcp   = new TcpClient();
         await tcp.ConnectAsync("127.0.0.1", 19054);
         using var stream = tcp.GetStream();
-        stream.ReadTimeout = 8000;
 
         // Read first PING and reply PONG
-        string? ping = await ReadLineAsync(stream, CancellationToken.None);
+        string? ping = await ReadLineAsync(stream, 8000);
         Assert.NotNull(ping);
         Assert.StartsWith("EDGELINK_PING:", ping);
 
@@ -122,8 +120,7 @@ public class TcpNetworkTests(ServerFixture fixture) : IAsyncLifetime
         await stream.WriteAsync(Encoding.UTF8.GetBytes(pong));
 
         // A second PING should arrive (proves connection stays alive)
-        stream.ReadTimeout = 12000;
-        string? ping2 = await ReadLineAsync(stream, CancellationToken.None);
+        string? ping2 = await ReadLineAsync(stream, 12000);
         Assert.NotNull(ping2);
         Assert.StartsWith("EDGELINK_PING:", ping2);
     }
@@ -227,10 +224,9 @@ public class TcpNetworkTests(ServerFixture fixture) : IAsyncLifetime
         var tcp = new TcpClient();
         await tcp.ConnectAsync("127.0.0.1", port);
         var stream = tcp.GetStream();
-        stream.ReadTimeout = 6000;
 
         // Read first PING
-        string? ping = await ReadLineAsync(stream, CancellationToken.None);
+        string? ping = await ReadLineAsync(stream, 6000);
         if (ping != null && ping.StartsWith("EDGELINK_PING:"))
         {
             string hex  = ping.Split(':')[1].Trim();
@@ -238,6 +234,20 @@ public class TcpNetworkTests(ServerFixture fixture) : IAsyncLifetime
             await stream.WriteAsync(Encoding.UTF8.GetBytes(pong));
         }
         return tcp;
+    }
+
+    /// <summary>
+    /// 讀一行,逾時就回 null(呼叫端的 Assert.NotNull 會把它報成失敗)。
+    ///
+    /// 這幾個呼叫點原本設的是 <c>stream.ReadTimeout</c> —— 那個屬性只作用在同步的
+    /// Read,對 <c>ReadAsync</c> 完全沒有效果。看起來有防護,實際上等一筆永遠不會來的
+    /// PING 就是無限等下去:xUnit 沒有預設逾時,整個 job 會掛到 CI 的 6 小時上限,
+    /// 而輸出停在前一條測試的 PASS,看不出是誰卡住。
+    /// </summary>
+    private static async Task<string?> ReadLineAsync(NetworkStream stream, int timeoutMs)
+    {
+        using var cts = new CancellationTokenSource(timeoutMs);
+        return await ReadLineAsync(stream, cts.Token);
     }
 
     private static async Task<string?> ReadLineAsync(NetworkStream stream, CancellationToken ct)

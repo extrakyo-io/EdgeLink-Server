@@ -12,7 +12,16 @@ namespace Server.Tests.Unit;
 /// 關鍵區別在於「內容毀損」與「讀不到檔」是兩回事:
 ///   - 內容毀損 → 原檔已無價值,備份後改用預設值是對的(SettingLoader 本來就有做)
 ///   - 讀不到檔(IO/權限/鎖檔) → 檔案內容**完好無損**,退回預設值再存檔就會毀掉它
+///
+/// 掛在 Integration collection 底下,不是因為它需要伺服器,而是因為 `ServerFixture`
+/// 在 Init 與 Dispose 都會 `Directory.Delete(Setting, recursive: true)`,而這組測試
+/// 直接操作真實的 `Setting/PortDatas.setting`。不同 collection 在 xUnit 是**並行**跑的
+/// —— 先前這個類別沒有標註,等於自己一個 collection,fixture 隨時可能在測試中途把整個
+/// 目錄砍掉。CI 上真的中過:`Could not find a part of the path ...Setting\PortDatas.setting`,
+/// 而本機同一份程式碼 234/234 全過。同一個 collection 內是循序的,砍目錄與這組測試
+/// 因此不會重疊。
 /// </summary>
+[Collection("Integration")]
 public class ReadFailureDataLossTests : IDisposable
 {
     private readonly string _path = Path.Combine(AppPaths.SettingDir, nameof(PortDatas) + ".setting");
