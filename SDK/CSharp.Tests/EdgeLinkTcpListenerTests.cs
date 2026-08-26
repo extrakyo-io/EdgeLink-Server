@@ -199,7 +199,11 @@ public class EdgeLinkTcpListenerTests : IDisposable
             while (!stop.IsCancellationRequested)
             {
                 int n;
-                try { n = await peer.GetStream().ReadAsync(buf, CancellationToken.None); }
+                // token 一定要傳進去。停在 ReadAsync 裡的讀取不會去看 stop 旗標 ——
+                // 後面 stop.Cancel() 之後若對端剛好不再送任何東西(pinger 已經先
+                // 結束、不會再有 PONG),這個 await 就永遠不返回,await reading 跟著
+                // 掛死。CI 上三個 run 都是這樣停在這裡 21 分鐘直到被取消的。
+                try { n = await peer.GetStream().ReadAsync(buf, stop.Token); }
                 catch (Exception) { return; }
                 if (n <= 0) return;
                 lock (sb) sb.Append(Encoding.UTF8.GetString(buf, 0, n));
