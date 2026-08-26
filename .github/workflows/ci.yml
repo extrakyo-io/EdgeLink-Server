@@ -1,11 +1,22 @@
 name: CI
 
+# push 只留 main。先前是 branches: ["**"],而 pull_request 也開著 —— 一個開了 PR
+# 的分支每推一次就跑兩份一模一樣的 job,Windows runner 一次被吃掉兩格。實際發生過:
+# 兩份 release/v2.6.0 的 job 佔滿之後,main 那個 run 連 job 都起不來,純粹排隊。
+#
+# 代價:分支還沒開 PR 之前推上去不會有 CI。這個 repo 的東西本來就都走 PR 進 main,
+# 開了 PR 就照跑,所以拿掉的是重複那一份,不是把關本身。
 on:
   push:
-    branches: ["**"]
-    tags-ignore: ["v*"]
+    branches: [main]
   pull_request:
     branches: [main]
+
+# 同一個 PR 連推好幾次時,舊的 run 直接取消 —— 沒人會看已經被取代的結果,
+# 但它照樣佔著 runner。main 不套用:每個進 main 的 commit 都該留下自己的紀錄。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-and-test:
